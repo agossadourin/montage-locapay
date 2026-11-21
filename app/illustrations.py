@@ -124,34 +124,43 @@ def _pexels(requete, cle, client):
     out = []
     h = {"Authorization": cle}
     r = client.get("https://api.pexels.com/videos/search", headers=h,
-                   params={"query": requete, "orientation": "portrait", "per_page": 8})
+                   params={"query": requete, "orientation": "portrait", "size": "medium", "per_page": 15})
     if r.status_code == 200:
         for v in r.json().get("videos", []):
-            fichiers = sorted([f for f in v.get("video_files", []) if f.get("link") and (f.get("height") or 0) >= 720],
-                              key=lambda f: f.get("height") or 0)
-            if fichiers:
-                out.append({"type": "video", "apercu": v.get("image"), "url": fichiers[0]["link"],
-                            "id": f"pexels-v{v.get('id')}", "credit": (v.get("user") or {}).get("name", "Pexels")})
+            fichiers = [f for f in v.get("video_files", []) if f.get("link") and (f.get("width") or f.get("height"))]
+            if not fichiers:
+                continue
+            wh = lambda f: (f.get("width") or f.get("height"), f.get("height") or f.get("width"))
+            # le fichier le plus léger d'au moins 720 px sur le petit côté (sinon le plus grand)
+            assez = sorted([f for f in fichiers if min(wh(f)) >= 720], key=lambda f: wh(f)[0] * wh(f)[1])
+            f = assez[0] if assez else max(fichiers, key=lambda f: wh(f)[0] * wh(f)[1])
+            w, h = (f.get("width"), f.get("height")) if f.get("width") and f.get("height") else (v.get("width"), v.get("height"))
+            out.append({"type": "video", "apercu": v.get("image"), "url": f["link"], "w": w, "h": h,
+                        "id": f"pexels-v{v.get('id')}", "credit": (v.get("user") or {}).get("name", "Pexels")})
     r = client.get("https://api.pexels.com/v1/search", headers=h,
                    params={"query": requete, "orientation": "portrait", "per_page": 8})
     if r.status_code == 200:
         for p in r.json().get("photos", []):
             src = p.get("src") or {}
             if src.get("portrait") or src.get("large2x"):
+                # « portrait » = version recadrée 800×1200 fournie par Pexels
+                w, h = (800, 1200) if src.get("portrait") else (p.get("width"), p.get("height"))
                 out.append({"type": "image", "apercu": src.get("medium") or src.get("small"),
                             "url": src.get("portrait") or src.get("large2x"), "id": f"pexels-p{p.get('id')}",
-                            "credit": p.get("photographer", "Pexels")})
+                            "w": w, "h": h, "credit": p.get("photographer", "Pexels")})
     return out
 
 
 def _pixabay(requete, cle, client):
     out = []
-    r = client.get("https://pixabay.com/api/videos/", params={"key": cle, "q": requete, "per_page": 8})
+    # (l'API vidéo de Pixabay n'a pas de filtre d'orientation : on en demande plus et on trie ensuite)
+    r = client.get("https://pixabay.com/api/videos/", params={"key": cle, "q": requete, "per_page": 20})
     if r.status_code == 200:
         for v in r.json().get("hits", []):
             fv = (v.get("videos") or {}).get("medium") or (v.get("videos") or {}).get("small") or {}
             if fv.get("url"):
                 out.append({"type": "video", "apercu": fv.get("thumbnail"), "url": fv["url"],
+                            "w": fv.get("width"), "h": fv.get("height"),
                             "id": f"pixabay-v{v.get('id')}", "credit": v.get("user", "Pixabay")})
     r = client.get("https://pixabay.com/api/", params={"key": cle, "q": requete, "orientation": "vertical",
                                                        "image_type": "photo", "per_page": 8})
@@ -160,6 +169,7 @@ def _pixabay(requete, cle, client):
             if p.get("largeImageURL"):
                 out.append({"type": "image", "apercu": p.get("webformatURL") or p.get("previewURL"),
                             "url": p["largeImageURL"], "id": f"pixabay-p{p.get('id')}",
+                            "w": p.get("imageWidth"), "h": p.get("imageHeight"),
                             "credit": p.get("user", "Pixabay")})
     return out
 
@@ -175,12 +185,25 @@ def rechercher(requete, cles, client=None):
             res += _pixabay(requete, cles["pixabay"], c)
     except Exception as e:
         print("Recherche d'illustrations impossible →", e)
-    videos = [r for r in res if r["type"] == "video"]
-    photos = [r for r in res if r["type"] == "image"]
+    for r in res:
+        r["orientation"] = orientation(r.get("w"), r.get("h"))
+    verticaux = [r for r in res if r["orientation"] != "paysage"]
+    videos = [r for r in verticaux if r["type"] == "video"]
+    photos = [r for r in verticaux if r["type"] == "image"]
     melange = []
     for i in range(max(len(videos), len(photos))):   # alterne vidéo / photo pour varier les propositions
         melange += videos[i:i + 1] + photos[i:i + 1]
-    return melange
+    # les médias en paysage (qu'il faudrait trop zoomer) viennent en dernier
+    return melange + [r for r in res if r["orientation"] == "paysage"]
+
+
+def orientation(w, h):
+    """« portrait », « carre » ou « paysage » (inconnu = portrait : les recherches demandent du vertical)."""
+    try:
+        r = float(w) / float(h)
+    except (TypeError, ValueError, ZeroDivisionError):
+        return "portrait"
+    return "paysage" if r > 1.15 else ("carre" if r > 0.8 else "portrait")
 
 
 def telecharger(resultat, client=None):

@@ -609,6 +609,14 @@ ID0, CLES0 = CFG["identite"], CFG["cles"]
 STYLE0 = C.charger_style(CFG["style_actif"])
 
 with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": THEME})) as app:
+    # retour à l'éditeur (on revient sur le projet ouvert si on vient de là)
+    gr.HTML("""<div style="display:flex;gap:10px;align-items:center;margin-bottom:4px">
+      <a id="retour-editeur" href="/editeur"
+         onclick="if (document.referrer.indexOf('/editeur') >= 0) { location.href = document.referrer; return false; }"
+         style="position:fixed;top:14px;right:18px;z-index:1000;display:inline-flex;align-items:center;gap:6px;
+                padding:9px 16px;border-radius:9px;background:#0AC2A4;color:#fff;font-weight:600;text-decoration:none;
+                box-shadow:0 4px 14px rgba(0,0,0,.18)">← Retour à l'éditeur</a>
+      <span style="opacity:.6;font-size:13px">Vos réglages sont enregistrés avec les boutons 💾 de chaque onglet.</span></div>""")
     gr.Markdown(f"# 🎬 Montage automatique Locapay <small style='opacity:.5'>{VERSION}</small>\n"
                 "Glissez une vidéo brute face caméra (ou plusieurs, à assembler), cliquez sur **Monter la vidéo**, "
                 "récupérez la vidéo prête à publier — puis retouchez-la si besoin dans "
@@ -637,7 +645,7 @@ with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": 
                     info_pre = gr.Markdown()
             musique = gr.File(label="Musique de fond (facultatif)", file_types=["audio"], type="filepath")
 
-            with gr.Accordion("⚙️ Paramètres", open=False):
+            with gr.Accordion("⚙️ Paramètres", open=False, elem_id="acc-parametres") as acc_param:
                 with gr.Tabs():
                     with gr.Tab("🎨 Identité visuelle"):
                         gr.Markdown("Votre marque : appliquée à **tous** les styles (couleurs des écrans, logo, polices).")
@@ -827,6 +835,12 @@ with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": 
     table_corr.select(selectionner_correction, None, [corr_choisie])
     moins.click(supprimer_correction, [corrections, corr_choisie], [corrections, table_corr, corr_choisie, info_corr])
     app.load(lambda: (charger_dico(), lignes_corrections(charger_dico())), None, [corrections, table_corr])
+
+    def _ouvrir_parametres(request: gr.Request):      # lien « ⚙️ Paramètres » de l'éditeur : /?parametres=1
+        return gr.Accordion(open=bool(request and request.query_params.get("parametres")))
+    app.load(_ouvrir_parametres, None, acc_param,
+             js="() => { if (location.search.includes('parametres')) setTimeout(() => "
+                "document.getElementById('acc-parametres')?.scrollIntoView({behavior: 'smooth'}), 600); }")
     tableau_valid.select(ecouter, [analyse], [ecoute])
     stop.click(arreter_ecoute)
     dossier.click(ouvrir_dossier)

@@ -44,6 +44,11 @@ header .statut{color:var(--doux);margin-left:auto}
 .trans.coupe{opacity:.55}
 #scene .couche{position:absolute;inset:0;display:none}
 #scene .couche img,#scene .couche video{width:100%;height:100%;object-fit:cover}
+#c-ill .fond{display:none}
+#c-ill[data-mode=adapter] .fond{display:block;position:absolute;inset:0;filter:blur(16px) brightness(.55);transform:scale(1.15)}
+#c-ill[data-mode=adapter] .avant{position:absolute;left:-4%;top:50%;width:108%;height:auto;object-fit:contain;transform:translateY(-50%)}
+.grille .vignette{position:relative}
+.grille .vignette span{position:absolute;left:4px;bottom:6px;font-size:10px;background:rgba(0,0,0,.7);color:#fff;border-radius:4px;padding:1px 4px}
 #st-zone{position:absolute;left:0;right:0;display:flex;flex-direction:column;align-items:center;transform:translateY(-50%);pointer-events:none}
 #st-zone .ligne{display:flex;gap:.28em;justify-content:center;white-space:nowrap;line-height:1.05}
 #st-zone span{color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.55);transition:none;display:inline-block}
@@ -123,7 +128,7 @@ progress{width:100%;height:10px}
   <header>
     <a href="/editeur">← Projets</a>
     <span class="titre" id="nom-projet">Projet</span>
-    <a href="/" title="Identité visuelle, style, clés API">⚙️ Paramètres</a>
+    <a href="/?parametres=1" title="Identité visuelle, style, clés API">⚙️ Paramètres</a>
     <span class="statut" id="statut">Chargement…</span>
     <button id="b-auto">✨ Montage automatique</button>
     <button id="b-exporter" class="primaire">⬆️ Exporter la vidéo</button>
@@ -403,14 +408,23 @@ function rendreScene(forcerSeek) {
   const il = ec ? null : illA(s);
   if (il) {
     cIll.style.display = "block";
-    if (illCourante !== il.id) {
-      illCourante = il.id; cIll.innerHTML = "";
-      if (il.type === "video") { const vv = document.createElement("video"); vv.muted = true; vv.playsInline = true; vv.src = media(il.fichier); cIll.appendChild(vv); }
-      else { const im = document.createElement("img"); im.src = media(il.fichier); cIll.appendChild(im); }
+    const cleIll = il.id + ":" + il.fichier + ":" + (il.cadrage || "auto");
+    if (illCourante !== cleIll) {
+      illCourante = cleIll; cIll.innerHTML = "";
+      const tag = il.type === "video" ? "video" : "img";
+      const fait = (cls) => { const e = document.createElement(tag); e.className = cls; if (tag === "video") { e.muted = true; e.playsInline = true; } e.src = media(il.fichier); return e; };
+      const fond = fait("fond"), av = fait("avant"); cIll.append(fond, av);
+      const cadrage = () => {          // comme à l'export : un média plus large que haut est montré en entier sur fond flou
+        const w = av.naturalWidth || av.videoWidth, h = av.naturalHeight || av.videoHeight;
+        cIll.dataset.mode = il.cadrage && il.cadrage !== "auto" ? il.cadrage : (w && h && w / h > 0.8 ? "adapter" : "remplir");
+      };
+      av.addEventListener(tag === "video" ? "loadedmetadata" : "load", cadrage); cadrage();
     }
-    const el = cIll.firstChild, rel = s - il.deb;
-    if (el && el.tagName === "VIDEO") { if (Math.abs(el.currentTime - rel) > 0.3) el.currentTime = rel; if (lecture && el.paused) el.play().catch(() => {}); if (!lecture && !el.paused) el.pause(); }
-    else if (el) { const f = clamp(rel / Math.max(0.1, il.fin - il.deb), 0, 1); el.style.transform = `scale(${1 + 0.08 * f})`; }
+    const el = cIll.querySelector(".avant"), fondEl = cIll.querySelector(".fond"), rel = s - il.deb, adapte = cIll.dataset.mode === "adapter";
+    const f = clamp(rel / Math.max(0.1, il.fin - il.deb), 0, 1);
+    if (el && el.tagName === "VIDEO") {
+      for (const x of adapte ? [el, fondEl] : [el]) { if (Math.abs(x.currentTime - rel) > 0.3) x.currentTime = rel; if (lecture && x.paused) x.play().catch(() => {}); if (!lecture && !x.paused) x.pause(); }
+    } else if (el) el.style.scale = String(adapte ? 1 + 0.06 * f : 1 + 0.08 * f);   // léger zoom avant (Ken Burns)
   } else { cIll.style.display = "none"; illCourante = null; }
   rendreSousTitres(s, !!ec);
   const dernierClip = cps[cps.length - 1];
@@ -707,7 +721,7 @@ function inspecter() {
       <p>3. Retouchez, puis <b>⬆️ Exporter</b>.</p>` + aide; return; }
   if (!sel) { ins.innerHTML = `<h3>Projet</h3><p class="aide">${proj.clips.length} plans · ${proj.sous_titres.length} sous-titres · ${proj.illustrations.length} illustrations · ${proj.ecrans.length} écrans</p>` +
       (proj.alertes.length ? `<p>⚠️ <b>${proj.alertes.length} passage(s) à vérifier</b> sur la piste rouge : cliquez dessus pour écouter, couper, traduire ou garder.</p>` : "") +
-      (proj.auto && proj.auto.sans_cle_images ? `<p class="aide">🖼 Aucune illustration cherchée : ajoutez une clé Pexels (gratuite) dans <a href="/">⚙️ Paramètres › Clés API</a>, puis relancez ✨.</p>` : "") +
+      (proj.auto && proj.auto.sans_cle_images ? `<p class="aide">🖼 Aucune illustration cherchée : ajoutez une clé Pexels (gratuite) dans <a href="/?parametres=1">⚙️ Paramètres › Clés API</a>, puis relancez ✨.</p>` : "") +
       champ("Transitions entre les plans", `<div class="rangee"><select id="i-trans-tout">${Object.entries(TRANSITIONS).map(([k, [n, i]]) => `<option value="${k}" ${(R().transition || "fondu") === k ? "selected" : ""}>${i} ${n}</option>`).join("")}</select>
         <select id="i-trans-duree">${[[0.15, "Rapide"], [0.25, "Normale"], [0.4, "Lente"], [0.6, "Très lente"]].map(([d, n]) => `<option value="${d}" ${Math.abs(dureeTr() - d) < 0.04 ? "selected" : ""}>${n}</option>`).join("")}</select></div>
         <p class="aide">Pour un seul plan : cliquez sur le petit rond entre deux plans de la piste 🎬.</p>`) +
@@ -782,7 +796,9 @@ function inspecter() {
     const alt = it.alternatives || [];
     ins.innerHTML = `<h3>🖼 Illustration</h3>` + (it.type === "video" ? `<video class="apercu" src="${media(it.fichier)}" muted controls style="width:100%;border-radius:6px"></video>` : `<img class="apercu" src="${media(it.fichier)}">`) +
       `<p class="aide">${(it.fin - it.deb).toFixed(1)} s · ${it.requete ? "recherche « " + it.requete.replace(/</g, "&lt;") + " »" : it.fichier.split("/").pop()}</p>
-      <div class="rangee">${alt.length > 1 ? `<button id="i-autre">🔄 Autre proposition</button>` : ""}<button id="i-remp">📁 Mon fichier</button><button class="danger" id="i-suppr">🗑 Supprimer</button></div>
+      <div class="rangee">${alt.length > 1 ? `<button id="i-autre">🔄 Autre proposition</button>` : ""}<button id="i-remp">📁 Mon fichier</button><button class="danger" id="i-suppr">🗑 Supprimer</button></div>` +
+      champ("Cadrage", `<select id="i-cadrage">${[["auto", "Automatique"], ["remplir", "Plein écran (bords rognés)"], ["adapter", "Image entière sur fond flou"]].map(([k, n]) => `<option value="${k}" ${(it.cadrage || "auto") === k ? "selected" : ""}>${n}</option>`).join("")}</select>`) +
+      `<p class="aide">Automatique : une image ou vidéo plus large que haute (paysage) est montrée en entière sur un fond flou, au lieu d'être fortement zoomée.</p>
       <label>Chercher une autre image (en anglais de préférence)</label>
       <div class="rangee"><input id="i-req" value="${(it.requete || "").replace(/"/g, "&quot;")}" style="flex:1"><button id="i-cherche">🔍</button></div>
       <div class="grille" id="i-grille"></div>`;
@@ -799,10 +815,17 @@ function inspecter() {
       if (!rep.ok) { $("i-grille").innerHTML = `<span class="aide">${(await rep.json()).detail || "Recherche impossible"}</span>`; return; }
       const res = await rep.json(); it.requete = $("i-req").value; it.alternatives = res; it.choix = 0;
       $("i-grille").innerHTML = res.length ? "" : `<span class="aide">Aucun résultat.</span>`;
-      res.slice(0, 9).forEach(r => { const im = document.createElement("img"); im.src = r.apercu; im.title = (r.type === "video" ? "Vidéo · " : "Photo · ") + (r.credit || ""); im.onclick = () => prendre(r); $("i-grille").appendChild(im); });
+      res.slice(0, 9).forEach(r => {
+        const d = document.createElement("div"), im = document.createElement("img"); d.className = "vignette";
+        im.src = r.apercu; im.title = (r.type === "video" ? "Vidéo · " : "Photo · ") + (r.credit || "") + (r.orientation === "paysage" ? " · paysage (affichée sur fond flou)" : "");
+        im.onclick = () => prendre(r); d.appendChild(im);
+        d.insertAdjacentHTML("beforeend", `<span>${r.type === "video" ? "🎬" : "📷"}${r.orientation === "paysage" ? " ▭ paysage" : ""}</span>`);
+        $("i-grille").appendChild(d);
+      });
     };
     $("i-remp").onclick = () => choisirFichier({ remplacer: it.id }, "image/*,video/*");
     $("i-suppr").onclick = supprimer;
+    $("i-cadrage").onchange = () => { memoriser(); if ($("i-cadrage").value === "auto") delete it.cadrage; else it.cadrage = $("i-cadrage").value; apresModif(); };
   } else if (sel.type === "mus") {
     const m = proj.musique; if (!m) { sel = null; return inspecter(); }
     ins.innerHTML = `<h3>🎵 Musique</h3><p class="aide">${(m.titre || m.fichier.split("/").pop()).replace(/</g, "&lt;")}</p>` +

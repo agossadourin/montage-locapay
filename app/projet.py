@@ -281,6 +281,9 @@ def auto(proj, rappel=None, transcrire=None, rechercher=None, telecharger=None):
             res = rechercher(pr["requete"], cles)
             if not res:
                 continue
+            if res[0].get("orientation") == "paysage":     # rien en vertical pour cette recherche : on passe
+                print("Illustration ignorée (seulement du paysage) :", pr["requete"])
+                continue
             try:
                 fichier = telecharger(res[0])
             except Exception as e:

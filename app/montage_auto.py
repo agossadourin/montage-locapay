@@ -11,7 +11,7 @@ import json, math, os, re, shutil, subprocess, wave
 from dataclasses import dataclass, field
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
 
 W, H, FPS = 1080, 1920, 30
 SR = 48000
@@ -804,31 +804,91 @@ def transition(a, b, p, typ):
     return b if p >= 0.5 else a
 
 
+def dimensions_media(fichier):
+    """(largeur, hauteur) d'une image ou d'une vidéo (rotation comprise), None si illisible."""
+    try:
+        if not fichier.lower().endswith(EXT_VIDEO):
+            with Image.open(fichier) as im:
+                return im.size
+        r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+                            "stream=width,height:stream_side_data=rotation:stream_tags=rotate", "-of", "json", fichier],
+                           capture_output=True, text=True)
+        s = json.loads(r.stdout)["streams"][0]
+        w, h = int(s["width"]), int(s["height"])
+        rot = str((s.get("tags") or {}).get("rotate", "")) + "".join(str(d.get("rotation", "")) for d in s.get("side_data_list", []))
+        return (h, w) if "90" in rot else (w, h)
+    except Exception:
+        return None
+
+
+def mode_cadrage(item, dims=None):
+    """« remplir » (plein écran, rogné) ou « adapter » (image entière sur fond flou).
+    En automatique : on adapte dès que le média est plus large que haut, pour ne pas le zoomer exagérément."""
+    mode = (item.get("cadrage") or "auto") if isinstance(item, dict) else "auto"
+    if mode in ("remplir", "adapter"):
+        return mode
+    dims = dims or dimensions_media(item["fichier"])
+    return "adapter" if dims and dims[0] / max(1, dims[1]) > 0.8 else "remplir"
+
+
+def _fond_flou(im):
+    """Fond plein écran : le média agrandi, flouté et assombri."""
+    s = max(W / im.width, H / im.height)
+    fond = im.resize((max(W, int(im.width * s) + 1), max(H, int(im.height * s) + 1)), Image.BILINEAR)
+    x0, y0 = (fond.width - W) // 2, (fond.height - H) // 2
+    fond = fond.crop((x0, y0, x0 + W, y0 + H)).resize((W // 8, H // 8), Image.BILINEAR)
+    fond = fond.filter(ImageFilter.GaussianBlur(5)).resize((W, H), Image.BICUBIC)
+    return ImageEnhance.Brightness(fond).enhance(0.55)
+
+
 class Illustration:
-    """Image ou vidéo d'illustration (B-roll) affichée plein écran entre deb et fin (temps source)."""
+    """Image ou vidéo d'illustration (B-roll) affichée plein écran entre deb et fin (temps source).
+    Un média en paysage est affiché en entier sur un fond flou (cadrage « adapter ») au lieu d'être zoomé."""
 
     def __init__(self, item):
         self.deb, self.fin = float(item["deb"]), float(item["fin"])
         self.fichier = item["fichier"]
         self.type = item.get("type") or ("video" if self.fichier.lower().endswith(EXT_VIDEO) else "image")
-        self.proc, self.img, self.idx, self.derniere = None, None, -1, None
+        self.mode = mode_cadrage(item)
+        self.proc, self.img, self.fond, self.idx, self.derniere = None, None, None, -1, None
 
     def image(self, st):
         frac = min(1.0, max(0.0, (st - self.deb) / max(1e-6, self.fin - self.deb)))
+        z = 1.0 + 0.08 * frac                          # effet Ken Burns : léger zoom avant
+        if self.type == "image" and self.mode == "adapter":
+            if self.img is None:
+                im = Image.open(self.fichier).convert("RGB")
+                self.fond = _fond_flou(im).convert("RGBA")
+                s = W * 1.08 / im.width
+                self.img = im.resize((int(im.width * s), int(im.height * s)), Image.LANCZOS).convert("RGBA")
+            zz = 1.0 + 0.06 * frac
+            w, h = int(W * zz), int(W * zz * self.img.height / self.img.width)
+            cadre = self.fond.copy()
+            ims = self.img.resize((w, h), Image.BICUBIC)
+            if w > W:                                  # léger débord à gauche et à droite
+                ims, w = ims.crop(((w - W) // 2, 0, (w - W) // 2 + W, h)), W
+            cadre.alpha_composite(ims, ((W - w) // 2, max(0, (H - h) // 2)))
+            return cadre
         if self.type == "image":
             if self.img is None:
                 im = Image.open(self.fichier).convert("RGB")
                 s = max(W / im.width, H / im.height) * 1.10
                 self.img = im.resize((int(im.width * s) + 1, int(im.height * s) + 1), Image.LANCZOS)
-            z = 1.0 + 0.08 * frac                      # effet Ken Burns : léger zoom avant
             cw, ch = W * 1.10 / z, H * 1.10 / z
             x0, y0 = (self.img.width - cw) / 2, (self.img.height - ch) / 2
             return self.img.resize((W, H), Image.BICUBIC, box=(x0, y0, x0 + cw, y0 + ch)).convert("RGBA")
         if self.proc is None:
+            if self.mode == "adapter":                 # vidéo entière au centre, sur sa propre version floutée
+                vf = (f"fps={FPS},setsar=1,split[a][b];"
+                      f"[a]scale={W // 8}:{H // 8}:force_original_aspect_ratio=increase,crop={W // 8}:{H // 8},"
+                      f"gblur=sigma=5,scale={W}:{H},format=rgb24,colorchannelmixer=rr=0.55:gg=0.55:bb=0.55[fond];"
+                      f"[b]scale={W}:-2[av];[fond][av]overlay=(W-w)/2:(H-h)/2")
+                args = ["-filter_complex", vf]
+            else:
+                args = ["-vf", f"fps={FPS},scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1"]
             self.proc = subprocess.Popen(
-                ["ffmpeg", "-loglevel", "error", "-i", self.fichier, "-an", "-vf",
-                 f"fps={FPS},scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1",
-                 "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], stdout=subprocess.PIPE)
+                ["ffmpeg", "-loglevel", "error", "-i", self.fichier, "-an"] + args +
+                ["-f", "rawvideo", "-pix_fmt", "rgb24", "-"], stdout=subprocess.PIPE)
         k = int((st - self.deb) * FPS)
         while self.idx < k:
             buf = self.proc.stdout.read(W * H * 3)

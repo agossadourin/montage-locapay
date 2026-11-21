@@ -1,5 +1,10 @@
 # Historique des versions
 
+## 0.13.0 — 2026-11-21
+- **Illustrations au bon format** : la recherche propose d'abord des images et vidéos **verticales** (portrait) ; les médias en paysage passent en dernier (badge « ▭ paysage » dans la grille), et le montage automatique ne les choisit plus d'office.
+- **Plus de zoom excessif** : une illustration plus large que haute (votre propre fichier, ou un choix manuel) est montrée **en entier sur un fond flou** au lieu d'être recadrée. Réglable par illustration dans l'éditeur : *Automatique*, *Plein écran (bords rognés)* ou *Image entière sur fond flou*. Les illustrations déjà placées dans vos projets en profitent sans rien refaire.
+- **⚙️ Paramètres** : bouton **← Retour à l'éditeur** toujours visible (on revient sur le projet ouvert), et le lien de l'éditeur ouvre directement la section Paramètres.
+
 ## 0.12.0 — 2026-11-21
 - **Transitions fluides dans la vidéo exportée** : entre deux plans, au choix **fondu enchaîné** (par défaut), **zoom**, **flash blanc**, **glissement** ou **coupe franche**. Quand deux plans viennent de la même prise (simple recadrage), le zoom glisse en douceur d'un cadrage à l'autre au lieu de sauter.
 - Réglage dans **⚙️ Paramètres › Style** (type et durée), dans l'éditeur pour tout le projet (panneau de droite sans sélection), ou **plan par plan** : cliquez sur le petit rond entre deux plans de la piste 🎬, puis **▶︎ Voir**.

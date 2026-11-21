@@ -240,8 +240,8 @@ def test_rendu_avec_illustrations_et_style(tmp_path):
     M.monter(str(src), plan, R, str(out), progression=False)
     def pixel(t):
         r = subprocess.run(["ffmpeg", "-loglevel", "error", "-ss", f"{t}", "-i", str(out), "-frames:v", "1",
-                            "-vf", "crop=10:10:20:20,scale=1:1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
-                           capture_output=True)
+                            "-vf", "crop=10:10:535:955,scale=1:1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+                           capture_output=True)       # centre de l'image (les médias en paysage sont sur fond flou)
         return tuple(r.stdout)
     o_img, o_vid = M.src2out(plan, 1.0), M.src2out(plan, 4.6)
     assert pixel(o_img)[0] > 150 and pixel(o_img)[2] < 90      # photo rouge à l'écran
@@ -490,3 +490,46 @@ def test_fonctions_de_transition():
     assert M.transition(a, b, 0.5, "flash").getpixel((5, 5))[1] > 200          # pic blanc
     g = M.transition(a, b, 0.5, "glissement")
     assert g.getpixel((5, 5))[:3] == (255, 0, 0) and g.getpixel((M.W - 5, 5))[:3] == (0, 0, 255)
+
+
+def test_recherche_illustrations_verticales_d_abord():
+    """Pixabay renvoie surtout des vidéos en paysage : elles passent après les médias verticaux."""
+    import httpx
+
+    def reponse(req):
+        u = str(req.url)
+        if "pixabay.com/api/videos" in u:
+            return httpx.Response(200, json={"hits": [
+                {"id": 1, "user": "L", "videos": {"medium": {"url": "https://x/paysage.mp4", "width": 1920, "height": 1080}}},
+                {"id": 2, "user": "P", "videos": {"medium": {"url": "https://x/portrait.mp4", "width": 1080, "height": 1920}}}]})
+        return httpx.Response(200, json={"hits": [{"id": 3, "user": "I", "largeImageURL": "https://x/i.jpg",
+                                                   "imageWidth": 1280, "imageHeight": 1920}]})
+    res = I.rechercher("house", {"pixabay": "cle"}, client=httpx.Client(transport=httpx.MockTransport(reponse)))
+    assert [r["url"] for r in res] == ["https://x/portrait.mp4", "https://x/i.jpg", "https://x/paysage.mp4"]
+    assert res[-1]["orientation"] == "paysage" and I.orientation(1080, 1920) == "portrait"
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg absent")
+def test_illustration_paysage_entiere_sur_fond_flou(tmp_path):
+    """Une illustration en paysage n'est pas zoomée : elle est montrée en entier, sur un fond flou."""
+    from PIL import Image
+    img = Image.new("RGB", (1600, 900), (230, 30, 30))
+    img.paste((30, 30, 230), (0, 0, 120, 900))                    # bande bleue sur le bord gauche
+    chemin = tmp_path / "paysage.jpg"; img.save(chemin)
+    ill = M.Illustration({"deb": 0, "fin": 2, "fichier": str(chemin), "type": "image"})
+    assert ill.mode == "adapter"
+    im = ill.image(0.0)
+    assert im.size == (M.W, M.H)
+    haut, centre = im.getpixel((M.W // 2, 40)), im.getpixel((M.W // 2, M.H // 2))
+    assert centre[0] > 200 and haut[0] < 170                          # image nette au centre, fond assombri en haut
+    assert im.getpixel((20, M.H // 2))[2] > 150                        # le bord gauche de l'image est visible (pas rogné)
+    # vidéo en paysage : même traitement
+    vid = tmp_path / "paysage.mp4"
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "color=red:size=640x360:rate=30:d=1",
+                    "-pix_fmt", "yuv420p", str(vid)], check=True)
+    iv = M.Illustration({"deb": 0, "fin": 1, "fichier": str(vid), "type": "video"})
+    assert iv.mode == "adapter" and M.dimensions_media(str(vid)) == (640, 360)
+    fr = iv.image(0.2); iv.fermer()
+    assert fr.getpixel((M.W // 2, M.H // 2))[0] > 200 and fr.getpixel((M.W // 2, 40))[0] < 170
+    # forcé en plein écran
+    assert M.Illustration({"deb": 0, "fin": 2, "fichier": str(chemin), "cadrage": "remplir"}).mode == "remplir"
