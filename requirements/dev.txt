@@ -1,0 +1,4 @@
+# Tests (sans transcription ni interface)
+pillow>=10
+numpy
+pytest>=8

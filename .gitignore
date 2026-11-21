@@ -1,0 +1,21 @@
+# Environnement Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Médias de travail (ne pas versionner les vidéos)
+*.mp4
+*.mov
+*.m4v
+*.wav
+*.mp3
+*.m4a
+*.srt
+!tests/*.json
+
+# macOS / build
+.DS_Store
+build/
+dist/
+*.app/

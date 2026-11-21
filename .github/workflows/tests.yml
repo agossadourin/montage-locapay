@@ -1,0 +1,30 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Dépendances
+        run: pip install -r requirements/dev.txt
+      - name: Tests
+        run: python -m pytest -q
+      - name: Notebook Colab à jour
+        run: |
+          python colab/build_nb.py
+          git diff --exit-code colab/Montage_auto_Locapay.ipynb || (echo "Le notebook Colab n'est pas à jour : lancez python colab/build_nb.py" && exit 1)
+      - name: Scripts shell valides
+        run: |
+          bash -n Installer.command
+          bash -n "Mettre à jour.command"
+          bash -n "Lancer Montage.command"
+          bash -n macos/build_app.sh
