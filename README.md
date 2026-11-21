@@ -53,6 +53,8 @@ Le **mode classique** (et les **⚙️ Paramètres** : identité, style, clés) 
 
 **✏️ Sous-titres** : en pause, cliquez sur le texte **dans la vidéo** pour le modifier (Entrée pour valider, Échap pour annuler) ; ⌥ + clic sur un mot pour le mettre en GRAS.
 
+**✨ Illustrations créées par IA, gratuit (Cloudflare)** : compte gratuit sur [dash.cloudflare.com](https://dash.cloudflare.com/sign-up) → copiez l'**Account ID**, créez un **jeton d'API** avec le modèle « Workers AI » → collez-les dans **⚙️ Paramètres › Clés API** et choisissez « Images créées par IA — Cloudflare ». Environ 170 images par jour gratuites (FLUX.1 schnell, `illustrations.py` › `generer_image_cloudflare`).
+
 **✨ Illustrations créées par Gemini** (facultatif, payant) : clé sur [aistudio.google.com/apikey](https://aistudio.google.com/apikey) avec facturation activée (≈ 0,03 $ l'image, modèle `gemini-3.1-flash-lite-image`, réglable dans `illustrations.py` › `GEMINI_MODELE`). Dans **⚙️ Paramètres › Clés API**, choisissez « Images créées sur mesure par Gemini » et décrivez votre contexte. Dans l'éditeur : **✨ Image IA** à la tête de lecture, ou **✨ Créer l'image** dans une illustration (consigne modifiable).
 
 **🖼 Format des illustrations** : les recherches privilégient les médias verticaux. Une image ou vidéo en paysage est affichée en entier sur un fond flou (réglage **Cadrage** de l'illustration dans l'éditeur).

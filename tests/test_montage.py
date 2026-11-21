@@ -609,3 +609,30 @@ def test_gemini_offre_gratuite_message_clair(tmp_path, monkeypatch):
     c = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(429, json={"error": {"message": msg}})))
     with pytest.raises(RuntimeError, match="offre gratuite"):
         I.generer_image("x", "cle", client=c)
+
+
+def test_generation_cloudflare_gratuite_simulee(tmp_path, monkeypatch):
+    """Cloudflare Workers AI (FLUX.1 schnell) : image base64 → fichier ; quota du jour → message clair ; choix du générateur."""
+    import httpx
+    monkeypatch.setattr(I, "DOSSIER_CACHE", str(tmp_path / "cache"))
+    vus = []
+
+    def reponse(req):
+        vus.append(req)
+        assert req.headers["authorization"] == "Bearer jeton" and "/accounts/compte1/ai/run/@cf/black-forest-labs/flux-1-schnell" in str(req.url)
+        assert json.loads(req.content)["steps"] <= 8
+        return httpx.Response(200, json={"success": True, "result": {"image": _png_b64()}})
+    cfg = {"cles": {"cloudflare_compte": "compte1", "cloudflare_jeton": "jeton", "gemini": "g"},
+           "illustrations": {"source": "banques"}}
+    assert I.fournisseur_images(cfg) == "cloudflare"                       # gratuit d'abord
+    assert I.fournisseur_images({**cfg, "illustrations": {"source": "gemini"}}) == "gemini"
+    assert I.fournisseur_images({"cles": {}}) is None
+    consigne = I.prompt_illustration({"phrase": "payez votre loyer", "requete": "paying rent"}, "Cotonou, Bénin", "cloudflare")
+    assert consigne.startswith("Authentic realistic photograph") and "paying rent" in consigne
+    f = I.generer(consigne, cfg, client=httpx.Client(transport=httpx.MockTransport(reponse)))
+    assert os.path.exists(f) and len(vus) == 1
+    assert I.generer(consigne, cfg, client=httpx.Client(transport=httpx.MockTransport(reponse))) == f and len(vus) == 1
+    quota = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(
+        429, json={"success": False, "errors": [{"message": "you have used up your daily free allocation of 10,000 neurons"}]})))
+    with pytest.raises(RuntimeError, match="Quota gratuit Cloudflare"):
+        I.generer("autre", cfg, client=quota)

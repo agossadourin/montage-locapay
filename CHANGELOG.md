@@ -1,5 +1,10 @@
 # Historique des versions
 
+## 0.15.0 — 2026-11-21
+- **✨ Images créées par IA, gratuitement** avec Cloudflare Workers AI (modèle FLUX.1 schnell, licence Apache 2.0 : usage commercial permis) : environ 170 images par jour sans payer, sans carte bancaire. Compte Cloudflare gratuit + identifiant de compte + jeton « Workers AI » dans ⚙️ Paramètres › Clés API (bouton « Tester »).
+- Source des illustrations du montage automatique : banques d'images, **Cloudflare (gratuit)** ou Gemini (payant). Dans l'éditeur, « ✨ Image IA » et « ✨ Créer l'image » utilisent le générateur choisi (Cloudflare en priorité s'il est configuré).
+- Images FLUX carrées : montrées en entier sur fond flou dans la vidéo verticale (cadrage modifiable).
+
 ## 0.14.1 — 2026-11-21
 - Gemini : message clair quand la clé est en offre gratuite (la création d'images demande d'activer la facturation), et le montage automatique n'insiste plus pour chaque moment après un refus.
 

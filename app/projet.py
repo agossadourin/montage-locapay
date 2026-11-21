@@ -212,7 +212,7 @@ def auto(proj, rappel=None, transcrire=None, rechercher=None, telecharger=None, 
     transcrire = transcrire or M.transcrire
     rechercher = rechercher or I.rechercher
     telecharger = telecharger or I.telecharger
-    generer = generer or I.generer_image
+    generer = generer or I.generer
     proj = deepcopy(proj)
     R = vers_plan({**proj, "clips": proj["clips"] or [{"a": 0, "b": 1}]})[1]
     R.illustrations = []
@@ -283,7 +283,8 @@ def auto(proj, rappel=None, transcrire=None, rechercher=None, telecharger=None, 
     gardes = [w for w in mots_v if w.get("st", True) and w.get("w") and sortie(w["s"]) is not None]
     duree_sortie = sum(c["b"] - c["a"] for c in proj["clips"])
     reg_ill = cfg.get("illustrations") or {}
-    par_gemini = reg_ill.get("source") == "gemini" and bool(cles.get("gemini"))
+    fourn = I.fournisseur_images(cfg) if reg_ill.get("source") in ("gemini", "cloudflare") else None
+    par_gemini = fourn is not None          # (nom historique : toute génération d'images sur mesure)
     if isinstance(proj.get("auto"), dict):
         proj["auto"].pop("erreur_gemini", None)
     if par_minute > 0 and (par_gemini or cles.get("pexels") or cles.get("pixabay")):
@@ -291,10 +292,11 @@ def auto(proj, rappel=None, transcrire=None, rechercher=None, telecharger=None, 
         props = I.choisir_moments(gardes, duree_sortie, par_minute=par_minute, cle_api=ia.config_ia(cfg))
         for k, pr in enumerate(props):
             if par_gemini:                 # image créée sur mesure pour ce passage
-                etape(0.6 + 0.35 * k / max(1, len(props)), f"Création des illustrations (Gemini) {k + 1}/{len(props)}…")
-                consigne = I.prompt_illustration(pr, reg_ill.get("contexte") or "")
+                nom_f = "Cloudflare" if fourn == "cloudflare" else "Gemini"
+                etape(0.6 + 0.35 * k / max(1, len(props)), f"Création des illustrations ({nom_f}) {k + 1}/{len(props)}…")
+                consigne = I.prompt_illustration(pr, reg_ill.get("contexte") or "", fourn)
                 try:
-                    fichier = generer(consigne, cles["gemini"])
+                    fichier = generer(consigne, cfg)
                     proj["illustrations"].append({"id": _id(), "deb": round(pr["deb"], 3), "fin": round(pr["fin"], 3),
                                                   "fichier": fichier, "type": "image", "requete": pr["requete"],
                                                   "phrase": pr.get("phrase", ""), "mot": pr.get("mot", ""),
@@ -302,7 +304,7 @@ def auto(proj, rappel=None, transcrire=None, rechercher=None, telecharger=None, 
                     continue
                 except Exception as e:
                     print("Illustration Gemini impossible :", e)
-                    proj.setdefault("auto", {})["erreur_gemini"] = str(e)[:500]
+                    proj.setdefault("auto", {})["erreur_gemini"] = f"{nom_f} : {str(e)[:500]}"
                     par_gemini = False           # inutile de réessayer pour chaque moment (quota, clé…)
                     if not (cles.get("pexels") or cles.get("pixabay")):
                         continue

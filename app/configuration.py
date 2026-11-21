@@ -56,7 +56,8 @@ IDENTITE_DEFAUT = {
 CONTEXTE_DEFAUT = ("Bénin, Cotonou, Afrique de l'Ouest. Personnes béninoises, quartiers et maisons typiques de Cotonou. "
                    "Thème : la location de logements (propriétaires, locataires, loyer payé par Mobile Money sur téléphone).")
 
-CONFIG_DEFAUT = {"identite": IDENTITE_DEFAUT, "cles": {"anthropic": "", "pexels": "", "pixabay": "", "gemini": ""},
+CONFIG_DEFAUT = {"identite": IDENTITE_DEFAUT, "cles": {"anthropic": "", "pexels": "", "pixabay": "", "gemini": "",
+                                                    "cloudflare_compte": "", "cloudflare_jeton": ""},
                  "illustrations": {"source": "banques", "contexte": CONTEXTE_DEFAUT},
                  "style_actif": "Locapay"}
 

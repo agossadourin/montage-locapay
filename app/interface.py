@@ -27,9 +27,10 @@ except OSError:
 
 STYLE_CLES = [f.name for f in fields(C.ProfilStyle) if f.name != "description"]
 IDENTITE_CLES = ["nom", "couleur_1", "couleur_2", "fichier_logo", "police_serif", "police_grasse"]
-CLES_API = ["anthropic", "pexels", "pixabay", "gemini"]
+CLES_API = ["anthropic", "pexels", "pixabay", "gemini", "cloudflare_compte", "cloudflare_jeton"]
 SOURCES_ILL = {"Banques d'images gratuites (Pexels / Pixabay)": "banques",
-               "Images créées sur mesure par Gemini (payant, ≈ 0,03 $ l'image)": "gemini"}
+               "Images créées par IA — Cloudflare (gratuit, ~170 images/jour)": "cloudflare",
+               "Images créées par IA — Gemini (payant, ≈ 0,03 $ l'image)": "gemini"}
 CHOIX_IA = {"Aucune (règles automatiques, gratuit)": "aucune", "Ollama — sur ce Mac, gratuit": "ollama",
             "Claude — en ligne, payant": "claude"}
 
@@ -108,25 +109,30 @@ def sauver_identite(nom, c1, c2, logo, serif, grasse):
             i["police_grasse"])
 
 
-def sauver_cles(anthropic, pexels, pixabay, gemini="", choix_ia=None, source_ill=None, contexte=None):
+def sauver_cles(anthropic, pexels, pixabay, gemini="", cf_compte="", cf_jeton="", choix_ia=None, source_ill=None,
+                contexte=None):
     cfg = C.charger_config()
     if choix_ia:
         cfg.setdefault("ia", {})["fournisseur"] = CHOIX_IA.get(choix_ia, "aucune")
     cfg["cles"].update({"anthropic": (anthropic or "").strip(), "pexels": (pexels or "").strip(),
-                        "pixabay": (pixabay or "").strip(), "gemini": (gemini or "").strip()})
+                        "pixabay": (pixabay or "").strip(), "gemini": (gemini or "").strip(),
+                        "cloudflare_compte": (cf_compte or "").strip(), "cloudflare_jeton": (cf_jeton or "").strip()})
     if source_ill:
         cfg["illustrations"]["source"] = SOURCES_ILL.get(source_ill, "banques")
     if contexte is not None:
         cfg["illustrations"]["contexte"] = contexte.strip() or C.CONTEXTE_DEFAUT
     C.sauver_config(cfg)
-    actives = [n for n, v in (("Claude", anthropic), ("Pexels", pexels), ("Pixabay", pixabay), ("Gemini", gemini))
-               if (v or "").strip()]
+    actives = [n for n, v in (("Claude", anthropic), ("Pexels", pexels), ("Pixabay", pixabay), ("Gemini", gemini),
+                              ("Cloudflare", (cf_compte or "").strip() and (cf_jeton or "").strip())) if (v or "").strip()]
     avert = ""
-    if cfg["illustrations"]["source"] == "gemini" and not cfg["cles"]["gemini"]:
-        avert = "\n\n⚠️ Illustrations par Gemini choisies, mais aucune clé Gemini : les banques d'images seront utilisées."
+    src = cfg["illustrations"]["source"]
+    if src == "gemini" and not cfg["cles"]["gemini"]:
+        avert = "\n\n⚠️ Gemini choisi, mais aucune clé Gemini."
+    if src == "cloudflare" and not (cfg["cles"]["cloudflare_compte"] and cfg["cles"]["cloudflare_jeton"]):
+        avert = "\n\n⚠️ Cloudflare choisi, mais l'identifiant de compte ou le jeton manque."
     return ("✅ Clés enregistrées : " + (", ".join(actives) if actives else "aucune")
             + f" · IA : {ia.nom_ia(ia.config_ia(cfg))}"
-            + f" · Illustrations : {'Gemini' if cfg['illustrations']['source'] == 'gemini' else 'banques d’images'}" + avert)
+            + f" · Illustrations : {next(k for k, v in SOURCES_ILL.items() if v == src).split(' (')[0]}" + avert)
 
 
 def tester_ollama_ui():
@@ -728,6 +734,18 @@ with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": 
                         cle_anthropic = gr.Textbox(value=CLES0.get("anthropic", ""), type="password", label="Clé Claude (Anthropic)")
                         cle_pexels = gr.Textbox(value=CLES0.get("pexels", ""), type="password", label="Clé Pexels")
                         cle_pixabay = gr.Textbox(value=CLES0.get("pixabay", ""), type="password", label="Clé Pixabay")
+                        gr.Markdown("**✨ Illustrations créées par IA — gratuit avec Cloudflare** : au lieu de chercher des "
+                                    "photos existantes, une IA (FLUX) crée pour chaque passage une image adaptée à ce qui est "
+                                    "dit et à votre contexte. Gratuit jusqu'à ~170 images par jour, sans carte bancaire : "
+                                    "créez un compte sur [dash.cloudflare.com](https://dash.cloudflare.com/sign-up), copiez "
+                                    "l'**Account ID** (page d'accueil du compte), puis créez un **jeton d'API** avec le modèle "
+                                    "« Workers AI » (Mon profil › Jetons d'API › Créer un jeton).")
+                        with gr.Row():
+                            cle_cf_compte = gr.Textbox(value=CLES0.get("cloudflare_compte", ""), label="Cloudflare — Account ID")
+                            cle_cf_jeton = gr.Textbox(value=CLES0.get("cloudflare_jeton", ""), type="password", label="Cloudflare — jeton d'API")
+                        with gr.Row():
+                            test_cf = gr.Button("🔌 Tester Cloudflare", size="sm")
+                            info_cf = gr.Markdown()
                         gr.Markdown("**✨ Illustrations créées par Gemini** (facultatif, payant) : au lieu de chercher des photos "
                                     "existantes, Gemini dessine pour chaque passage une image verticale adaptée à ce qui est dit "
                                     "et à votre contexte (Bénin, location…). Clé sur [aistudio.google.com/apikey]"
@@ -742,7 +760,7 @@ with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": 
                                                           if v == (CFG.get("illustrations") or {}).get("source", "banques")),
                                                          list(SOURCES_ILL)[0]))
                         contexte_ill = gr.Textbox(value=(CFG.get("illustrations") or {}).get("contexte", C.CONTEXTE_DEFAUT),
-                                                  lines=3, label="Contexte donné à Gemini (lieu, personnes, thème de vos vidéos)")
+                                                  lines=3, label="Contexte donné à l’IA qui crée les images (lieu, personnes, thème de vos vidéos)")
                         bouton_cles = gr.Button("💾 Enregistrer les clés", size="sm")
                         info_cles = gr.Markdown()
                     with gr.Tab("🔧 Avancé"):
@@ -826,7 +844,7 @@ with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": 
     # ------------------------------------------------------------------ événements
     comps_style = [cs[k] for k in STYLE_CLES]
     comps_identite = [nom_marque, c1, c2, logo, police_serif_ch, police_grasse_ch]
-    comps_cles = [cle_anthropic, cle_pexels, cle_pixabay, cle_gemini]
+    comps_cles = [cle_anthropic, cle_pexels, cle_pixabay, cle_gemini, cle_cf_compte, cle_cf_jeton]
     comps_avance = [hesit, vol, vocabulaire, modele, auto_qt]
 
     bouton.click(monter, [video, musique, *comps_identite, *comps_style, *comps_cles, *comps_avance,
@@ -843,10 +861,12 @@ with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": 
         cfg = C.charger_config(); k = cfg["cles"]; ill = cfg.get("illustrations") or {}
         fourn = (cfg.get("ia") or {}).get("fournisseur") or ("claude" if k.get("anthropic") else "aucune")
         return (k.get("anthropic", ""), k.get("pexels", ""), k.get("pixabay", ""), k.get("gemini", ""),
+                k.get("cloudflare_compte", ""), k.get("cloudflare_jeton", ""),
                 next((n for n, v in CHOIX_IA.items() if v == fourn), list(CHOIX_IA)[0]),
                 next((n for n, v in SOURCES_ILL.items() if v == ill.get("source", "banques")), list(SOURCES_ILL)[0]),
                 ill.get("contexte") or C.CONTEXTE_DEFAUT)
     app.load(_cles_actuelles, None, comps_cles + [choix_ia, source_ill, contexte_ill])
+    test_cf.click(lambda a, j: I.tester_cloudflare((a or "").strip(), (j or "").strip())[1], [cle_cf_compte, cle_cf_jeton], [info_cf])
     test_gemini.click(lambda k: I.tester_gemini((k or "").strip())[1], [cle_gemini], [info_gemini])
     test_ollama.click(tester_ollama_ui, None, [info_ollama])
     style_choisi.change(charger_style_ui, [style_choisi], comps_style + [desc_style])

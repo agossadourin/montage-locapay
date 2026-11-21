@@ -2,7 +2,7 @@
 
 - Choix des moments : Claude (si une clé est configurée) ou dictionnaire de mots « illustrables ».
 - Recherche : Pexels et/ou Pixabay (clés gratuites, usage commercial autorisé sans attribution obligatoire).
-- Génération : Gemini (« Nano Banana », clé Google AI Studio, payant) — images verticales adaptées au contexte.
+- Génération : Cloudflare Workers AI (FLUX.1 schnell, gratuit jusqu'à ~170 images/jour) ou Gemini (payant).
 """
 import base64
 import hashlib
@@ -213,10 +213,45 @@ GEMINI_MODELE = "gemini-3.1-flash-lite-image"     # le moins cher (~0,03 $ l'ima
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{modele}:generateContent"
 
 
-def prompt_illustration(moment, contexte):
-    """Consigne pour Gemini à partir du moment à illustrer (phrase prononcée + mot) et du contexte de la marque."""
+def fournisseur_images(cfg):
+    """Générateur d'images à utiliser : celui choisi dans les Paramètres s'il est configuré, sinon le premier
+    configuré (Cloudflare d'abord, gratuit). None si aucun."""
+    cles = cfg.get("cles") or {}
+    dispo = {"cloudflare": bool(cles.get("cloudflare_compte") and cles.get("cloudflare_jeton")),
+             "gemini": bool(cles.get("gemini"))}
+    choix = (cfg.get("illustrations") or {}).get("source")
+    if dispo.get(choix):
+        return choix
+    return next((f for f in ("cloudflare", "gemini") if dispo[f]), None)
+
+
+def generer(prompt, cfg, fournisseur=None, client=None):
+    """Crée une image avec le générateur configuré et renvoie son chemin."""
+    fournisseur = fournisseur or fournisseur_images(cfg)
+    cles = cfg.get("cles") or {}
+    if fournisseur == "cloudflare":
+        return generer_image_cloudflare(prompt, cles["cloudflare_compte"], cles["cloudflare_jeton"], client=client)
+    if fournisseur == "gemini":
+        return generer_image(prompt, cles["gemini"], client=client)
+    raise RuntimeError("Aucun générateur d'images configuré : ajoutez Cloudflare (gratuit) ou Gemini dans "
+                       "⚙️ Paramètres › Clés API.")
+
+
+def prompt_illustration(moment, contexte, fournisseur="gemini"):
+    """Consigne à partir du moment à illustrer (phrase prononcée + mot) et du contexte de la marque.
+    FLUX (Cloudflare) comprend mieux l'anglais : la consigne y est rédigée en anglais."""
     phrase = (moment.get("phrase") or "").strip()
     mot = (moment.get("mot") or "").strip()
+    if fournisseur == "cloudflare":
+        sujet = (moment.get("requete") or mot).strip()
+        p = "Authentic realistic photograph, vertical composition, main subject centered in the frame."
+        if sujet:
+            p += f" Scene: {sujet}."
+        if phrase:
+            p += f" It illustrates this sentence (in French): \"{phrase}\"."
+        if contexte:
+            p += f" Context (in French): {contexte.strip()}"
+        return p + " Natural light, warm colors, candid. No text, no letters, no logo, no watermark."
     p = "Photographie réaliste, format vertical 9:16, pour illustrer ce passage d'une vidéo"
     p += f" : « {phrase} »." if phrase else "."
     if mot:
@@ -279,6 +314,55 @@ def generer_image(prompt, cle, client=None, modele=None):
         if r.status_code != 400:          # clé invalide, quota, facturation… : inutile d'essayer l'autre écriture
             break
     raise RuntimeError(erreur)
+
+
+CLOUDFLARE_MODELE = "@cf/black-forest-labs/flux-1-schnell"   # licence Apache 2.0 : usage commercial permis
+CLOUDFLARE_URL = "https://api.cloudflare.com/client/v4/accounts/{compte}/ai/run/{modele}"
+
+
+def generer_image_cloudflare(prompt, compte, jeton, client=None, modele=None):
+    """Image FLUX.1 schnell via Cloudflare Workers AI (offre gratuite : 10 000 « neurones » par jour,
+    soit environ 170 images). Image carrée 1024 px : montrée en entier sur fond flou dans la vidéo verticale."""
+    os.makedirs(DOSSIER_CACHE, exist_ok=True)
+    modele = modele or CLOUDFLARE_MODELE
+    empreinte = hashlib.md5(f"{modele}|{prompt}".encode()).hexdigest()[:16]
+    chemin = os.path.join(DOSSIER_CACHE, f"flux-{empreinte}.jpg")
+    if os.path.exists(chemin):
+        return chemin
+    c = client or _client()
+    r = c.post(CLOUDFLARE_URL.format(compte=compte.strip(), modele=modele),
+               headers={"Authorization": f"Bearer {jeton.strip()}"},
+               json={"prompt": prompt[:2048], "steps": 4, "seed": int(empreinte[:7], 16)}, timeout=120)
+    try:
+        d = r.json()
+    except ValueError:
+        d = {}
+    if r.status_code != 200 or not (d.get("result") or {}).get("image"):
+        message = "; ".join(e.get("message", "") for e in d.get("errors") or []) or r.text[:200]
+        if r.status_code == 429 or "neurons" in message.lower() or "limit" in message.lower():
+            raise RuntimeError("Quota gratuit Cloudflare du jour atteint (environ 170 images par jour). "
+                               f"Il se renouvelle à 1 h du matin (heure de Paris). Détail : {message[:160]}")
+        if r.status_code in (401, 403):
+            raise RuntimeError("Cloudflare refuse l'accès : vérifiez l'identifiant de compte et le jeton (permission "
+                               f"« Workers AI ») dans ⚙️ Paramètres › Clés API. Détail : {message[:160]}")
+        raise RuntimeError(f"Cloudflare n'a pas créé l'image ({r.status_code}) : {message[:200]}")
+    with open(chemin + ".part", "wb") as f:
+        f.write(base64.b64decode(d["result"]["image"]))
+    os.replace(chemin + ".part", chemin)
+    return chemin
+
+
+def tester_cloudflare(compte, jeton, client=None):
+    if not (compte and jeton):
+        return False, "Ajoutez l'identifiant de compte et le jeton Cloudflare."
+    try:
+        c = client or _client()
+        r = c.get("https://api.cloudflare.com/client/v4/user/tokens/verify", headers={"Authorization": f"Bearer {jeton.strip()}"})
+        if r.status_code == 200 and r.json().get("success"):
+            return True, "✅ Jeton Cloudflare valide (vérifiez qu'il a bien la permission « Workers AI »)"
+        return False, f"❌ Jeton refusé ({r.status_code})"
+    except Exception as e:
+        return False, f"❌ Cloudflare injoignable : {e}"
 
 
 def tester_gemini(cle, client=None):
