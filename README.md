@@ -49,6 +49,8 @@ Le **mode classique** (et les **⚙️ Paramètres** : identité, style, clés) 
 
 **✂️ Retoucher comme dans CapCut** : après le montage, cliquez sur **Retoucher dans l'éditeur (timeline)** (ou lien **l'éditeur** en haut de page pour rouvrir un projet). Aperçu en direct et pistes Vidéo / Sous-titres / Illustrations / Écrans / Musique : glisser pour déplacer, bords pour raccourcir, **S** couper, **Suppr** supprimer, **⌘Z** annuler, **Espace** lecture. Cliquez sur un élément pour le modifier dans le panneau de droite. **Exporter** refait la vidéo.
 
+**🎞 Transitions** : fondu (par défaut), zoom, flash, glissement ou coupe franche — dans **⚙️ Paramètres › Style**, pour tout le projet dans l'éditeur (panneau de droite, rien de sélectionné), ou pour un seul enchaînement en cliquant sur le petit rond entre deux plans de la piste 🎬.
+
 **✏️ Sous-titres** : en pause, cliquez sur le texte **dans la vidéo** pour le modifier (Entrée pour valider, Échap pour annuler) ; ⌥ + clic sur un mot pour le mettre en GRAS.
 
 **🎵 Musique** : dans l'éditeur, **＋ Musique** → choisissez une ambiance, écoutez, **Utiliser** (musiques libres pour usage commercial, via Openverse). Si l'artiste doit être crédité, le texte à mettre en description est fourni et enregistré à côté de la vidéo.
@@ -92,6 +94,7 @@ Double-cliquez sur **`Mettre à jour.command`** (ou `git pull` dans le dossier).
 - **Style des sous-titres** (polices, tailles, ombre, animation) : `image_mot`, `mise_en_page`, `coller_anime` dans `montage_auto.py`.
 - **Choix du mot en gras** : `STOP` (mots ignorés) et la sélection `cle` dans `construire_plan`.
 - **Découpage des groupes de mots** : règles dans `construire_plan` (pause > 0,30 s, ponctuation, 4 mots max, `FAIBLES`).
+- **Transitions entre plans** : `transition` dans `montage_auto.py` (rendu export), `fenetre_transition` dans `monter` ; aperçu : `transitionA` / `poserLecteurs` / `boucle` dans `editeur.html`.
 - **Rythme des coupes / zooms** : `Reglages.duree_plan_max`, `Reglages.zoom`, `cycle`.
 - **Écrans de couleur** : nombre et position dans `construire_plan` (bloc « écrans de couleur »).
 - **Effets sonores** : fonctions `sfx_*` et la liste `evts` dans `monter`.

@@ -49,6 +49,8 @@ class Reglages:
     # --- illustrations (B-roll) : [{"deb", "fin" (temps source), "fichier", "type": image|video}]
     illustrations: list = field(default_factory=list)
     decalage_musique: float = 0.0         # la musique démarre à cette seconde du morceau
+    transition: str = "fondu"             # entre deux plans : coupe / fondu / zoom / flash / glissement
+    duree_transition: float = 0.25
 
 
 ETALONNAGES = {
@@ -732,6 +734,76 @@ def ecrire_srt(plan, chemin):
 EXT_VIDEO = (".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi")
 
 
+class LecteurSource:
+    """Lit la vidéo source image par image (redressée, recadrée, étalonnée) ; relance ffmpeg en cas de saut."""
+
+    def __init__(self, video, vf, sw, sh):
+        self.video, self.vf, self.sw, self.sh = video, vf, sw, sh
+        self.taille = sw * sh * 3
+        self.proc, self.idx, self.img = None, -1, None
+
+    def _ouvrir(self, depuis):
+        self.fermer()
+        cmd = ["ffmpeg", "-loglevel", "error"] + (["-ss", f"{depuis / FPS:.3f}"] if depuis > 0 else [])
+        self.proc = subprocess.Popen(cmd + ["-i", self.video, "-vf", self.vf, "-f", "rawvideo", "-pix_fmt", "rgb24",
+                                            "-"], stdout=subprocess.PIPE)
+        self.idx = depuis - 1
+
+    def image(self, idx):
+        if self.proc is None or idx < self.idx or idx - self.idx > FPS * 4:
+            self._ouvrir(idx)
+        while self.idx < idx:
+            buf = self.proc.stdout.read(self.taille)
+            if len(buf) < self.taille:
+                break
+            self.idx += 1
+            if self.idx == idx:
+                self.img = Image.frombuffer("RGB", (self.sw, self.sh), buf, "raw", "RGB", 0, 1)
+        return self.img
+
+    def fermer(self):
+        if self.proc is not None:
+            self.proc.kill(); self.proc = None
+
+
+TRANSITIONS = ["coupe", "fondu", "zoom", "flash", "glissement"]
+
+
+def _zoom_centre(im, f):
+    if f <= 1.001:
+        return im
+    cw, ch = W / f, H / f
+    x0, y0 = (W - cw) / 2, (H - ch) / 2
+    return im.resize((W, H), Image.BILINEAR, box=(x0, y0, x0 + cw, y0 + ch))
+
+
+def transition(a, b, p, typ):
+    """Image de transition entre a (plan qui se termine) et b (plan qui commence), p ∈ [0, 1]."""
+    p = min(1.0, max(0.0, p))
+    e = p * p * (3 - 2 * p)                                  # douce au début et à la fin
+    if typ == "fondu":
+        return Image.blend(a, b, e)
+    if typ == "zoom":                                         # « zoom à travers » : on plonge dans a, on ressort de b
+        if p < 0.5:
+            im = _zoom_centre(a, 1 + 0.45 * (p / 0.5) ** 2)
+        else:
+            im = _zoom_centre(b, 1 + 0.45 * ((1 - p) / 0.5) ** 2)
+        if 0.38 < p < 0.62:
+            k = (p - 0.38) / 0.24
+            im = Image.blend(_zoom_centre(a, 1.45), _zoom_centre(b, 1.45), k)
+        return im
+    if typ == "flash":
+        base = a if p < 0.5 else b
+        blanc = Image.new("RGBA", (W, H), (255, 255, 255, 255))
+        return Image.blend(base, blanc, max(0.0, 1 - abs(p - 0.5) / 0.5) ** 1.5 * 0.92)
+    if typ == "glissement":                                   # le nouveau plan pousse l'ancien vers la gauche
+        x = int(round(e * W))
+        im = Image.new("RGBA", (W, H), (0, 0, 0, 255))
+        im.paste(a, (-x, 0)); im.paste(b, (W - x, 0))
+        return im
+    return b if p >= 0.5 else a
+
+
 class Illustration:
     """Image ou vidéo d'illustration (B-roll) affichée plein écran entre deb et fin (temps source)."""
 
@@ -806,34 +878,32 @@ def monter(video, plan, R: Reglages, sortie, musique=None, progression=True, rap
     vf = f"fps={FPS},scale={SW}:{SH}:flags=bicubic"
     if R.etalonnage and R.style_etalonnage in ETALONNAGES:
         vf += "," + ETALONNAGES[R.style_etalonnage]
-    taille = SW * SH * 3
-    etat = {"idx": -1, "img": None, "proc": None}
+    principal = LecteurSource(video, vf, SW, SH)
+    aux_a, aux_b = LecteurSource(video, vf, SW, SH), LecteurSource(video, vf, SW, SH)   # transitions
+    image_source = principal.image
 
-    def ouvrir_lecteur(depuis_idx):
-        """(Re)démarre la lecture de la source à l'image depuis_idx (retour en arrière ou grand saut)."""
-        if etat["proc"] is not None:
-            etat["proc"].kill()
-        cmd = ["ffmpeg", "-loglevel", "error"]
-        if depuis_idx > 0:
-            cmd += ["-ss", f"{depuis_idx / FPS:.3f}"]
-        etat["proc"] = subprocess.Popen(cmd + ["-i", video, "-vf", vf, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
-                                        stdout=subprocess.PIPE)
-        etat["idx"] = depuis_idx - 1
+    def zoom_effectif(p, st):            # cadrage du plan + léger zoom continu
+        frac = min(1.0, max(0.0, (st - p["a"]) / max(1e-6, p["b"] - p["a"])))
+        return p["zoom"] * (1.0 + 0.025 * frac) * 1.03
 
-    ouvrir_lecteur(0)
+    def cadrer(img, p, st, z=None):
+        z = zoom_effectif(p, st) if z is None else z
+        cw, ch = W / z, H / z
+        x0 = min(max(SW / 2 - cw / 2, 0), SW - cw); y0 = min(max(SH * 0.5 - ch / 2, 0), SH - ch)
+        return img.resize((W, H), Image.BICUBIC, box=(x0, y0, x0 + cw, y0 + ch)).convert("RGBA")
 
-    def image_source(idx):
-        if idx < etat["idx"] or idx - etat["idx"] > FPS * 4:
-            ouvrir_lecteur(idx)
-        while etat["idx"] < idx:
-            lecteur = etat["proc"]
-            buf = lecteur.stdout.read(taille)
-            if len(buf) < taille:
-                break
-            etat["idx"] += 1
-            if etat["idx"] == idx:
-                etat["img"] = Image.frombuffer("RGB", (SW, SH), buf, "raw", "RGB", 0, 1)
-        return etat["img"]
+    d_tr = max(0.08, float(getattr(R, "duree_transition", 0.25) or 0.25))
+    duree_src = duree_video(video)
+
+    def fenetre_transition(j, ot):
+        """(plan avant, plan après, frontière, progression) si ot est dans une transition, sinon None."""
+        for k in (j, j - 1):
+            if 0 <= k < len(plans) - 1:
+                typ = plans[k].get("transition") or getattr(R, "transition", "coupe")
+                B = plans[k + 1]["o"]
+                if typ != "coupe" and B - d_tr / 2 <= ot < B + d_tr / 2:
+                    return plans[k], plans[k + 1], B, (ot - (B - d_tr / 2)) / d_tr, typ
+        return None
 
     tmp_v = sortie + ".video.mp4"
     ecrivain = subprocess.Popen(["ffmpeg", "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24",
@@ -858,11 +928,25 @@ def monter(video, plan, R: Reglages, sortie, musique=None, progression=True, rap
             elif ill is not None:
                 canvas = ill.image(st)
             else:
-                frac = (st - p["a"]) / max(1e-6, p["b"] - p["a"])
-                z = p["zoom"] * (1.0 + 0.025 * frac) * 1.03
-                cw, ch = W / z, H / z
-                x0 = min(max(SW / 2 - cw / 2, 0), SW - cw); y0 = min(max(SH * 0.5 - ch / 2, 0), SH - ch)
-                canvas = img.resize((W, H), Image.BICUBIC, box=(x0, y0, x0 + cw, y0 + ch)).convert("RGBA")
+                tr = fenetre_transition(j, ot)
+                if tr is not None and abs(tr[0]["b"] - tr[1]["a"]) < 2.0 / FPS and tr[4] != "flash":
+                    # simple recadrage (pas de saut dans la vidéo) : le zoom glisse d'un cadrage à l'autre
+                    pa, pb, B, prog, typ = tr
+                    e = prog * prog * (3 - 2 * prog)
+                    za, zb = zoom_effectif(pa, st), zoom_effectif(pb, st)
+                    canvas = cadrer(img, p, st, z=za + (zb - za) * e)
+                elif tr is not None:
+                    pa, pb, B, prog, typ = tr
+                    sa = min(max(0.0, pa["b"] + (ot - B)), duree_src - 1.0 / FPS)   # le plan d'avant continue un peu
+                    sb = min(max(0.0, pb["a"] + (ot - B)), duree_src - 1.0 / FPS)   # le plan d'après commence un peu plus tôt
+                    ecran_ab = any(a <= x < b for a, b, _ in ecrans for x in (sa, sb))
+                    ia, ib = aux_a.image(int(round(sa * FPS))), aux_b.image(int(round(sb * FPS)))
+                    if ecran_ab or ia is None or ib is None:
+                        tr = None
+                    else:
+                        canvas = transition(cadrer(ia, pa, sa), cadrer(ib, pb, sb), prog, typ)
+                if tr is None:
+                    canvas = cadrer(img, p, st)
             for g in plan["groupes"]:
                 if g["deb"] - 0.001 <= st < g["fin"]:
                     for im, x, y, ts in g["items"]:
@@ -879,7 +963,9 @@ def monter(video, plan, R: Reglages, sortie, musique=None, progression=True, rap
             print(f"  image {n}/{nb}  ({100 * n // nb} %)", flush=True)
         if rappel is not None and n % 15 == 0:
             rappel(n / nb)
-    ecrivain.stdin.close(); ecrivain.wait(); etat["proc"].kill()
+    ecrivain.stdin.close(); ecrivain.wait()
+    for lec in (principal, aux_a, aux_b):
+        lec.fermer()
     for b in illustrations:
         b.fermer()
 

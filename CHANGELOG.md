@@ -1,5 +1,10 @@
 # Historique des versions
 
+## 0.12.0 — 2026-11-21
+- **Transitions fluides dans la vidéo exportée** : entre deux plans, au choix **fondu enchaîné** (par défaut), **zoom**, **flash blanc**, **glissement** ou **coupe franche**. Quand deux plans viennent de la même prise (simple recadrage), le zoom glisse en douceur d'un cadrage à l'autre au lieu de sauter.
+- Réglage dans **⚙️ Paramètres › Style** (type et durée), dans l'éditeur pour tout le projet (panneau de droite sans sélection), ou **plan par plan** : cliquez sur le petit rond entre deux plans de la piste 🎬, puis **▶︎ Voir**.
+- **Aperçu de l'éditeur sans saccade** : deux lecteurs en relais — le plan suivant est déjà prêt quand l'actuel se termine, et les transitions sont visibles dans l'aperçu.
+
 ## 0.11.0 — 2026-11-21
 - **Modifier un sous-titre directement sur la vidéo** : en pause, cliquez sur le texte dans l'aperçu, tapez, **Entrée** pour valider, **Échap** pour annuler (⌘Z pour revenir en arrière). Le mot clé est conservé s'il est toujours là.
 - **⌥ + clic sur un mot** dans l'aperçu : il devient (ou n'est plus) le mot clé en GRAS.

@@ -87,7 +87,8 @@ def vers_plan(proj):
         a, b = float(c["a"]), float(c["b"])
         if b - a < 1.0 / M.FPS:
             continue
-        plans.append({"a": a, "b": b, "zoom": float(c.get("zoom", 1.0)), "o": o})
+        plans.append({"a": a, "b": b, "zoom": float(c.get("zoom", 1.0)), "o": o,
+                      "transition": c.get("transition") or None})   # vers le plan suivant (None = style)
         o += b - a
     if not plans:
         raise ValueError("La piste vidéo est vide.")

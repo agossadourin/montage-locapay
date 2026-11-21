@@ -447,3 +447,46 @@ def test_musique_libre_openverse_simulee(tmp_path, monkeypatch):
     assert "Ana" in res[0]["credit"] and "CC BY" in res[0]["credit"] and res[1]["credit"] == ""
     chemin = MU.telecharger(res[0], client=client)
     assert open(chemin, "rb").read() == b"ID3fake" and chemin.endswith(".mp3")
+
+
+def _pixel(video, t):
+    r = subprocess.run(["ffmpeg", "-loglevel", "error", "-ss", f"{t:.3f}", "-i", str(video), "-frames:v", "1",
+                        "-vf", "crop=40:40:520:700,scale=1:1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+                       capture_output=True)
+    return tuple(r.stdout[:3])
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg absent")
+@pytest.mark.parametrize("transition", ["fondu", "coupe"])
+def test_transition_entre_deux_plans(tmp_path, transition):
+    """Saut dans la vidéo (rouge → bleu) : en fondu, l'image à la frontière mélange les deux plans."""
+    src = tmp_path / "brut.mp4"
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "color=red:size=360x640:rate=30:d=2",
+                    "-f", "lavfi", "-i", "color=blue:size=360x640:rate=30:d=2", "-f", "lavfi",
+                    "-i", "sine=frequency=220:duration=4", "-filter_complex", "[0:v][1:v]concat=n=2:v=1:a=0[v]",
+                    "-map", "[v]", "-map", "2:a", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+                    "-c:a", "aac", "-shortest", str(src)], check=True)
+    proj = {"version": 1, "video": str(src), "duree_source": 4.0,
+            "clips": [{"id": "1", "a": 0.0, "b": 1.0, "zoom": 1.0}, {"id": "2", "a": 3.0, "b": 4.0, "zoom": 1.0}],
+            "sous_titres": [], "ecrans": [], "illustrations": [], "musique": None,
+            "reglages": {"duree_fin": 0.3, "ecran_fin": False, "logo_en_coin": False, "style_etalonnage": "naturel",
+                         "transition": transition, "duree_transition": 0.3}}
+    out = tmp_path / "t.mp4"
+    P.rendre(proj, str(out))
+    rouge, milieu, bleu = _pixel(out, 0.4), _pixel(out, 1.0), _pixel(out, 1.6)
+    assert rouge[0] > 180 and rouge[2] < 60 and bleu[2] > 180 and bleu[0] < 60
+    if transition == "fondu":
+        assert 50 < milieu[0] < 210 and 50 < milieu[2] < 210, milieu
+    else:
+        assert milieu[2] > 180 and milieu[0] < 60, milieu
+
+
+def test_fonctions_de_transition():
+    from PIL import Image
+    a = Image.new("RGBA", (M.W, M.H), (255, 0, 0, 255)); b = Image.new("RGBA", (M.W, M.H), (0, 0, 255, 255))
+    for typ in M.TRANSITIONS:
+        assert M.transition(a, b, 0.0, typ).getpixel((10, 10))[:3] in ((255, 0, 0), (255, 0, 0))
+        assert M.transition(a, b, 1.0, typ).getpixel((M.W - 10, 10))[:3] == (0, 0, 255)
+    assert M.transition(a, b, 0.5, "flash").getpixel((5, 5))[1] > 200          # pic blanc
+    g = M.transition(a, b, 0.5, "glissement")
+    assert g.getpixel((5, 5))[:3] == (255, 0, 0) and g.getpixel((M.W - 5, 5))[:3] == (0, 0, 255)

@@ -35,7 +35,13 @@ header .statut{color:var(--doux);margin-left:auto}
 #haut{display:grid;grid-template-columns:1fr auto 330px;min-height:0}
 #scene-zone{display:flex;align-items:center;justify-content:center;min-height:0;padding:10px}
 #scene{position:relative;background:#000;overflow:hidden;border-radius:8px;box-shadow:0 6px 30px rgba(0,0,0,.5)}
+#lecteurs{position:absolute;inset:0;overflow:hidden;isolation:isolate}
 #scene video.src{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform-origin:50% 50%}
+#flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:5}
+.trans{position:absolute;top:13px;width:18px;height:18px;margin-left:-9px;border-radius:50%;background:#1b1b24;border:1px solid #fff8;
+  color:#fff;font-size:10px;line-height:16px;text-align:center;cursor:pointer;z-index:4;user-select:none}
+.trans:hover,.trans.choisie{background:var(--accent);border-color:#fff}
+.trans.coupe{opacity:.55}
 #scene .couche{position:absolute;inset:0;display:none}
 #scene .couche img,#scene .couche video{width:100%;height:100%;object-fit:cover}
 #st-zone{position:absolute;left:0;right:0;display:flex;flex-direction:column;align-items:center;transform:translateY(-50%);pointer-events:none}
@@ -125,7 +131,11 @@ progress{width:100%;height:10px}
   <div id="haut">
     <div id="scene-zone">
       <div id="scene">
-        <video class="src" id="v" preload="auto" playsinline></video>
+        <div id="lecteurs">
+          <video class="src" id="v" preload="auto" playsinline></video>
+          <video class="src" id="v2" preload="auto" playsinline muted style="opacity:0"></video>
+          <div id="flash"></div>
+        </div>
         <div class="couche" id="c-ill"></div>
         <div class="couche" id="c-ecran"></div>
         <div id="st-zone"></div>
@@ -183,7 +193,11 @@ const FPS = 30;
 let proj = null, ident = null, onde = null;
 let t = 0, lecture = false, dernier = 0, pxs = 70, sel = null;
 let histo = [], futur = [], minuteurSauve = null;
-const v = $("v"), aMus = $("a-mus");
+const aMus = $("a-mus");
+// Deux lecteurs en relais : l'un joue le plan en cours, l'autre est déjà calé sur le prochain saut.
+const lect = [$("v"), $("v2")]; let ia = 0, sortantJusqua = 0;
+const vA = () => lect[ia], vB = () => lect[1 - ia];
+const TRANSITIONS = { coupe: ["Coupe franche", "│"], fondu: ["Fondu enchaîné", "◐"], zoom: ["Zoom", "⊕"], flash: ["Flash blanc", "✦"], glissement: ["Glissement", "⇆"] };
 
 const tc = (x) => { x = Math.max(0, x); const m = Math.floor(x / 60), s = x - 60 * m; return String(m).padStart(2, "0") + ":" + s.toFixed(1).padStart(4, "0"); };
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -197,6 +211,25 @@ function dureeFin() { return R().ecran_fin === false ? 0 : (R().duree_fin ?? 1.8
 function total() { return corps() + dureeFin(); }
 function versSource(x) { for (const c of clips()) if (x >= c.o && x < c.o + c.d) return { c, s: c.a + (x - c.o) }; return null; }
 function versSortie(s) { for (const c of clips()) if (s >= c.a && s < c.b) return c.o + (s - c.a); return null; }
+const lisse = (p) => { p = clamp(p, 0, 1); return p * p * (3 - 2 * p); };
+function typeTransition(c) { return (c && c.transition) || R().transition || "fondu"; }
+function dureeTr() { return clamp(+(R().duree_transition ?? 0.25) || 0.25, 0.08, 1); }
+function contigu(c, n) { return !!n && Math.abs(n.a - c.b) < 2 / FPS; }
+function zoomPlan(c, s) { return (c.zoom || 1) * (1 + 0.025 * clamp((s - c.a) / Math.max(1e-6, c.b - c.a), 0, 1)) * 1.03; }
+function transitionA(x) {                       // transition en cours au temps de sortie x (comme le moteur d'export)
+  const cps = clips(), d = dureeTr();
+  for (let k = 0; k < cps.length - 1; k++) {
+    const c = cps[k], n = cps[k + 1], B = n.o;
+    if (x < B - d / 2) return null;
+    if (x < B + d / 2) {
+      const typ = typeTransition(c); if (typ === "coupe") return null;
+      const sa = c.b + (x - B), sb = n.a + (x - B);
+      if (!contigu(c, n) && (ecranA(sa) || ecranA(sb))) return null;
+      return { c, n, B, p: (x - (B - d / 2)) / d, typ, sa, sb };
+    }
+  }
+  return null;
+}
 function intervalleVisible(deb, fin) {
   // première portion visible, prolongée tant que les plans suivants continuent l'élément sans trou
   let res = null;
@@ -347,14 +380,24 @@ function rendreScene(forcerSeek) {
   if (t >= cor) {
     fin.style.display = "flex"; fin.style.background = (ident.couleurs[0]); $("st-zone").innerHTML = "";
     cIll.style.display = "none"; cEc.style.display = "none"; $("logo-coin").style.display = "none";
-    if (!v.paused) v.pause();
+    lect.forEach(x => { if (!x.paused) x.pause(); });
     return;
   }
   fin.style.display = "none";
   const pos = versSource(t); if (!pos) return;
   const { c, s } = pos;
-  v.style.transform = `scale(${(c.zoom || 1) * 1.03})`; v.style.filter = filtre();
-  if (forcerSeek || Math.abs(v.currentTime - s) > (lecture ? 0.35 : 0.02)) { try { v.currentTime = s; } catch (e) {} }
+  const tr = transitionA(t);
+  if (!lecture || forcerSeek) {                 // à l'arrêt (ou saut) : on cale les lecteurs sur l'image demandée
+    const m = vA(), o = vB();
+    m.dataset.clip = c.id; m.dataset.sortant = "";
+    if (Math.abs(m.currentTime - s) > 0.02 || forcerSeek) { try { m.currentTime = s; } catch (e) {} }
+    if (tr && !contigu(tr.c, tr.n)) {
+      const autre = tr.c.id === c.id ? tr.n : tr.c, so = tr.c.id === c.id ? tr.sb : tr.sa;
+      o.dataset.clip = autre.id; o.dataset.sortant = autre === tr.c ? "1" : ""; if (autre === tr.c) sortantJusqua = tr.B + dureeTr() / 2;
+      if (Math.abs(o.currentTime - so) > 0.02) { try { o.currentTime = Math.max(0, so); } catch (e) {} }
+    } else { o.dataset.sortant = ""; if (!o.paused) o.pause(); }
+  } else if (Math.abs(vA().currentTime - s) > 0.35 && !(tr && !contigu(tr.c, tr.n))) { try { vA().currentTime = s; } catch (e) {} }
+  poserLecteurs(c, s, tr);
   const ec = ecranA(s);
   cEc.style.display = ec ? "block" : "none"; if (ec) cEc.style.background = ec.couleur;
   const il = ec ? null : illA(s);
@@ -375,21 +418,79 @@ function rendreScene(forcerSeek) {
   $("logo-coin").style.display = (R().logo_en_coin !== false && t >= logoDes && !ec && !il) ? "block" : "none";
 }
 
+// Place et anime les deux lecteurs (cadrage, transition) pour l'image au temps t.
+function poserLecteurs(c, s, tr) {
+  const f = filtre(), fl = $("flash");
+  const style = (x, z, o = 1, tx = 0, zi = 1) => { x.style.transform = `translateX(${tx}%) scale(${z})`; x.style.opacity = o; x.style.zIndex = zi; x.style.filter = f; };
+  const parClip = (id) => lect.find(x => x.dataset.clip === id);
+  fl.style.opacity = 0;
+  lect.forEach(x => { x.style.opacity = 0; x.style.zIndex = 0; });
+  if (tr && contigu(tr.c, tr.n)) {               // simple recadrage : le zoom glisse d'un cadrage à l'autre
+    const m = vA();
+    if (tr.typ === "flash") { style(m, zoomPlan(c, s)); fl.style.opacity = Math.pow(Math.max(0, 1 - Math.abs(tr.p - 0.5) / 0.5), 1.5) * 0.92; }
+    else { const za = zoomPlan(tr.c, s), zb = zoomPlan(tr.n, s); style(m, za + (zb - za) * lisse(tr.p)); }
+    return;
+  }
+  const ea = tr && parClip(tr.c.id), eb = tr && parClip(tr.n.id);
+  if (!tr || !ea || !eb || ea === eb) { style(vA(), zoomPlan(c, s)); return; }
+  const za = zoomPlan(tr.c, tr.sa), zb = zoomPlan(tr.n, tr.sb), p = tr.p, e = lisse(p);
+  if (tr.typ === "fondu") { style(ea, za, 1, 0, 1); style(eb, zb, e, 0, 2); }
+  else if (tr.typ === "zoom") {
+    style(ea, za * (1 + 0.45 * Math.pow(Math.min(1, p / 0.5), 2)), 1, 0, 1);
+    const k = clamp((p - 0.38) / 0.24, 0, 1);
+    style(eb, zb * (1 + 0.45 * Math.pow(Math.min(1, (1 - p) / 0.5), 2)), k, 0, 2);
+  } else if (tr.typ === "flash") {
+    style(p < 0.5 ? ea : eb, p < 0.5 ? za : zb, 1, 0, 1);
+    fl.style.opacity = Math.pow(Math.max(0, 1 - Math.abs(p - 0.5) / 0.5), 1.5) * 0.92;
+  } else if (tr.typ === "glissement") { style(ea, za, 1, -100 * e, 1); style(eb, zb, 1, 100 * (1 - e), 2); }
+  else style(p < 0.5 ? ea : eb, p < 0.5 ? za : zb);
+}
+
+function prochainSaut(k) { const cps = clips(); for (let j = k + 1; j < cps.length; j++) if (!contigu(cps[j - 1], cps[j])) return cps[j]; return null; }
+function preparer(k) {                          // le lecteur libre se cale à l'avance sur le prochain saut
+  const p = vB(); if (p.dataset.sortant === "1") return;
+  const n = prochainSaut(k); if (!n) return;
+  const cle = n.id + ":" + n.a;
+  if (p.dataset.cle === cle && p.dataset.clip === n.id) return;
+  const prec = clips()[n.k - 1], avance = typeTransition(prec) === "coupe" ? 0 : dureeTr() / 2;
+  p.pause(); p.muted = true; p.dataset.clip = n.id; p.dataset.cle = cle;
+  try { p.currentTime = Math.max(0, n.a - avance); } catch (e) {}
+}
+
 function boucle(ts) {
   if (!lecture) return;
   const dt = (ts - dernier) / 1000; dernier = ts;
-  const cor = corps();
+  const cor = corps(), cps = clips(), t0 = t;
   if (t < cor) {
-    const pos = versSource(t);
-    if (pos && !v.paused && !v.seeking) {
-      const vt = v.currentTime, c = pos.c;
+    const pos = versSource(t), m = vA();
+    if (pos && !m.paused && !m.seeking) {
+      const vt = m.currentTime, c = pos.c, n = cps[c.k + 1];
       if (vt >= c.b - 0.015) {                       // fin du plan : on enchaîne sur le suivant
-        const cps = clips(); const n = cps[c.k + 1];
-        if (n) { t = n.o; v.currentTime = n.a; } else { t = cor; }
+        if (!n) t = cor;
+        else if (contigu(c, n)) { t = n.o + Math.max(0, vt - n.a); m.dataset.clip = n.id; }   // même prise : on continue sans sauter
+        else {
+          const p = vB();
+          if (p.dataset.clip === n.id && !p.seeking) {   // relais : le lecteur prêt prend la main
+            if (p.paused) p.play().catch(() => {});
+            p.muted = false; m.muted = true; ia = 1 - ia; p.dataset.cle = "";
+            if (typeTransition(c) === "coupe") { m.pause(); m.dataset.clip = ""; m.dataset.sortant = ""; }
+            else { m.dataset.sortant = "1"; sortantJusqua = n.o + dureeTr() / 2; }
+            t = n.o + clamp(p.currentTime - n.a, 0, 0.2);
+          } else { t = n.o; m.currentTime = n.a; m.dataset.clip = n.id; }
+        }
       } else if (vt >= c.a - 0.05) t = c.o + (vt - c.a);
       else t += dt;
+      // transition : le plan suivant démarre un peu avant la frontière
+      if (n && !contigu(c, n) && typeTransition(c) !== "coupe") {
+        const p = vB();
+        if (p.dataset.clip === n.id && p.paused && !p.seeking && t >= n.o - dureeTr() / 2 - 0.05) p.play().catch(() => {});
+      }
     } else t += dt;
+    if (t < t0 && t0 - t < 0.5) t = t0;          // le lecteur qui prend le relais démarre parfois avec un léger retard
   } else t += dt;
+  const s2 = vB();
+  if (s2.dataset.sortant === "1" && t >= sortantJusqua) { s2.pause(); s2.dataset.sortant = ""; s2.dataset.clip = ""; }
+  const pos2 = t < corps() ? versSource(t) : null; if (pos2) preparer(pos2.c.k);
   if (proj.musique && aMus.src) { const mt = (proj.musique.decalage || 0) + t; if (Math.abs(aMus.currentTime - mt) > 0.3) aMus.currentTime = mt; aMus.volume = clamp(proj.musique.volume ?? 0.18, 0, 1); }
   if (t >= total()) { arreter(); t = 0; rendreScene(true); return; }
   rendreScene(false);
@@ -400,11 +501,11 @@ function jouer() {
   if (t >= total() - 0.05) t = 0;
   lecture = true; $("b-lecture").textContent = "⏸";
   rendreScene(true);
-  if (t < corps()) v.play().catch(() => {});
+  if (t < corps()) { const m = vA(); m.muted = false; vB().muted = true; m.play().catch(() => {}); const o = vB(); if (o.dataset.sortant === "1") o.play().catch(() => {}); }
   if (proj.musique && aMus.src) { aMus.currentTime = (proj.musique.decalage || 0) + t; aMus.play().catch(() => {}); }
   dernier = performance.now(); requestAnimationFrame(boucle);
 }
-function arreter() { lecture = false; $("b-lecture").textContent = "▶️"; v.pause(); aMus.pause(); const iv = $("c-ill").querySelector("video"); if (iv) iv.pause(); }
+function arreter() { lecture = false; $("b-lecture").textContent = "▶️"; lect.forEach(x => x.pause()); aMus.pause(); const iv = $("c-ill").querySelector("video"); if (iv) iv.pause(); }
 function allerA(x) { t = clamp(x, 0, total() - 0.001); rendreScene(true); suivreTete(); }
 function suivreTete() { const d = $("defile"), x = t * pxs; if (x < d.scrollLeft + 20 || x > d.scrollLeft + d.clientWidth - 40) d.scrollLeft = Math.max(0, x - d.clientWidth / 3); }
 
@@ -438,6 +539,15 @@ function dessinerTimeline() {
   // vidéo
   const pc = $("p-clip"); pc.innerHTML = "";
   clips().forEach((c, i) => { const d = el("clip", c.o, c.o + c.d, `Plan ${i + 1} · ${c.d.toFixed(1)} s${(c.zoom || 1) > 1.01 ? " · zoom" : ""}`, { type: "clip", id: c.id }); dessinerOnde(d, c); poignees(d); pc.appendChild(d); });
+  const cpsT = clips();
+  cpsT.slice(0, -1).forEach((c) => {
+    const typ = typeTransition(c), m = document.createElement("div");
+    m.className = "trans " + typ + (sel && sel.type === "clip" && sel.id === c.id && sel.trans ? " choisie" : "");
+    m.style.left = ((c.o + c.d) * pxs) + "px"; m.textContent = TRANSITIONS[typ] ? TRANSITIONS[typ][1] : "?";
+    m.title = "Transition : " + (TRANSITIONS[typ] || [typ])[0] + (c.transition ? "" : " (style)") + " — cliquez pour changer";
+    m.addEventListener("pointerdown", (e) => { e.stopPropagation(); e.preventDefault(); arreter(); sel = { type: "clip", id: c.id, trans: true }; allerA(c.o + c.d - dureeTr() / 2 - 0.05); dessinerTimeline(); inspecter(); });
+    pc.appendChild(m);
+  });
   if (dureeFin() > 0) pc.appendChild(el("fin", cor, cor + dureeFin(), "Fin · logo"));
   // superpositions ancrées sur la voix
   const masques = { st: 0, ill: 0, ecran: 0, alerte: 0 };
@@ -526,7 +636,8 @@ function couper() {
   const c = proj.clips.find(k => k.id === p.c.id); if (p.s - c.a < 0.05 || c.b - p.s < 0.05) return;
   memoriser();
   const i = proj.clips.indexOf(c);
-  proj.clips.splice(i, 1, { ...c, b: p.s }, { ...c, id: uid(), a: p.s });
+  const avant = { ...c, b: p.s }; delete avant.transition;      // la transition reste à la fin du plan d'origine
+  proj.clips.splice(i, 1, avant, { ...c, id: uid(), a: p.s });
   sel = { type: "clip", id: proj.clips[i + 1].id }; apresModif();
 }
 function couperPlage(deb, fin) {        // retire [deb, fin] (temps source) de tous les plans
@@ -597,16 +708,30 @@ function inspecter() {
   if (!sel) { ins.innerHTML = `<h3>Projet</h3><p class="aide">${proj.clips.length} plans · ${proj.sous_titres.length} sous-titres · ${proj.illustrations.length} illustrations · ${proj.ecrans.length} écrans</p>` +
       (proj.alertes.length ? `<p>⚠️ <b>${proj.alertes.length} passage(s) à vérifier</b> sur la piste rouge : cliquez dessus pour écouter, couper, traduire ou garder.</p>` : "") +
       (proj.auto && proj.auto.sans_cle_images ? `<p class="aide">🖼 Aucune illustration cherchée : ajoutez une clé Pexels (gratuite) dans <a href="/">⚙️ Paramètres › Clés API</a>, puis relancez ✨.</p>` : "") +
-      ($("statut").dataset.masques > 0 ? `<p class="aide">ℹ️ ${$("statut").dataset.masques} élément(s) tombent dans des passages coupés et ne s'affichent pas.</p>` : "") + aide; return; }
+      champ("Transitions entre les plans", `<div class="rangee"><select id="i-trans-tout">${Object.entries(TRANSITIONS).map(([k, [n, i]]) => `<option value="${k}" ${(R().transition || "fondu") === k ? "selected" : ""}>${i} ${n}</option>`).join("")}</select>
+        <select id="i-trans-duree">${[[0.15, "Rapide"], [0.25, "Normale"], [0.4, "Lente"], [0.6, "Très lente"]].map(([d, n]) => `<option value="${d}" ${Math.abs(dureeTr() - d) < 0.04 ? "selected" : ""}>${n}</option>`).join("")}</select></div>
+        <p class="aide">Pour un seul plan : cliquez sur le petit rond entre deux plans de la piste 🎬.</p>`) +
+      ($("statut").dataset.masques > 0 ? `<p class="aide">ℹ️ ${$("statut").dataset.masques} élément(s) tombent dans des passages coupés et ne s'affichent pas.</p>` : "") + aide;
+    $("i-trans-tout").onchange = () => { memoriser(); proj.reglages = { ...R(), transition: $("i-trans-tout").value }; apresModif(); };
+    $("i-trans-duree").onchange = () => { memoriser(); proj.reglages = { ...R(), duree_transition: +$("i-trans-duree").value }; apresModif(); };
+    return; }
   if (sel.type === "clip") {
     const c = proj.clips.find(c => c.id === sel.id); if (!c) { sel = null; return inspecter(); }
+    // (sel.trans : ouvert depuis le repère de transition)
     ins.innerHTML = `<h3>🎬 Plan</h3>` +
       champ("Extrait de la vidéo brute", `<div class="rangee"><input type="number" step="0.1" id="i-a" value="${c.a.toFixed(2)}" style="width:90px"> → <input type="number" step="0.1" id="i-b" value="${c.b.toFixed(2)}" style="width:90px"> s</div>`) +
       champ("Cadrage", `<select id="i-zoom">${[[1, "Normal"], [1.05, "Léger zoom"], [1.15, "Zoom (punch-in)"], [1.25, "Gros plan"]].map(([z, n]) => `<option value="${z}" ${Math.abs((c.zoom || 1) - z) < 0.011 ? "selected" : ""}>${n}</option>`).join("")}</select>`) +
+      (proj.clips.indexOf(c) < proj.clips.length - 1 ? champ("Transition vers le plan suivant", `<div class="rangee"><select id="i-trans"><option value="">Comme le style (${(TRANSITIONS[R().transition || "fondu"] || ["?"])[0]})</option>${Object.entries(TRANSITIONS).map(([k, [n, i]]) => `<option value="${k}" ${c.transition === k ? "selected" : ""}>${i} ${n}</option>`).join("")}</select><button id="i-voir-trans" title="Voir la transition">▶︎ Voir</button></div>`) : "") +
       `<div class="rangee" style="margin-top:12px"><button id="i-couper">✂️ Couper ici</button><button class="danger" id="i-suppr">🗑 Supprimer</button></div>` + aide;
     $("i-a").onchange = () => { memoriser(); c.a = clamp(+$("i-a").value, 0, c.b - 0.1); apresModif(); };
     $("i-b").onchange = () => { memoriser(); c.b = clamp(+$("i-b").value, c.a + 0.1, proj.duree_source); apresModif(); };
     $("i-zoom").onchange = () => { memoriser(); c.zoom = +$("i-zoom").value; apresModif(); };
+    if ($("i-trans")) {
+      if (sel.trans) setTimeout(() => $("i-trans").focus(), 0);
+      $("i-trans").onchange = () => { memoriser(); if ($("i-trans").value) c.transition = $("i-trans").value; else delete c.transition; apresModif(); };
+      $("i-voir-trans").onclick = () => { const cc = clips().find(x => x.id === c.id); if (!cc) return; allerA(Math.max(0, cc.o + cc.d - 1.0)); jouer();
+        const fin = cc.o + cc.d + 0.8, arret = () => { if (!lecture) return; if (t >= fin) arreter(); else requestAnimationFrame(arret); }; requestAnimationFrame(arret); };
+    }
     $("i-couper").onclick = couper; $("i-suppr").onclick = supprimer;
   } else if (sel.type === "st") {
     const g = proj.sous_titres.find(g => g.id === sel.id); if (!g) { sel = null; return inspecter(); }
@@ -805,7 +930,8 @@ $("b-exporter").onclick = exporter;
 $("b-auto").onclick = montageAuto;
 $("zoom").oninput = () => { pxs = +$("zoom").value; dessinerTimeline(); };
 window.addEventListener("resize", () => { dimensionner(); rendreScene(false); });
-v.addEventListener("seeked", () => { if (!lecture) rendreScene(false); });
+lect.forEach(x => x.addEventListener("seeked", () => { if (!lecture) poserScene(); }));
+function poserScene() { if (!proj || t >= corps()) return; const pos = versSource(t); if (pos) poserLecteurs(pos.c, pos.s, transitionA(t)); }
 
 // ------------------------------------------------------------------ démarrage
 async function creerProjet(fichiers) {
@@ -844,11 +970,11 @@ async function demarrer() {
     document.fonts.add(await f1.load()); document.fonts.add(await f2.load());
   } catch (e) { console.warn("polices", e); }
   if (ident.logo) { $("logo-fin").src = media(ident.logo); $("logo-coin").src = media(ident.logo); }
-  v.src = media(proj.video); chargerMusique();
+  lect.forEach(x => { x.src = media(proj.video); }); chargerMusique();
   fetch("/editeur/api/onde?f=" + encodeURIComponent(proj.video)).then(r => r.json()).then(o => { onde = o; dessinerTimeline(); }).catch(() => {});
   dimensionner();
   pxs = clamp(Math.floor(($("defile").clientWidth - 40) / Math.max(5, total())), 15, 320); $("zoom").value = pxs;
-  v.addEventListener("loadeddata", () => { rendreScene(true); }, { once: true });
+  lect[0].addEventListener("loadeddata", () => { rendreScene(true); }, { once: true });
   dessinerTimeline(); inspecter();
   $("statut").textContent = "Prêt";
 }

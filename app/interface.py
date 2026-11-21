@@ -685,6 +685,8 @@ with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": 
                             cs["effets_sonores"] = gr.Radio(["léger", "aucun"], value=getattr(STYLE0, "effets_sonores"), label="Effets sonores")
                             cs["ecran_fin"] = gr.Checkbox(value=getattr(STYLE0, "ecran_fin"), label="Écran de fin avec logo")
                             cs["logo_en_coin"] = gr.Checkbox(value=getattr(STYLE0, "logo_en_coin"), label="Logo en bas à gauche sur la fin")
+                            cs["transition"] = gr.Radio(M.TRANSITIONS, value=getattr(STYLE0, "transition"), label="Transition entre les plans")
+                            cs["duree_transition"] = gr.Slider(0.1, 0.8, step=0.05, value=getattr(STYLE0, "duree_transition"), label="Durée des transitions (s)")
                             cs["illustrations_par_minute"] = gr.Slider(0, 15, step=0.5, value=getattr(STYLE0, "illustrations_par_minute"), label="Illustrations proposées par minute (0 = aucune)")
                             nouveau_style = gr.Textbox(label="Enregistrer sous un nouveau nom (facultatif)")
                             bouton_style = gr.Button("💾 Enregistrer le style", size="sm")
