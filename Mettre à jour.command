@@ -6,7 +6,8 @@ trap 'echo; echo "❌ La mise à jour s est arrêtée (voir le message ci-dessus
 export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH"
 
 echo "➡️  Récupération de la dernière version…"
-git pull --ff-only
+BRANCHE="$(git ls-remote --symref origin HEAD | awk '/^ref:/ {sub("refs/heads/", "", $2); print $2}')"
+git pull --ff-only origin "${BRANCHE:-main}"
 echo "➡️  Mise à jour des bibliothèques…"
 uv pip install --python .venv/bin/python -r "requirements/mac-$(uname -m).txt"
 echo "➡️  Mise à jour de l app…"
