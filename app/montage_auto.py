@@ -147,6 +147,59 @@ def appliquer_corrections(mots, corrections):
     return out
 
 
+def _repartir(texte, deb, fin, ponct_finale=""):
+    """Transforme un texte en mots horodatés répartis sur [deb, fin] (selon leur longueur)."""
+    nouveaux = texte.split()
+    if not nouveaux:
+        return []
+    if ponct_finale and not re.search(r"[,.!?;:…]$", nouveaux[-1]):
+        nouveaux[-1] += ponct_finale
+    poids = [len(w) + 2 for w in nouveaux]
+    total, t, out = sum(poids), deb, []
+    for w, pw in zip(nouveaux, poids):
+        d = (fin - deb) * pw / total
+        out.append({"w": w, "s": round(t, 3), "e": round(t + max(0.05, d * 0.92), 3), "p": 1.0})
+        t += d
+    return out
+
+
+def _ponct(w):
+    p = re.findall(r"[,.!?;:…]+$", w)
+    return p[0] if p else ""
+
+
+def corriger(mots, corrections):
+    """Applique une liste de corrections :
+    - portée « moment » : remplace les mots n° i à j (une occurrence précise, choisie dans une phrase) ;
+    - portée « video » ou « toujours » : remplace l'expression `avant` (un ou plusieurs mots) partout.
+    Un remplacement vide supprime les mots (ils seront coupés au montage)."""
+    mots = [dict(m) for m in mots]
+    ciblees = [c for c in corrections or [] if c.get("portee") == "moment"]
+    for c in sorted(ciblees, key=lambda c: -int(c["i"])):
+        i, j = int(c["i"]), int(c["j"])
+        if not (0 <= i <= j < len(mots)):
+            continue
+        span = mots[i:j + 1]
+        mots[i:j + 1] = _repartir(c.get("apres", ""), span[0]["s"], span[-1]["e"], _ponct(span[-1]["w"]))
+    for c in corrections or []:
+        if c.get("portee") == "moment":
+            continue
+        cible = [t for t in (norm(x) for x in str(c.get("avant", "")).split()) if t]
+        n = len(cible)
+        if not n:
+            continue
+        out, k = [], 0
+        while k < len(mots):
+            if k + n <= len(mots) and [norm(mots[k + x]["w"]) for x in range(n)] == cible:
+                span = mots[k:k + n]
+                out += _repartir(c.get("apres", ""), span[0]["s"], span[-1]["e"], _ponct(span[-1]["w"]))
+                k += n
+            else:
+                out.append(mots[k]); k += 1
+        mots = out
+    return mots
+
+
 def texte_transcription(mots):
     return " ".join(m["w"] if m.get("st", True) else "[…]" for m in mots)
 

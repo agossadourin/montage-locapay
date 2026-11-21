@@ -142,3 +142,20 @@ def test_validation_traduction_et_sans_sous_titres():
     assert "Bonjour" not in sous_titres and "Bienvenue" in sous_titres
     assert plan["zones"][0]["a"] < 0.5                            # l'audio de la 1re phrase est gardé
     assert plan["corps"] < 16.0 - 2.5                              # la prise ratée est coupée
+
+
+def test_corrections_ciblees_et_globales():
+    mots = _mots("Bienvenue chez Loca pay, Loca pay simplifie le loyer.", 0.0)
+    # « Loca pay » (mots 2-3) corrigé seulement à ce moment-là, puis « le loyer » partout
+    corr = [{"portee": "moment", "i": 2, "j": 3, "avant": "Loca pay,", "apres": "Locapay"},
+            {"portee": "video", "avant": "le loyer", "apres": "votre loyer"}]
+    out = M.corriger(mots, corr)
+    textes = [m["w"] for m in out]
+    assert textes[:3] == ["Bienvenue", "chez", "Locapay,"]          # ponctuation conservée
+    assert textes[3:5] == ["Loca", "pay"]                          # l'autre occurrence n'est pas touchée
+    assert textes[-2:] == ["votre", "loyer."]
+    assert out[2]["s"] == mots[2]["s"] and out[2]["e"] <= mots[3]["e"]  # même moment
+    # correction globale multi-mots + suppression (remplacement vide)
+    out2 = M.corriger(mots, [{"portee": "toujours", "avant": "loca pay", "apres": "Locapay"},
+                             {"portee": "video", "avant": "Bienvenue", "apres": ""}])
+    assert [m["w"] for m in out2][:3] == ["chez", "Locapay,", "Locapay"]

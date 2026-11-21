@@ -1,5 +1,5 @@
 """Interface du montage automatique Locapay (fenêtre Mac via fenetre.py, ou navigateur)."""
-import os, subprocess, sys, time, traceback
+import json, os, subprocess, sys, time, traceback
 
 ICI = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ICI)
@@ -27,6 +27,25 @@ def _reglages(c1, c2, ecrans, position, hesit, pause, effets, vol, logo, autre_l
                       police_grasse=os.path.join(ICI, "polices", "gras.ttf"))
 
 
+def _lignes(tableau):
+    return tableau.values.tolist() if hasattr(tableau, "values") else list(tableau or [])
+
+
+def _fusionner_validation(anciennes_phrases, anciennes_lignes, nouvelles_phrases):
+    """Après une correction de mots, les phrases sont recalculées : on garde les choix déjà faits
+    (Garder, Sous-titres, texte retouché) pour les phrases qui commencent au même moment."""
+    lignes = M.lignes_validation(nouvelles_phrases)
+    for nl, ph in zip(lignes, nouvelles_phrases):
+        for ap, al in zip(anciennes_phrases, anciennes_lignes):
+            if abs(ap["deb"] - ph["deb"]) < 0.15:
+                al = (list(al) + [None] * 8)[:8]
+                nl[6], nl[7] = M._vrai(al[6]), M._vrai(al[7])
+                if M._jetons(str(al[3] or "")) != M._jetons(ap["texte"]):   # texte retouché à la main
+                    nl[3] = al[3]
+                break
+    return lignes
+
+
 def monter(video, musique, c1, c2, ecrans, position, hesit, pause, effets, vol, logo, autre_logo,
            vocabulaire, modele, corrections, cache, auto_qt=False, valider=True, analyse=None, tableau=None,
            progress=gr.Progress()):
@@ -40,23 +59,34 @@ def monter(video, musique, c1, c2, ecrans, position, hesit, pause, effets, vol, 
         else:
             progress(0.02, desc="Transcription de la voix… (la 1re fois, le modèle se télécharge)")
             mots_bruts = M.transcrire(video, modele=modele, langue="fr", vocabulaire=vocabulaire)
-            cache = {"cle": cle, "mots": mots_bruts}
-        mots = M.appliquer_corrections(mots_bruts, corrections)
+            cache = {"cle": cle, "mots": mots_bruts, "phrases": M.analyser(mots_bruts), "video": video}
+        # les corrections « à un moment précis » ne valent que pour la transcription où on les a choisies
+        corr = [c for c in (corrections or []) if c.get("portee") != "moment" or c.get("cle") == cle]
+        mots = M.corriger(mots_bruts, corr)
+        maj_moments = gr.update(choices=choix_moments(cache))
 
         if valider:
-            if not analyse or analyse.get("cle") != cle:
+            cle_analyse = (cle, repr([(c.get("portee"), c.get("i"), c.get("j"), c.get("avant"), c.get("apres"))
+                                      for c in corr]))
+            if not analyse or analyse.get("cle")[0] != cle:
                 # 1er clic : on propose les passages à vérifier et on attend la validation
                 phrases = M.analyser(mots)
-                analyse = {"cle": cle, "phrases": phrases, "video": video}
+                analyse = {"cle": cle_analyse, "phrases": phrases, "video": video}
                 n = sum(1 for p in phrases if p["alertes"])
                 msg = (f"🔎 **{n} passage(s) à vérifier** sur {len(phrases)} (lignes signalées dans « À vérifier »). "
                        "Cliquez sur une ligne pour **l'écouter**, cochez/décochez **Garder** et **Sous-titres**, "
                        "corrigez le texte si besoin (pour un passage en **fon**, tapez la traduction française : "
-                       "elle s'affichera en sous-titres), puis recliquez sur **🎬 Monter la vidéo**."
+                       "elle s'affichera en sous-titres), puis recliquez sur **🎬 Monter la vidéo**. "
+                       "Pour corriger un mot précis, utilisez **✏️ Corrections de mots › ➕**."
                        if n else "✅ Rien de suspect détecté. Vérifiez si vous voulez, puis recliquez sur **🎬 Monter la vidéo**.")
                 return (gr.update(), gr.update(), gr.update(), gr.update(), msg, cache, gr.update(),
-                        analyse, M.lignes_validation(phrases), gr.update(open=True))
-            lignes = tableau.values.tolist() if hasattr(tableau, "values") else list(tableau or [])
+                        analyse, M.lignes_validation(phrases), gr.update(open=True), maj_moments)
+            lignes = _lignes(tableau)
+            if analyse["cle"] != cle_analyse:      # des corrections ont été ajoutées depuis l'analyse
+                phrases = M.analyser(mots)
+                lignes = _fusionner_validation(analyse["phrases"], lignes, phrases)
+                analyse = {"cle": cle_analyse, "phrases": phrases, "video": video}
+            tableau = lignes
             mots = M.appliquer_validation(mots, analyse["phrases"], lignes)
 
         R = _reglages(c1, c2, ecrans, position, hesit, pause, effets, vol, logo, autre_logo)
@@ -78,12 +108,129 @@ def monter(video, musique, c1, c2, ecrans, position, hesit, pause, effets, vol, 
             except Exception:
                 pass
         return (sortie, M.texte_transcription(mots), M.resume_plan(plan), [sortie, srt, txt], info, cache, sortie,
-                analyse, gr.update(), gr.update())
+                analyse, tableau if valider else gr.update(), gr.update(), maj_moments)
     except gr.Error:
         raise
     except Exception as e:
         traceback.print_exc()
         raise gr.Error(f"Problème pendant le montage : {e}")
+
+
+# ============================================================ corrections de mots
+DICO = os.path.join(SORTIES, ".dictionnaire_corrections.json")
+DICO_DEFAUT = [{"portee": "toujours", "avant": "Locapé", "apres": "Locapay"},
+               {"portee": "toujours", "avant": "Lokapay", "apres": "Locapay"}]
+PARTOUT, TOUJOURS = "video", "toujours"
+
+
+def charger_dico():
+    try:
+        with open(DICO, encoding="utf-8") as f:
+            return [c for c in json.load(f) if c.get("portee") == TOUJOURS]
+    except (OSError, ValueError):
+        return [dict(c) for c in DICO_DEFAUT]
+
+
+def sauver_dico(corrections):
+    try:
+        with open(DICO, "w", encoding="utf-8") as f:
+            json.dump([{k: c[k] for k in ("portee", "avant", "apres")} for c in corrections
+                       if c.get("portee") == TOUJOURS], f, ensure_ascii=False, indent=1)
+    except OSError:
+        traceback.print_exc()
+
+
+def _tc(t):
+    return f"{int(t // 60):02d}:{t % 60:04.1f}"
+
+
+def choix_moments(cache):
+    choix = [("🌍 Partout dans cette vidéo", PARTOUT), ("♾️ Partout, dans toutes mes vidéos", TOUJOURS)]
+    for k, p in enumerate((cache or {}).get("phrases", [])):
+        texte = p["texte"] if len(p["texte"]) <= 70 else p["texte"][:68] + "…"
+        choix.append((f"{_tc(p['deb'])}  ·  {texte}", str(k)))
+    return choix
+
+
+def lignes_corrections(corrections):
+    lignes = []
+    for n, c in enumerate(corrections or [], 1):
+        moment = {PARTOUT: "Partout (cette vidéo)", TOUJOURS: "Toutes mes vidéos"}.get(
+            c.get("portee"), _tc(c.get("t", 0)))
+        lignes.append([n, moment, c.get("avant", ""), c.get("apres", "") or "— supprimé —"])
+    return lignes or [[None, "", "", ""]]
+
+
+def ouvrir_formulaire(cache):
+    aide = ("" if cache else "ℹ️ Les moments précis apparaissent après la transcription "
+                             "(premier clic sur **🎬 Monter la vidéo**).")
+    return (gr.update(visible=True), gr.update(choices=choix_moments(cache), value=None),
+            gr.update(choices=[], value=[], visible=False), gr.update(value="", interactive=True),
+            gr.update(value=""), aide)
+
+
+def fermer_formulaire():
+    return gr.update(visible=False)
+
+
+def choisir_moment(moment, cache):
+    if moment in (None, PARTOUT, TOUJOURS) or not cache:
+        return (gr.update(choices=[], value=[], visible=False),
+                gr.update(value="", interactive=True, label="Mot(s) à corriger (tels que reconnus)"))
+    ph = cache["phrases"][int(moment)]
+    mots = cache["mots"]
+    choix = [(f"{mots[i]['w']}", str(i)) for i in ph["idx"]]
+    return (gr.update(choices=choix, value=[], visible=True),
+            gr.update(value="", interactive=False, label="Mot(s) sélectionné(s)"))
+
+
+def choisir_mots(selection, cache):
+    if not selection or not cache:
+        return ""
+    idx = sorted(int(i) for i in selection)
+    return " ".join(m["w"] for m in cache["mots"][idx[0]:idx[-1] + 1])
+
+
+def ajouter_correction(moment, selection, avant, apres, corrections, cache):
+    corrections = list(corrections or [])
+    apres = (apres or "").strip()
+    if moment in (PARTOUT, TOUJOURS):
+        if not (avant or "").strip():
+            raise gr.Error("Tapez le ou les mots à corriger, tels que l'outil les a reconnus.")
+        corrections.append({"portee": moment, "avant": avant.strip(), "apres": apres})
+        if moment == TOUJOURS:
+            sauver_dico(corrections)
+    elif moment is not None and cache:
+        if not selection:
+            raise gr.Error("Choisissez le ou les mots à corriger dans la phrase.")
+        idx = sorted(int(i) for i in selection)
+        i, j = idx[0], idx[-1]
+        corrections.append({"portee": "moment", "i": i, "j": j, "cle": cache["cle"],
+                            "t": cache["mots"][i]["s"], "avant": choisir_mots(selection, cache), "apres": apres})
+    else:
+        raise gr.Error("Choisissez d'abord le moment.")
+    info = "✅ Correction ajoutée. Elle sera appliquée au prochain clic sur **🎬 Monter la vidéo**."
+    return corrections, lignes_corrections(corrections), gr.update(visible=False), info
+
+
+def supprimer_correction(corrections, ligne):
+    corrections = list(corrections or [])
+    if ligne is None or not (0 <= ligne < len(corrections)):
+        raise gr.Error("Cliquez d'abord sur la ligne de la correction à supprimer.")
+    retiree = corrections.pop(ligne)
+    if retiree.get("portee") == TOUJOURS:
+        sauver_dico(corrections)
+    return corrections, lignes_corrections(corrections), None, "🗑 Correction supprimée."
+
+
+def selectionner_correction(evt: gr.SelectData):
+    return evt.index[0] if isinstance(evt.index, (list, tuple)) else evt.index
+
+
+def ecouter_moment(moment, cache):
+    if moment in (None, PARTOUT, TOUJOURS) or not cache:
+        raise gr.Error("Choisissez un moment précis pour l'écouter.")
+    return _jouer(cache["video"], cache["phrases"][int(moment)])
 
 
 COLONNES = ["Ordre", "Vidéo", "Durée (s)", "Début (s)", "Fin (s)", "Garder"]
@@ -157,6 +304,18 @@ def arreter_ecoute():
     _lecture["proc"] = None
 
 
+def _jouer(video, ph):
+    """Extrait le passage (avec 0,3 s de marge) et le joue : haut-parleur du Mac, sinon lecteur audio."""
+    extrait = os.path.join(SORTIES, ".ecoute.wav")
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-ss", f"{max(0, ph['deb'] - 0.3):.2f}",
+                    "-t", f"{ph['fin'] - ph['deb'] + 0.6:.2f}", "-i", video, "-vn", "-ac", "2", extrait])
+    if sys.platform == "darwin":   # lecture directe sur le Mac (fiable même dans la fenêtre de l'app)
+        arreter_ecoute()
+        _lecture["proc"] = subprocess.Popen(["afplay", extrait])
+        return None
+    return extrait
+
+
 def ecouter(analyse, evt: gr.SelectData):
     """Clic sur une ligne du tableau de validation : on écoute le passage."""
     if not analyse:
@@ -165,15 +324,7 @@ def ecouter(analyse, evt: gr.SelectData):
     phrases = analyse["phrases"]
     if not (0 <= ligne < len(phrases)):
         return None
-    ph = phrases[ligne]
-    extrait = os.path.join(SORTIES, ".ecoute.wav")
-    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-ss", f"{max(0, ph['deb'] - 0.3):.2f}",
-                    "-t", f"{ph['fin'] - ph['deb'] + 0.6:.2f}", "-i", analyse["video"], "-vn", "-ac", "2", extrait])
-    if sys.platform == "darwin":   # lecture directe sur le Mac (fiable même dans la fenêtre de l'app)
-        arreter_ecoute()
-        _lecture["proc"] = subprocess.Popen(["afplay", extrait])
-        return None
-    return extrait
+    return _jouer(analyse["video"], phrases[ligne])
 
 
 def ouvrir_dossier():
@@ -224,8 +375,30 @@ with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": 
                                          label="Mots rares à bien reconnaître")
                 modele = gr.Radio(["Précis (recommandé)", "Rapide"], value="Précis (recommandé)", label="Transcription")
                 auto_qt = gr.Checkbox(value=(sys.platform == "darwin"), label="Ouvrir la vidéo dans QuickTime à la fin du montage")
-            corrections = gr.Textbox(value="Locapé=Locapay; Lokapay=Locapay", lines=2,
-                                     label="Corrections de mots (mot_faux=mot_juste; …) — puis recliquez sur Monter")
+            corrections = gr.State(charger_dico())
+            corr_choisie = gr.State(None)
+            with gr.Accordion("✏️ Corrections de mots", open=False) as acc_corr:
+                table_corr = gr.Dataframe(headers=["N°", "Moment", "Reconnu", "Corrigé en"],
+                                          datatype=["number", "str", "str", "str"], type="array",
+                                          interactive=False, wrap=True, value=lignes_corrections(charger_dico()),
+                                          column_widths=["9%", "27%", "32%", "32%"], label="Corrections")
+                with gr.Row():
+                    plus = gr.Button("➕ Ajouter une correction", variant="primary", size="sm")
+                    moins = gr.Button("🗑 Supprimer la ligne sélectionnée", size="sm")
+                info_corr = gr.Markdown()
+                with gr.Group(visible=False) as formulaire:
+                    moment = gr.Dropdown(label="1. Moment", choices=choix_moments(None), value=None,
+                                         info="Une phrase précise (minutage) ou partout")
+                    with gr.Row():
+                        mots_sel = gr.Dropdown(label="2. Mot(s) à corriger", multiselect=True, choices=[],
+                                               visible=False, scale=4,
+                                               info="Cliquez sur le ou les mots, dans l'ordre de la phrase")
+                        ecoute_moment = gr.Button("🔊 Écouter", size="sm", scale=1)
+                    avant = gr.Textbox(label="Mot(s) à corriger (tels que reconnus)")
+                    apres = gr.Textbox(label="3. Remplacer par", placeholder="Laisser vide pour supprimer ces mots")
+                    with gr.Row():
+                        ok_corr = gr.Button("✔ Ajouter", variant="primary", size="sm")
+                        annuler_corr = gr.Button("Annuler", size="sm")
             valider = gr.Checkbox(value=True, label="Me faire valider les passages douteux avant le montage "
                                                     "(reprises, passages incompris, fon…)")
             bouton = gr.Button("🎬 Monter la vidéo", variant="primary", size="lg")
@@ -258,7 +431,17 @@ with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": 
     bouton.click(monter, [video, musique, c1, c2, ecrans, position, hesit, pause, effets, vol, logo, autre_logo,
                           vocabulaire, modele, corrections, cache, auto_qt, valider, analyse, tableau_valid],
                  [resultat, transcription, plan, fichiers, info, cache, derniere_video, analyse, tableau_valid,
-                  acc_valid])
+                  acc_valid, moment])
+    plus.click(ouvrir_formulaire, [cache], [formulaire, moment, mots_sel, avant, apres, info_corr])
+    annuler_corr.click(fermer_formulaire, None, [formulaire])
+    moment.change(choisir_moment, [moment, cache], [mots_sel, avant])
+    mots_sel.change(choisir_mots, [mots_sel, cache], [avant])
+    ecoute_moment.click(ecouter_moment, [moment, cache], [ecoute])
+    ok_corr.click(ajouter_correction, [moment, mots_sel, avant, apres, corrections, cache],
+                  [corrections, table_corr, formulaire, info_corr])
+    table_corr.select(selectionner_correction, None, [corr_choisie])
+    moins.click(supprimer_correction, [corrections, corr_choisie], [corrections, table_corr, corr_choisie, info_corr])
+    app.load(lambda: (charger_dico(), lignes_corrections(charger_dico())), None, [corrections, table_corr])
     tableau_valid.select(ecouter, [analyse], [ecoute])
     stop.click(arreter_ecoute)
     dossier.click(ouvrir_dossier)
