@@ -302,7 +302,8 @@ def auto(proj, rappel=None, transcrire=None, rechercher=None, telecharger=None, 
                     continue
                 except Exception as e:
                     print("Illustration Gemini impossible :", e)
-                    proj.setdefault("auto", {})["erreur_gemini"] = str(e)[:300]
+                    proj.setdefault("auto", {})["erreur_gemini"] = str(e)[:500]
+                    par_gemini = False           # inutile de réessayer pour chaque moment (quota, clé…)
                     if not (cles.get("pexels") or cles.get("pixabay")):
                         continue
             etape(0.6 + 0.35 * k / max(1, len(props)), "Recherche d'illustrations…")

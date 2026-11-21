@@ -269,6 +269,13 @@ def generer_image(prompt, cle, client=None, modele=None):
         except ValueError:
             message = r.text[:200]
         erreur = f"Gemini a refusé la demande ({r.status_code}) : {message}"
+        if r.status_code == 429 and ("free_tier" in message or "limit: 0" in message or "billing" in message):
+            erreur = ("Votre clé Gemini est en offre gratuite : la création d'images n'y est pas incluse. "
+                      "Dans Google AI Studio, cliquez sur « Set up billing » à côté du projet de la clé et ajoutez "
+                      "au moins 5 $ de crédit, puis réessayez quelques minutes plus tard (si l'erreur persiste, "
+                      "créez une nouvelle clé dans ce projet). Détail : " + message[:160])
+        elif r.status_code in (401, 403):
+            erreur = f"Clé Gemini refusée ({r.status_code}) : vérifiez-la dans ⚙️ Paramètres › Clés API. Détail : {message[:160]}"
         if r.status_code != 400:          # clé invalide, quota, facturation… : inutile d'essayer l'autre écriture
             break
     raise RuntimeError(erreur)

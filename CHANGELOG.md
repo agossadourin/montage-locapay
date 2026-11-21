@@ -1,5 +1,8 @@
 # Historique des versions
 
+## 0.14.1 — 2026-11-21
+- Gemini : message clair quand la clé est en offre gratuite (la création d'images demande d'activer la facturation), et le montage automatique n'insiste plus pour chaque moment après un refus.
+
 ## 0.14.0 — 2026-11-21
 - **✨ Illustrations créées par Gemini** (facultatif, payant ≈ 0,03 $ l'image) : au lieu de chercher des photos existantes, Gemini crée pour chaque passage une **image verticale** adaptée à ce qui est dit et à votre contexte (Bénin, Cotonou, location…, modifiable).
   - ⚙️ Paramètres › Clés API : clé Gemini, bouton « Tester », choix de la source des illustrations du montage automatique (banques gratuites ou Gemini), contexte donné à Gemini.

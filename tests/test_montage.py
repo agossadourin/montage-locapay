@@ -599,3 +599,13 @@ def test_montage_auto_illustrations_gemini(tmp_path, monkeypatch):
                   generer=lambda c, cle: (consignes.append(c), str(img))[1])
     ill = auto["illustrations"]
     assert len(ill) == 1 and ill[0]["generee"] and ill[0]["fichier"] == str(img) and "loyer" in consignes[0]
+
+
+def test_gemini_offre_gratuite_message_clair(tmp_path, monkeypatch):
+    import httpx
+    monkeypatch.setattr(I, "DOSSIER_CACHE", str(tmp_path / "cache"))
+    msg = ("You exceeded your current quota, please check your plan and billing details. * Quota exceeded for metric: "
+           "generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 0")
+    c = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(429, json={"error": {"message": msg}})))
+    with pytest.raises(RuntimeError, match="offre gratuite"):
+        I.generer_image("x", "cle", client=c)
