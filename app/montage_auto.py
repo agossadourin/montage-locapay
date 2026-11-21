@@ -52,7 +52,10 @@ def _mots_depuis_segments(segments):
         for w in seg.get("words", []) or []:
             t = str(w["word"]).strip()
             if t:
-                mots.append({"w": t, "s": float(w["start"]), "e": float(w["end"])})
+                m = {"w": t, "s": float(w["start"]), "e": float(w["end"])}
+                if w.get("probability") is not None:
+                    m["p"] = round(float(w["probability"]), 3)
+                mots.append(m)
     return mots
 
 
@@ -90,7 +93,8 @@ def transcrire(video, modele="turbo", langue="fr", vocabulaire=""):
         segs, _ = m.transcribe(video, language=langue, word_timestamps=True, initial_prompt=vocabulaire or None,
                                condition_on_previous_text=False)
         return _mots_depuis_segments(
-            [{"words": [{"word": w.word, "start": w.start, "end": w.end} for w in (s.words or [])]} for s in segs])
+            [{"words": [{"word": w.word, "start": w.start, "end": w.end, "probability": w.probability}
+                        for w in (s.words or [])]} for s in segs])
     import torch
     import whisper
     dev = "cuda" if torch.cuda.is_available() else "cpu"
@@ -103,13 +107,7 @@ def transcrire(video, modele="turbo", langue="fr", vocabulaire=""):
     r = m.transcribe(video, language=langue, word_timestamps=True,
                      initial_prompt=vocabulaire or None, fp16=(dev == "cuda"),
                      condition_on_previous_text=False, verbose=False)
-    mots = []
-    for seg in r["segments"]:
-        for w in seg.get("words", []):
-            t = w["word"].strip()
-            if t:
-                mots.append({"w": t, "s": float(w["start"]), "e": float(w["end"])})
-    return mots
+    return _mots_depuis_segments(r["segments"])
 
 
 HESITATIONS = {"euh", "heu", "euhh", "hum", "hmm", "mmh", "mh", "bah", "beuh", "eh"}
@@ -150,14 +148,115 @@ def appliquer_corrections(mots, corrections):
 
 
 def texte_transcription(mots):
-    return " ".join(m["w"] for m in mots)
+    return " ".join(m["w"] if m.get("st", True) else "[…]" for m in mots)
+
+
+# ============================================================ validation des passages
+SEUIL_CONFIANCE = 0.6
+
+
+def _jetons(texte):
+    return [t for t in (norm(x) for x in texte.split()) if t and t not in HESITATIONS]
+
+
+def analyser(mots, seuil=SEUIL_CONFIANCE):
+    """Découpe la transcription en phrases et signale celles à vérifier :
+    - passage incompris (confiance Whisper faible : bruit, autre langue comme le fon…) ;
+    - prise répétée (la même phrase est redite juste après : on propose de garder la dernière) ;
+    - faux départ (début de phrase abandonné puis repris)."""
+    phrases, cur = [], []
+    for i, m in enumerate(mots):
+        if cur:
+            prev = mots[cur[-1]]
+            if (m["s"] - prev["e"] > 0.6 or re.search(r"[.!?…]$", prev["w"])
+                    or m["e"] - mots[cur[0]]["s"] > 12):
+                phrases.append(cur); cur = []
+        cur.append(i)
+    if cur:
+        phrases.append(cur)
+
+    out = []
+    for k, idx in enumerate(phrases):
+        ws = [mots[i] for i in idx]
+        probs = [w["p"] for w in ws if w.get("p") is not None]
+        conf = sum(probs) / len(probs) if probs else None
+        faibles = sum(1 for p in probs if p < 0.35) / len(probs) if probs else 0
+        alertes = []
+        if conf is not None and (conf < seuil or faibles >= 0.35):
+            alertes.append("incompris (bruit ou autre langue ?)")
+        out.append({"n": k + 1, "deb": ws[0]["s"], "fin": ws[-1]["e"], "idx": idx,
+                    "texte": " ".join(w["w"] for w in ws), "conf": conf, "alertes": alertes,
+                    "garder": not alertes, "st": not alertes})
+
+    # prises répétées / faux départs : comparaison avec les 3 phrases suivantes
+    from difflib import SequenceMatcher
+    for k, a in enumerate(out):
+        ja = _jetons(a["texte"])
+        if len(ja) < 2:
+            continue
+        for b in out[k + 1:k + 4]:
+            if b["deb"] - a["fin"] > 25:
+                break
+            jb = _jetons(b["texte"])
+            sim = SequenceMatcher(None, ja, jb).ratio()
+            debut_repris = len(ja) <= len(jb) and jb[:len(ja)] == ja
+            if (sim >= 0.6 and len(ja) >= 3) or debut_repris:
+                a["alertes"].append(f"reprise : redit en phrase {b['n']}" if not debut_repris
+                                    else f"faux départ : repris en phrase {b['n']}")
+                a["garder"] = False
+                break
+    return out
+
+
+COLONNES_VALIDATION = ["N°", "Début", "Fin", "Texte (modifiable)", "Confiance", "À vérifier", "Garder", "Sous-titres"]
+
+
+def lignes_validation(phrases):
+    return [[p["n"], round(p["deb"], 1), round(p["fin"], 1), p["texte"],
+             "" if p["conf"] is None else f"{round(100 * p['conf'])} %",
+             ("⚠️ " + " · ".join(p["alertes"])) if p["alertes"] else "", p["garder"], p["st"]] for p in phrases]
+
+
+def _vrai(x):
+    return str(x).strip().lower() not in ("false", "0", "non", "no", "", "none")
+
+
+def appliquer_validation(mots, phrases, lignes):
+    """Applique les choix de l'utilisateur : supprimer, garder sans sous-titres, ou texte corrigé
+    (ex. traduction française tapée pour un passage en fon, répartie sur la durée du passage)."""
+    out = []
+    for ph, ligne in zip(phrases, lignes or []):
+        ligne = (list(ligne) + [None] * 8)[:8]
+        texte, garder, st = str(ligne[3] or ""), _vrai(ligne[6]), _vrai(ligne[7])
+        if not garder:
+            continue
+        if not st:
+            out.append({"w": "", "s": ph["deb"], "e": ph["fin"], "st": False})
+            continue
+        if _jetons(texte) == _jetons(ph["texte"]):
+            out.extend(dict(mots[i]) for i in ph["idx"])
+            continue
+        nouveaux = texte.split()
+        if not nouveaux:
+            out.append({"w": "", "s": ph["deb"], "e": ph["fin"], "st": False})
+            continue
+        poids = [len(w) + 2 for w in nouveaux]
+        total, t = sum(poids), ph["deb"]
+        for w, pw in zip(nouveaux, poids):
+            d = (ph["fin"] - ph["deb"]) * pw / total
+            out.append({"w": w, "s": round(t, 3), "e": round(t + d * 0.92, 3)})
+            t += d
+    # phrases au-delà du tableau (sécurité) : gardées telles quelles
+    for ph in phrases[len(lignes or []):]:
+        out.extend(dict(mots[i]) for i in ph["idx"])
+    return out
 
 
 # ============================================================ plan de montage
 def construire_plan(mots, duree, R: Reglages):
     mots = [dict(m) for m in mots if m["e"] > m["s"] - 1e-3]
     if R.supprimer_hesitations:
-        mots = [m for m in mots if norm(m["w"]).strip("-") not in HESITATIONS]
+        mots = [m for m in mots if not (m.get("st", True) and norm(m["w"]).strip("-") in HESITATIONS)]
     if not mots:
         raise ValueError("Aucune parole détectée dans la vidéo.")
     for m in mots:
@@ -204,6 +303,10 @@ def construire_plan(mots, duree, R: Reglages):
     # --- groupes de sous-titres
     groupes, cur = [], []
     for i, m in enumerate(mots):
+        if not m.get("st", True):      # passage gardé sans sous-titres
+            if cur:
+                groupes.append(cur); cur = []
+            continue
         if cur:
             prev = mots[cur[-1]]
             nchar = sum(len(mots[j]["w"]) for j in cur) + len(m["w"])

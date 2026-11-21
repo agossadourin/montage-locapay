@@ -30,6 +30,8 @@ L'installateur met en place ffmpeg (Homebrew), Python (uv), les bibliothèques, 
 
 Ouvrez **Montage Locapay** (Launchpad / Applications / Spotlight). Glissez la vidéo, cliquez sur **Monter la vidéo**. Le résultat est enregistré dans **Vidéos › Montages Locapay** et s'ouvre dans QuickTime.
 
+**Validation des passages** (activée par défaut) : au premier clic sur **Monter la vidéo**, l'outil liste les phrases et signale ⚠️ les **passages incompris** (bruit, fon ou autre langue), les **prises répétées** et les **faux départs**. Cliquez sur une ligne pour l'écouter, cochez/décochez **Garder** et **Sous-titres**, corrigez le texte — pour un passage en fon, tapez la traduction française, elle s'affichera en sous-titres — puis recliquez sur **Monter la vidéo**.
+
 **Plusieurs rushs ?** Onglet **Plusieurs vidéos (prémontage)** : déposez-les, réglez l'ordre, le début et la fin de chacun (en secondes), décochez ceux à ignorer, cliquez sur **Assembler**, puis sur **Monter la vidéo**. Les prémontages sont gardés dans **Vidéos › Montages Locapay › prémontages**.
 
 Sans l'app, `Lancer Montage.command` ouvre la même interface dans le navigateur.
@@ -62,6 +64,7 @@ Double-cliquez sur **`Mettre à jour.command`** (ou `git pull` dans le dossier).
 - **Rythme des coupes / zooms** : `Reglages.duree_plan_max`, `Reglages.zoom`, `cycle`.
 - **Écrans de couleur** : nombre et position dans `construire_plan` (bloc « écrans de couleur »).
 - **Effets sonores** : fonctions `sfx_*` et la liste `evts` dans `monter`.
+- **Détection des passages à valider** : `analyser` (seuil `SEUIL_CONFIANCE`, règles de reprise) et `appliquer_validation` dans `montage_auto.py`.
 - **Prémontage** (assemblage de plusieurs rushs) : `premontage` dans `montage_auto.py`, onglet « Plusieurs vidéos » dans `interface.py`.
 - **Nouveaux réglages dans l'interface** : ajouter le champ dans `Reglages`, puis le composant dans `interface.py`.
 

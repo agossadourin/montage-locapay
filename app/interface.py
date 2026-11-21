@@ -28,7 +28,8 @@ def _reglages(c1, c2, ecrans, position, hesit, pause, effets, vol, logo, autre_l
 
 
 def monter(video, musique, c1, c2, ecrans, position, hesit, pause, effets, vol, logo, autre_logo,
-           vocabulaire, modele, corrections, cache, auto_qt=False, progress=gr.Progress()):
+           vocabulaire, modele, corrections, cache, auto_qt=False, valider=True, analyse=None, tableau=None,
+           progress=gr.Progress()):
     if not video:
         raise gr.Error("Ajoutez d'abord une vidéo brute.")
     try:
@@ -41,6 +42,23 @@ def monter(video, musique, c1, c2, ecrans, position, hesit, pause, effets, vol, 
             mots_bruts = M.transcrire(video, modele=modele, langue="fr", vocabulaire=vocabulaire)
             cache = {"cle": cle, "mots": mots_bruts}
         mots = M.appliquer_corrections(mots_bruts, corrections)
+
+        if valider:
+            if not analyse or analyse.get("cle") != cle:
+                # 1er clic : on propose les passages à vérifier et on attend la validation
+                phrases = M.analyser(mots)
+                analyse = {"cle": cle, "phrases": phrases, "video": video}
+                n = sum(1 for p in phrases if p["alertes"])
+                msg = (f"🔎 **{n} passage(s) à vérifier** sur {len(phrases)} (lignes signalées dans « À vérifier »). "
+                       "Cliquez sur une ligne pour **l'écouter**, cochez/décochez **Garder** et **Sous-titres**, "
+                       "corrigez le texte si besoin (pour un passage en **fon**, tapez la traduction française : "
+                       "elle s'affichera en sous-titres), puis recliquez sur **🎬 Monter la vidéo**."
+                       if n else "✅ Rien de suspect détecté. Vérifiez si vous voulez, puis recliquez sur **🎬 Monter la vidéo**.")
+                return (gr.update(), gr.update(), gr.update(), gr.update(), msg, cache, gr.update(),
+                        analyse, M.lignes_validation(phrases), gr.update(open=True))
+            lignes = tableau.values.tolist() if hasattr(tableau, "values") else list(tableau or [])
+            mots = M.appliquer_validation(mots, analyse["phrases"], lignes)
+
         R = _reglages(c1, c2, ecrans, position, hesit, pause, effets, vol, logo, autre_logo)
         plan = M.construire_plan(mots, M.duree_video(video), R)
 
@@ -59,7 +77,8 @@ def monter(video, musique, c1, c2, ecrans, position, hesit, pause, effets, vol, 
                 lire_quicktime(sortie)
             except Exception:
                 pass
-        return sortie, M.texte_transcription(mots), M.resume_plan(plan), [sortie, srt, txt], info, cache, sortie
+        return (sortie, M.texte_transcription(mots), M.resume_plan(plan), [sortie, srt, txt], info, cache, sortie,
+                analyse, gr.update(), gr.update())
     except gr.Error:
         raise
     except Exception as e:
@@ -128,6 +147,35 @@ def lire_quicktime(chemin):
         subprocess.run(["xdg-open", chemin])
 
 
+_lecture = {"proc": None}
+
+
+def arreter_ecoute():
+    p = _lecture.get("proc")
+    if p and p.poll() is None:
+        p.terminate()
+    _lecture["proc"] = None
+
+
+def ecouter(analyse, evt: gr.SelectData):
+    """Clic sur une ligne du tableau de validation : on écoute le passage."""
+    if not analyse:
+        return None
+    ligne = evt.index[0] if isinstance(evt.index, (list, tuple)) else evt.index
+    phrases = analyse["phrases"]
+    if not (0 <= ligne < len(phrases)):
+        return None
+    ph = phrases[ligne]
+    extrait = os.path.join(SORTIES, ".ecoute.wav")
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-ss", f"{max(0, ph['deb'] - 0.3):.2f}",
+                    "-t", f"{ph['fin'] - ph['deb'] + 0.6:.2f}", "-i", analyse["video"], "-vn", "-ac", "2", extrait])
+    if sys.platform == "darwin":   # lecture directe sur le Mac (fiable même dans la fenêtre de l'app)
+        arreter_ecoute()
+        _lecture["proc"] = subprocess.Popen(["afplay", extrait])
+        return None
+    return extrait
+
+
 def ouvrir_dossier():
     if sys.platform == "darwin":
         os.system(f'open "{SORTIES}"')
@@ -178,6 +226,8 @@ with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": 
                 auto_qt = gr.Checkbox(value=(sys.platform == "darwin"), label="Ouvrir la vidéo dans QuickTime à la fin du montage")
             corrections = gr.Textbox(value="Locapé=Locapay; Lokapay=Locapay", lines=2,
                                      label="Corrections de mots (mot_faux=mot_juste; …) — puis recliquez sur Monter")
+            valider = gr.Checkbox(value=True, label="Me faire valider les passages douteux avant le montage "
+                                                    "(reprises, passages incompris, fon…)")
             bouton = gr.Button("🎬 Monter la vidéo", variant="primary", size="lg")
         with gr.Column(scale=1):
             resultat = gr.Video(label="Vidéo montée", height=560)
@@ -190,9 +240,27 @@ with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": 
                 transcription = gr.Textbox(label="Transcription", lines=5)
                 plan = gr.Textbox(label="Plan (MAJUSCULES = mot en gras)", lines=12)
 
+    with gr.Accordion("🔎 Validation des passages", open=False) as acc_valid:
+        gr.Markdown("Chaque ligne est une phrase. **Cliquez sur une ligne pour l'écouter.** "
+                    "Décochez **Garder** pour la supprimer, décochez **Sous-titres** pour la garder sans sous-titres. "
+                    "Vous pouvez corriger le **texte** : pour un passage en fon, tapez la traduction française.")
+        tableau_valid = gr.Dataframe(headers=M.COLONNES_VALIDATION,
+                                     datatype=["number", "number", "number", "str", "str", "str", "bool", "bool"],
+                                     interactive=True, wrap=True, type="array",
+                                     **({"column_count": (8, "fixed")} if GR6 else {"col_count": (8, "fixed")}),
+                                     column_widths=["5%", "7%", "7%", "41%", "9%", "17%", "7%", "7%"],
+                                     label="Passages")
+        with gr.Row():
+            ecoute = gr.Audio(label="Écoute du passage", autoplay=True, visible=(sys.platform != "darwin"))
+            stop = gr.Button("⏹ Arrêter l'écoute", visible=(sys.platform == "darwin"))
+    analyse = gr.State(None)
+
     bouton.click(monter, [video, musique, c1, c2, ecrans, position, hesit, pause, effets, vol, logo, autre_logo,
-                          vocabulaire, modele, corrections, cache, auto_qt],
-                 [resultat, transcription, plan, fichiers, info, cache, derniere_video])
+                          vocabulaire, modele, corrections, cache, auto_qt, valider, analyse, tableau_valid],
+                 [resultat, transcription, plan, fichiers, info, cache, derniere_video, analyse, tableau_valid,
+                  acc_valid])
+    tableau_valid.select(ecouter, [analyse], [ecoute])
+    stop.click(arreter_ecoute)
     dossier.click(ouvrir_dossier)
     quicktime.click(lire_quicktime, [derniere_video], None)
     clips.change(lister_clips, [clips], [tableau, chemins_clips])

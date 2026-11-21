@@ -102,3 +102,43 @@ def test_premontage(tmp_path):
     assert M.a_du_son(str(out))
     w, h = M._taille_affichee(str(out))
     assert (w, h) == (1080, 1920)
+
+
+def _mots(phrase, debut, p=0.9, pas=0.3):
+    return [{"w": w, "s": round(debut + k * pas, 2), "e": round(debut + k * pas + 0.25, 2), "p": p}
+            for k, w in enumerate(phrase.split())]
+
+
+MOTS_VALIDATION = (
+    _mots("Bonjour à tous, je suis Guérin.", 0.5)
+    + _mots("Locapay vous aide à payer votre loyer", 3.0)          # 1re prise
+    + _mots("Locapay vous aide à payer votre loyer simplement.", 6.0)  # reprise
+    + _mots("Mi kú dé wá xwé", 10.0, p=0.2)                        # passage en fon, mal compris
+    + _mots("Merci et à bientôt.", 13.0)
+)
+
+
+def test_analyse_signale_reprise_et_passage_incompris():
+    ph = M.analyser(MOTS_VALIDATION)
+    assert [p["garder"] for p in ph] == [True, False, True, False, True]
+    assert "reprise" in ph[1]["alertes"][0] or "faux départ" in ph[1]["alertes"][0]
+    assert "incompris" in ph[3]["alertes"][0]
+    assert ph[3]["st"] is False
+
+
+def test_validation_traduction_et_sans_sous_titres():
+    ph = M.analyser(MOTS_VALIDATION)
+    lignes = M.lignes_validation(ph)
+    lignes[3][6] = True                                          # garder le passage en fon…
+    lignes[3][3] = "Bienvenue à la maison"                        # …avec sa traduction en sous-titres
+    lignes[3][7] = True
+    lignes[0][7] = False                                          # 1re phrase : sans sous-titres
+    mots = M.appliquer_validation(MOTS_VALIDATION, ph, lignes)
+    textes = [m["w"] for m in mots if m.get("st", True)]
+    assert "Bienvenue" in textes and "Mi" not in textes and "Bonjour" not in textes
+    assert textes.count("Locapay") == 1                            # la 1re prise est supprimée
+    plan = M.construire_plan(mots, 16.0, M.Reglages(nb_ecrans_couleur=0))
+    sous_titres = " ".join(w["w"] for g in plan["groupes"] for w in g["mots"])
+    assert "Bonjour" not in sous_titres and "Bienvenue" in sous_titres
+    assert plan["zones"][0]["a"] < 0.5                            # l'audio de la 1re phrase est gardé
+    assert plan["corps"] < 16.0 - 2.5                              # la prise ratée est coupée
