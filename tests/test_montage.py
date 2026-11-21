@@ -350,3 +350,55 @@ def test_serveur_editeur(tmp_path):
             break
         _t.sleep(0.5)
     assert e["erreur"] is None and abs(M.duree_video(e["sortie"]) - 1.6) < 0.25
+
+
+# ---------------------------------------------------------------- v0.8 : démarrer par la timeline
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg absent")
+def test_nouveau_projet_et_montage_auto(tmp_path, monkeypatch):
+    monkeypatch.setattr(P, "DOSSIER_SOURCES", str(tmp_path / ".sources"))
+    monkeypatch.setattr(P, "DOSSIER_PROJETS", str(tmp_path))
+    monkeypatch.setattr(C, "FICHIER", str(tmp_path / "config.json"))
+    monkeypatch.setattr(C, "DOSSIER_STYLES", str(tmp_path / "styles"))
+    rushs = []
+    for k, (taille, d) in enumerate([("720x1280", 8), ("1280x720", 6)]):
+        f = tmp_path / f"rush{k}.mp4"
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i", f"testsrc2=size={taille}:rate=30:d={d}",
+                        "-f", "lavfi", "-i", f"sine=frequency=300:duration={d}", "-c:v", "libx264", "-preset",
+                        "ultrafast", "-c:a", "aac", "-shortest", str(f)], check=True)
+        rushs.append(str(f))
+    chemin = P.nouveau(rushs, nom="essai")
+    proj = P.charger(chemin)
+    assert [round(c["b"] - c["a"]) for c in proj["clips"]] == [8, 6]
+    assert abs(proj["duree_source"] - 14) < 0.3
+
+    # transcription simulée : une reprise, un passage incompris (fon), des blancs
+    mots = (_mots("Bonjour je suis Guérin", 0.5) + _mots("Locapay vous aide à payer", 2.5)
+            + _mots("Locapay vous aide à payer le loyer.", 4.6) + _mots("Mi kú dé wá", 9.0, p=0.15)
+            + _mots("Merci à tous et à bientôt.", 11.5))
+    proj["clips"][1]["b"] = 13.9
+    auto = P.auto(proj, transcrire=lambda *a, **k: mots, rechercher=lambda *a, **k: [], telecharger=None)
+    types = sorted(a["type"] for a in auto["alertes"])
+    assert types == ["incompris", "reprise"]
+    textes = " ".join(w["w"] for s in auto["sous_titres"] for w in s["mots"])
+    assert "Mi" not in textes and "Bonjour" in textes and textes.count("Locapay") == 2   # rien n'est coupé d'office
+    duree_avant = sum(c["b"] - c["a"] for c in proj["clips"])
+    duree_apres = sum(c["b"] - c["a"] for c in auto["clips"])
+    assert duree_apres < duree_avant - 2                                                  # blancs coupés
+    fon = next(a for a in auto["alertes"] if a["type"] == "incompris")
+    assert any(c["a"] <= fon["deb"] + 0.2 < c["b"] for c in auto["clips"])                # passage fon gardé
+    assert auto["transcription"] and P.auto(auto, transcrire=lambda *a, **k: 1 / 0, rechercher=lambda *a, **k: [])
+
+
+def test_montage_auto_passage_a_cheval_sur_deux_rushs(monkeypatch, tmp_path):
+    """Un passage incompris qui chevauche la limite entre deux rushs est gardé en entier."""
+    monkeypatch.setattr(C, "FICHIER", str(tmp_path / "config.json"))
+    mots = _mots("Bonjour à tous je suis là", 0.5) + _mots("Mi kú dé wá xwé gbé", 4.0, p=0.1, pas=0.5) + \
+        _mots("Merci à tous et à bientôt.", 8.0)
+    proj = {"version": 1, "video": "/x.mp4", "duree_source": 10.0, "musique": None, "reglages": {},
+            "clips": [{"id": "a", "a": 0.0, "b": 5.0, "zoom": 1.0}, {"id": "b", "a": 5.0, "b": 10.0, "zoom": 1.0}],
+            "sous_titres": [], "ecrans": [], "illustrations": [], "alertes": []}
+    auto = P.auto(proj, transcrire=lambda *a, **k: mots, rechercher=lambda *a, **k: [])
+    fon = next(a for a in auto["alertes"] if a["type"] == "incompris")
+    garde = sum(min(c["b"], fon["fin"]) - max(c["a"], fon["deb"]) for c in auto["clips"]
+                if c["b"] > fon["deb"] and c["a"] < fon["fin"])
+    assert garde > (fon["fin"] - fon["deb"]) - 0.1

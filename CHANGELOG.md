@@ -1,5 +1,12 @@
 # Historique des versions
 
+## 0.8.0 — 2026-11-21
+- **On commence par la timeline** : l'app s'ouvre sur l'éditeur. « ＋ Nouveau projet » : on dépose une ou plusieurs vidéos, elles arrivent aussitôt sur la piste vidéo (avec la forme d'onde) pour le prémontage — couper, réordonner, raccourcir, supprimer.
+- **✨ Montage automatique dans la timeline** : sur ce qui est gardé, coupe les blancs et hésitations, ajoute sous-titres, écrans de couleur et illustrations (style + identité des Paramètres). La transcription est gardée dans le projet : relancer est rapide.
+- **Piste ⚠️ À vérifier** : passages incompris (fon, bruit) et reprises sont signalés **sans être coupés**. Pour chacun : ▶︎ Écouter, ✂️ Couper ce passage, 💬 ajouter un sous-titre (traduction), ✓ Garder tel quel.
+- Illustrations : 🔄 Autre proposition, 🔍 nouvelle recherche avec vignettes, 📁 votre fichier — directement dans l'éditeur.
+- Le parcours classique (page Paramètres / mode classique) reste disponible.
+
 ## 0.7.0 — 2026-11-21
 - **✂️ Éditeur façon CapCut** : après chaque montage automatique, bouton « Retoucher dans l'éditeur ». Aperçu en direct (sous-titres animés, illustrations, écrans de couleur, logo, écran de fin, musique) et 5 pistes : Vidéo (avec forme d'onde de la voix), Sous-titres, Illustrations, Écrans, Musique.
   - Glisser pour déplacer, tirer les bords pour raccourcir, **S** pour couper un plan, **Suppr** pour supprimer, **⌘Z / ⇧⌘Z** annuler/rétablir, **Espace** lecture, flèches image par image.

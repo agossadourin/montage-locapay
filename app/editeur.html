@@ -20,7 +20,15 @@ button.danger{color:#ffb3bd;border-color:#5a2a33}
 button:disabled{opacity:.45;cursor:default}
 input,select,textarea{background:#12121a;border:1px solid var(--ligne);border-radius:6px;padding:6px}
 a{color:var(--accent);text-decoration:none}
-#app{display:grid;grid-template-rows:46px 1fr 300px;height:100%}
+#app{display:grid;grid-template-rows:46px 1fr 344px;height:100%}
+.el.alerte{background:repeating-linear-gradient(45deg,#8a2433,#8a2433 6px,#a12d3e 6px,#a12d3e 12px);border-color:#ff7b8b}
+#depot{border:2px dashed var(--ligne);border-radius:14px;padding:38px;text-align:center;cursor:pointer;background:var(--panneau);margin:18px 0}
+#depot.survol{border-color:var(--accent);background:#1d2a2a}
+#depot .grand{font-size:18px;font-weight:600;margin-bottom:6px}
+.grille{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+.grille img{width:100%;aspect-ratio:9/14;object-fit:cover;border-radius:5px;cursor:pointer;border:2px solid transparent}
+.grille img:hover{border-color:var(--accent)}
+#b-auto.attention{box-shadow:0 0 0 3px rgba(10,194,164,.35)}
 header{display:flex;align-items:center;gap:12px;padding:0 14px;background:var(--panneau);border-bottom:1px solid var(--ligne)}
 header .titre{font-weight:600}
 header .statut{color:var(--doux);margin-left:auto}
@@ -46,7 +54,7 @@ header .statut{color:var(--doux);margin-left:auto}
 #inspecteur textarea{width:100%;min-height:70px;resize:vertical}
 #inspecteur .pastille{width:26px;height:26px;border-radius:50%;border:2px solid transparent;cursor:pointer}
 #inspecteur .pastille.actif{border-color:#fff}
-#inspecteur img.apercu{width:100%;border-radius:6px;margin-top:6px}
+#inspecteur img.apercu,#inspecteur video.apercu{width:100%;max-height:230px;object-fit:contain;background:#000;border-radius:6px;margin-top:6px}
 .aide{color:var(--doux);line-height:1.5}
 kbd{background:#2b2b3a;border:1px solid #444;border-radius:4px;padding:0 5px;font-size:11px}
 #bas{display:grid;grid-template-rows:40px 1fr;background:var(--panneau);border-top:1px solid var(--ligne);min-height:0}
@@ -84,17 +92,27 @@ progress{width:100%;height:10px}
 </head>
 <body>
 <div id="accueil" style="display:none">
-  <p><a href="/">← Retour au montage</a></p>
-  <h2>✂️ Éditeur — projets récents</h2>
-  <p class="aide">Chaque montage automatique crée un projet que l'on peut retoucher ici.</p>
+  <div style="display:flex;align-items:center;gap:12px"><h2 style="margin:0">🎬 Montage Locapay</h2>
+    <a href="/" style="margin-left:auto">⚙️ Paramètres (identité, style, clés) · mode classique</a></div>
+  <div id="depot">
+    <div class="grand">＋ Nouveau projet</div>
+    <div class="aide">Glissez ici une ou plusieurs vidéos (ou cliquez pour les choisir).<br>
+      Elles arrivent sur la timeline : coupez, réordonnez, puis lancez ✨ Montage automatique.</div>
+    <input type="file" id="f-nouveau" accept="video/*" multiple style="display:none">
+    <div id="depot-prog" style="display:none;margin-top:14px"><progress id="depot-barre" max="1" value="0"></progress>
+      <div class="aide" id="depot-txt"></div></div>
+  </div>
+  <h3>Projets récents</h3>
   <div id="liste"></div>
 </div>
 
 <div id="app" style="display:none">
   <header>
-    <a href="/">← Montage</a>
+    <a href="/editeur">← Projets</a>
     <span class="titre" id="nom-projet">Projet</span>
+    <a href="/" title="Identité visuelle, style, clés API">⚙️ Paramètres</a>
     <span class="statut" id="statut">Chargement…</span>
+    <button id="b-auto">✨ Montage automatique</button>
     <button id="b-exporter" class="primaire">⬆️ Exporter la vidéo</button>
   </header>
   <div id="haut">
@@ -131,10 +149,10 @@ progress{width:100%;height:10px}
       <input type="range" id="zoom" min="15" max="320" value="70" style="width:140px">
     </div>
     <div id="timeline">
-      <div id="etiquettes"><div></div><div>🎬 Vidéo</div><div>💬 Sous-titres</div><div>🖼 Illustrations</div><div>🎨 Écrans</div><div>🎵 Musique</div></div>
+      <div id="etiquettes"><div></div><div>🎬 Vidéo</div><div>⚠️ À vérifier</div><div>💬 Sous-titres</div><div>🖼 Illustrations</div><div>🎨 Écrans</div><div>🎵 Musique</div></div>
       <div id="defile"><div id="piste-contenu">
         <div id="regle"></div>
-        <div class="piste" id="p-clip"></div><div class="piste" id="p-st"></div><div class="piste" id="p-ill"></div>
+        <div class="piste" id="p-clip"></div><div class="piste" id="p-alerte"></div><div class="piste" id="p-st"></div><div class="piste" id="p-ill"></div>
         <div class="piste" id="p-ecran"></div><div class="piste" id="p-mus"></div>
         <div id="tete"></div>
       </div></div>
@@ -351,7 +369,7 @@ function dessinerTimeline() {
   clips().forEach((c, i) => { const d = el("clip", c.o, c.o + c.d, `Plan ${i + 1} · ${c.d.toFixed(1)} s${(c.zoom || 1) > 1.01 ? " · zoom" : ""}`, { type: "clip", id: c.id }); dessinerOnde(d, c); poignees(d); pc.appendChild(d); });
   if (dureeFin() > 0) pc.appendChild(el("fin", cor, cor + dureeFin(), "Fin · logo"));
   // superpositions ancrées sur la voix
-  const masques = { st: 0, ill: 0, ecran: 0 };
+  const masques = { st: 0, ill: 0, ecran: 0, alerte: 0 };
   const poser = (piste, liste, type, libelle) => {
     const p = $(piste); p.innerHTML = "";
     for (const it of liste) {
@@ -366,6 +384,8 @@ function dessinerTimeline() {
   poser("p-st", proj.sous_titres, "st", it => it.mots.map((m, i) => i === it.cle ? m.w.toUpperCase() : m.w).join(" "));
   poser("p-ill", proj.illustrations, "ill", it => (it.type === "video" ? "🎞 " : "🖼 ") + it.fichier.split("/").pop());
   poser("p-ecran", proj.ecrans, "ecran", () => "Écran");
+  poser("p-alerte", proj.alertes, "alerte", it => (it.type === "incompris" ? "⚠️ Incompris (fon ?) · " : "⚠️ Reprise · ") + it.phrase);
+  $("b-auto").classList.toggle("attention", !(proj.auto && proj.auto.fait));
   const pm = $("p-mus"); pm.innerHTML = "";
   if (proj.musique) { const d = el("mus", 0, tot, "🎵 " + proj.musique.fichier.split("/").pop() + ` · volume ${Math.round((proj.musique.volume ?? .18) * 100)} %`, { type: "mus", id: "mus" }); pm.appendChild(d); }
   const nb = masques.st + masques.ill + masques.ecran;
@@ -427,7 +447,7 @@ function recalerMots(it, o) {               // sous-titre redimensionné : les m
   const d0 = Math.max(0.01, o.fin - o.deb), d1 = Math.max(0.01, it.fin - it.deb);
   it.mots = o.mots.map(m => ({ ...m, t: it.deb + (m.t - o.deb) * d1 / d0 }));
 }
-function listeDe(type) { return type === "st" ? proj.sous_titres : type === "ill" ? proj.illustrations : type === "ecran" ? proj.ecrans : []; }
+function listeDe(type) { return type === "st" ? proj.sous_titres : type === "ill" ? proj.illustrations : type === "ecran" ? proj.ecrans : type === "alerte" ? proj.alertes : []; }
 
 // ------------------------------------------------------------------ actions
 function couper() {
@@ -437,6 +457,23 @@ function couper() {
   const i = proj.clips.indexOf(c);
   proj.clips.splice(i, 1, { ...c, b: p.s }, { ...c, id: uid(), a: p.s });
   sel = { type: "clip", id: proj.clips[i + 1].id }; apresModif();
+}
+function couperPlage(deb, fin) {        // retire [deb, fin] (temps source) de tous les plans
+  const res = [];
+  for (const c of proj.clips) {
+    if (fin <= c.a || deb >= c.b) { res.push(c); continue; }
+    if (deb - c.a > 0.05) res.push({ ...c, b: deb });
+    if (c.b - fin > 0.05) res.push({ ...c, id: uid(), a: fin });
+  }
+  if (!res.length) return alert("Impossible : ce passage est tout le montage.");
+  proj.clips = res;
+}
+function ecouterPlage(deb, fin) {
+  const o = versSortie(deb); if (o === null) return;
+  allerA(o); jouer();
+  const fo = versSortie(Math.max(deb, fin - 0.05));
+  const arret = () => { if (!lecture) return; if (t >= (fo ?? o + (fin - deb))) arreter(); else requestAnimationFrame(arret); };
+  requestAnimationFrame(arret);
 }
 function supprimer() {
   if (!sel) return; memoriser();
@@ -482,7 +519,13 @@ function inspecter() {
   const ins = $("inspecteur");
   const aide = `<p class="aide"><b>Raccourcis</b><br><kbd>Espace</kbd> lecture · <kbd>S</kbd> couper le plan · <kbd>Suppr</kbd> supprimer<br><kbd>⌘Z</kbd> annuler · <kbd>⇧⌘Z</kbd> rétablir · <kbd>←</kbd><kbd>→</kbd> image par image</p>
     <p class="aide">Glissez un élément pour le déplacer, tirez ses bords pour le raccourcir. Sous-titres, illustrations et écrans restent calés sur la voix : si vous raccourcissez un plan, ils suivent.</p>`;
+  if (!sel && !(proj.auto && proj.auto.fait)) { ins.innerHTML = `<h3>Prémontage</h3>
+      <p>1. Sur la piste <b>🎬 Vidéo</b>, gardez ce qui vous intéresse : <kbd>S</kbd> pour couper à la tête de lecture, <kbd>Suppr</kbd> pour enlever un morceau, glissez un plan pour changer l'ordre, tirez ses bords pour le raccourcir.</p>
+      <p>2. Cliquez sur <b>✨ Montage automatique</b> : blancs coupés, sous-titres, écrans de couleur et illustrations sont ajoutés, et les passages douteux signalés ⚠️.</p>
+      <p>3. Retouchez, puis <b>⬆️ Exporter</b>.</p>` + aide; return; }
   if (!sel) { ins.innerHTML = `<h3>Projet</h3><p class="aide">${proj.clips.length} plans · ${proj.sous_titres.length} sous-titres · ${proj.illustrations.length} illustrations · ${proj.ecrans.length} écrans</p>` +
+      (proj.alertes.length ? `<p>⚠️ <b>${proj.alertes.length} passage(s) à vérifier</b> sur la piste rouge : cliquez dessus pour écouter, couper, traduire ou garder.</p>` : "") +
+      (proj.auto && proj.auto.sans_cle_images ? `<p class="aide">🖼 Aucune illustration cherchée : ajoutez une clé Pexels (gratuite) dans <a href="/">⚙️ Paramètres › Clés API</a>, puis relancez ✨.</p>` : "") +
       ($("statut").dataset.masques > 0 ? `<p class="aide">ℹ️ ${$("statut").dataset.masques} élément(s) tombent dans des passages coupés et ne s'affichent pas.</p>` : "") + aide; return; }
   if (sel.type === "clip") {
     const c = proj.clips.find(c => c.id === sel.id); if (!c) { sel = null; return inspecter(); }
@@ -518,10 +561,51 @@ function inspecter() {
     ins.querySelectorAll(".pastille").forEach(p => p.onclick = () => { memoriser(); e.couleur = p.dataset.c; apresModif(); });
     $("i-coul").onchange = () => { memoriser(); e.couleur = $("i-coul").value; apresModif(); };
     $("i-suppr").onclick = supprimer;
+  } else if (sel.type === "alerte") {
+    const al = proj.alertes.find(a => a.id === sel.id); if (!al) { sel = null; return inspecter(); }
+    const incompris = al.type === "incompris";
+    ins.innerHTML = `<h3>⚠️ ${incompris ? "Passage incompris" : "Reprise / faux départ"}</h3>
+      <p class="aide">${al.texte.replace(/</g, "&lt;")}</p><p>« ${al.phrase.replace(/</g, "&lt;")} »</p>
+      <p class="aide">${incompris ? "L'outil n'a pas compris ce passage (bruit, fon ou autre langue). Il est gardé, sans sous-titres." : "Cette phrase semble redite plus loin : vous pouvez couper cette prise."}</p>
+      <div class="rangee"><button id="a-ecouter">▶︎ Écouter</button><button class="danger" id="a-couper">✂️ Couper ce passage</button></div>
+      <label>Sous-titre pour ce passage (ex. traduction française)</label><textarea id="a-texte" placeholder="Tapez le texte à afficher"></textarea>
+      <div class="rangee" style="margin-top:6px"><button id="a-st">💬 Ajouter ce sous-titre</button><button id="a-garder">✓ Garder tel quel</button></div>`;
+    $("a-ecouter").onclick = () => ecouterPlage(al.deb, al.fin);
+    $("a-couper").onclick = () => { memoriser(); couperPlage(al.deb, al.fin); proj.alertes = proj.alertes.filter(a => a.id !== al.id);
+      proj.sous_titres = proj.sous_titres.filter(g => !(g.deb >= al.deb - 0.05 && g.fin <= al.fin + 0.05)); sel = null; apresModif(); };
+    $("a-garder").onclick = () => { memoriser(); proj.alertes = proj.alertes.filter(a => a.id !== al.id); sel = null; apresModif(); };
+    $("a-st").onclick = () => {
+      const mots = $("a-texte").value.trim().split(/\s+/).filter(Boolean); if (!mots.length) return;
+      memoriser(); const d = al.fin - al.deb, poids = mots.map(w => w.length + 2), tot = poids.reduce((a, b) => a + b, 0); let x = al.deb;
+      const g = { id: uid(), deb: al.deb, fin: al.fin, cle: null, mots: mots.map((w, i) => { const r = { w, t: x }; x += d * poids[i] / tot; return r; }) };
+      proj.sous_titres = proj.sous_titres.filter(s => !(s.deb >= al.deb - 0.05 && s.fin <= al.fin + 0.05));
+      proj.sous_titres.push(g); proj.sous_titres.sort((a, b) => a.deb - b.deb);
+      proj.alertes = proj.alertes.filter(a => a.id !== al.id); sel = { type: "st", id: g.id }; apresModif();
+    };
   } else if (sel.type === "ill") {
     const it = proj.illustrations.find(i => i.id === sel.id); if (!it) { sel = null; return inspecter(); }
+    const alt = it.alternatives || [];
     ins.innerHTML = `<h3>🖼 Illustration</h3>` + (it.type === "video" ? `<video class="apercu" src="${media(it.fichier)}" muted controls style="width:100%;border-radius:6px"></video>` : `<img class="apercu" src="${media(it.fichier)}">`) +
-      `<p class="aide">${(it.fin - it.deb).toFixed(1)} s · ${it.fichier.split("/").pop()}</p><div class="rangee"><button id="i-remp">📁 Remplacer par mon fichier</button><button class="danger" id="i-suppr">🗑 Supprimer</button></div>`;
+      `<p class="aide">${(it.fin - it.deb).toFixed(1)} s · ${it.requete ? "recherche « " + it.requete.replace(/</g, "&lt;") + " »" : it.fichier.split("/").pop()}</p>
+      <div class="rangee">${alt.length > 1 ? `<button id="i-autre">🔄 Autre proposition</button>` : ""}<button id="i-remp">📁 Mon fichier</button><button class="danger" id="i-suppr">🗑 Supprimer</button></div>
+      <label>Chercher une autre image (en anglais de préférence)</label>
+      <div class="rangee"><input id="i-req" value="${(it.requete || "").replace(/"/g, "&quot;")}" style="flex:1"><button id="i-cherche">🔍</button></div>
+      <div class="grille" id="i-grille"></div>`;
+    const prendre = async (r) => {
+      $("statut").textContent = "Téléchargement…";
+      const rep = await fetch("/editeur/api/prendre", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(r) });
+      if (!rep.ok) { $("statut").textContent = "⚠️ Téléchargement impossible"; return; }
+      const d = await rep.json(); memoriser(); it.fichier = d.fichier; it.type = d.type; illCourante = null; apresModif();
+    };
+    if ($("i-autre")) $("i-autre").onclick = () => { it.choix = ((it.choix || 0) + 1) % alt.length; prendre(alt[it.choix]); };
+    $("i-cherche").onclick = async () => {
+      $("i-grille").innerHTML = `<span class="aide">Recherche…</span>`;
+      const rep = await fetch("/editeur/api/chercher", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requete: $("i-req").value }) });
+      if (!rep.ok) { $("i-grille").innerHTML = `<span class="aide">${(await rep.json()).detail || "Recherche impossible"}</span>`; return; }
+      const res = await rep.json(); it.requete = $("i-req").value; it.alternatives = res; it.choix = 0;
+      $("i-grille").innerHTML = res.length ? "" : `<span class="aide">Aucun résultat.</span>`;
+      res.slice(0, 9).forEach(r => { const im = document.createElement("img"); im.src = r.apercu; im.title = (r.type === "video" ? "Vidéo · " : "Photo · ") + (r.credit || ""); im.onclick = () => prendre(r); $("i-grille").appendChild(im); });
+    };
     $("i-remp").onclick = () => choisirFichier({ remplacer: it.id }, "image/*,video/*");
     $("i-suppr").onclick = supprimer;
   } else if (sel.type === "mus") {
@@ -534,6 +618,30 @@ function inspecter() {
     $("i-dec").onchange = () => { memoriser(); m.decalage = Math.max(0, +$("i-dec").value); apresModif(); };
     $("i-remp").onclick = () => choisirFichier("mus", "audio/*"); $("i-suppr").onclick = supprimer;
   }
+}
+
+// ------------------------------------------------------------------ montage automatique
+async function suivreTravail(job, titre, barre, texte) {
+  for (;;) {
+    const e = await (await fetch("/editeur/api/etat?job=" + job)).json();
+    barre.value = e.progression; texte.textContent = (e.texte || titre) + ` ${Math.round(e.progression * 100)} %`;
+    if (e.fini) return e;
+    await new Promise(r => setTimeout(r, 800));
+  }
+}
+async function montageAuto() {
+  if (proj.auto && proj.auto.fait && !confirm("Relancer le montage automatique ? Les sous-titres, écrans, illustrations et alertes seront recalculés (⌘Z pour revenir en arrière).")) return;
+  arreter(); clearTimeout(minuteurSauve);
+  const boite = $("modal-boite"); $("modal").style.display = "flex";
+  boite.innerHTML = `<h3>✨ Montage automatique</h3><progress id="m-prog" max="1" value="0"></progress><p class="aide" id="m-txt">Préparation…</p>`;
+  const avant = JSON.stringify(proj);
+  const r = await (await fetch("/editeur/api/auto?p=" + encodeURIComponent(CHEMIN), { method: "POST", headers: { "content-type": "application/json" }, body: avant })).json();
+  const e = await suivreTravail(r.job, "Montage…", $("m-prog"), $("m-txt"));
+  if (e.erreur) { boite.innerHTML = `<h3>⚠️ Montage automatique impossible</h3><p class="aide">${e.erreur}</p><button onclick="document.getElementById('modal').style.display='none'">Fermer</button>`; return; }
+  const d = await (await fetch("/editeur/api/projet?p=" + encodeURIComponent(CHEMIN))).json();
+  histo.push(avant); futur = []; proj = d.projet; proj.alertes ||= [];
+  $("modal").style.display = "none"; sel = null; t = 0; apresModif(false);
+  $("statut").textContent = "Montage automatique terminé ✓" + (proj.alertes.length ? ` · ${proj.alertes.length} passage(s) ⚠️ à vérifier` : "");
 }
 
 // ------------------------------------------------------------------ export
@@ -575,16 +683,33 @@ $("b-add-st").onclick = ajouterSousTitre; $("b-add-ecran").onclick = ajouterEcra
 $("b-add-ill").onclick = () => choisirFichier("ill", "image/*,video/*");
 $("b-add-mus").onclick = () => choisirFichier("mus", "audio/*");
 $("b-exporter").onclick = exporter;
+$("b-auto").onclick = montageAuto;
 $("zoom").oninput = () => { pxs = +$("zoom").value; dessinerTimeline(); };
 window.addEventListener("resize", () => { dimensionner(); rendreScene(false); });
 v.addEventListener("seeked", () => { if (!lecture) rendreScene(false); });
 
 // ------------------------------------------------------------------ démarrage
+async function creerProjet(fichiers) {
+  const videos = [...fichiers].filter(f => f.type.startsWith("video/") || /\.(mp4|mov|m4v|webm|mkv|avi)$/i.test(f.name));
+  if (!videos.length) return alert("Choisissez une ou plusieurs vidéos.");
+  $("depot-prog").style.display = "block"; $("depot-txt").textContent = "Envoi des vidéos…";
+  const fd = new FormData(); videos.forEach(f => fd.append("fichiers", f));
+  const r = await (await fetch("/editeur/api/nouveau", { method: "POST", body: fd })).json();
+  const e = await suivreTravail(r.job, "Préparation…", $("depot-barre"), $("depot-txt"));
+  if (e.erreur) { $("depot-txt").textContent = "⚠️ " + e.erreur; return; }
+  location.href = "/editeur?p=" + encodeURIComponent(e.resultat);
+}
 async function accueil() {
-  $("accueil").style.display = "block";
+  $("accueil").style.display = "block"; document.body.style.overflow = "auto";
+  const dep = $("depot");
+  dep.onclick = () => $("f-nouveau").click();
+  $("f-nouveau").onchange = () => creerProjet($("f-nouveau").files);
+  dep.ondragover = (e) => { e.preventDefault(); dep.classList.add("survol"); };
+  dep.ondragleave = () => dep.classList.remove("survol");
+  dep.ondrop = (e) => { e.preventDefault(); dep.classList.remove("survol"); creerProjet(e.dataTransfer.files); };
   const liste = await (await fetch("/editeur/api/projets")).json();
   $("liste").innerHTML = liste.length ? liste.map(p => `<div class="proj"><span>🎬 ${p.nom.replace(/</g, "&lt;")}<br><small class="aide">${p.date}</small></span><a href="/editeur?p=${encodeURIComponent(p.chemin)}">✂️ Ouvrir</a></div>`).join("")
-    : `<p class="aide">Aucun projet pour l'instant : faites d'abord un montage automatique.</p>`;
+    : `<p class="aide">Aucun projet pour l'instant.</p>`;
 }
 async function demarrer() {
   if (!CHEMIN) return accueil();
@@ -592,7 +717,7 @@ async function demarrer() {
   const r = await fetch("/editeur/api/projet?p=" + encodeURIComponent(CHEMIN));
   if (!r.ok) { $("statut").textContent = "⚠️ Projet introuvable"; return; }
   const d = await r.json(); proj = d.projet; ident = d.identite;
-  proj.sous_titres ||= []; proj.ecrans ||= []; proj.illustrations ||= [];
+  proj.sous_titres ||= []; proj.ecrans ||= []; proj.illustrations ||= []; proj.alertes ||= [];
   $("nom-projet").textContent = CHEMIN.split("/").pop().replace(".projet.json", "");
   try {
     const f1 = new FontFace("PoliceTexte", `url(${media(ident.police_serif)})`, { style: "italic" });

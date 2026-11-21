@@ -818,7 +818,7 @@ def _port_libre(prefere=7860):
     return prefere
 
 
-def lancer(port=None, navigateur=True, bloquant=True):
+def lancer(port=None, navigateur=True, bloquant=True, page="editeur"):
     """Serveur unique : interface (/) + éditeur timeline (/editeur). Renvoie l'adresse."""
     import threading
     import webbrowser
@@ -837,7 +837,7 @@ def lancer(port=None, navigateur=True, bloquant=True):
     print(f"* Montage Locapay : {url}", flush=True)
     if bloquant:
         if navigateur:
-            threading.Timer(2.0, lambda: webbrowser.open(url)).start()
+            threading.Timer(2.0, lambda: webbrowser.open(url + page)).start()
         serveur.run()
     else:
         threading.Thread(target=serveur.run, daemon=True).start()

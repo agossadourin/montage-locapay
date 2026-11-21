@@ -28,7 +28,14 @@ L'installateur met en place ffmpeg (Homebrew), Python (uv), les bibliothèques, 
 
 ## Utilisation
 
-Ouvrez **Montage Locapay** (Launchpad / Applications / Spotlight). Glissez la vidéo, cliquez sur **Monter la vidéo**. Le résultat est enregistré dans **Vidéos › Montages Locapay** et s'ouvre dans QuickTime.
+Ouvrez **Montage Locapay** (Launchpad / Applications / Spotlight) : l'app s'ouvre sur l'**éditeur**.
+
+1. **＋ Nouveau projet** : déposez une ou plusieurs vidéos. Elles arrivent sur la piste 🎬 Vidéo.
+2. **Prémontage** : <kbd>S</kbd> pour couper à la tête de lecture, <kbd>Suppr</kbd> pour enlever, glissez pour réordonner, tirez les bords pour raccourcir.
+3. **✨ Montage automatique** : blancs coupés, sous-titres, écrans de couleur, illustrations. Les passages douteux (fon, reprises) apparaissent sur la piste rouge **⚠️ À vérifier** : écoutez, coupez, traduisez ou gardez.
+4. Retouchez, puis **⬆️ Exporter** : la vidéo arrive dans **Vidéos › Montages Locapay**.
+
+Le **mode classique** (et les **⚙️ Paramètres** : identité, style, clés) reste accessible par le lien en haut de l'éditeur.
 
 **Validation des passages** (activée par défaut) : au premier clic sur **Monter la vidéo**, l'outil liste les phrases et signale ⚠️ les **passages incompris** (bruit, fon ou autre langue), les **prises répétées** et les **faux départs**. Cliquez sur une ligne pour l'écouter, cochez/décochez **Garder** et **Sous-titres**, corrigez le texte — pour un passage en fon, tapez la traduction française, elle s'affichera en sous-titres — puis recliquez sur **Monter la vidéo**.
 

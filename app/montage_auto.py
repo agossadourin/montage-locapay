@@ -413,26 +413,33 @@ def construire_plan(mots, duree, R: Reglages):
         cle = max(cands)[1] if (cands and R.mot_cle) else None
         G.append({"mots": ws, "deb": deb, "fin": fin, "cle": cle, "ecran": None})
 
-    # --- écrans de couleur (milieu de la vidéo, groupes courts)
-    n = max(0, int(R.nb_ecrans_couleur))
-    if n and len(G) >= 6:
-        t0, t1 = G[0]["deb"], G[-1]["fin"]
-        cand = [i for i in range(2, len(G) - 2) if 0.45 <= G[i]["fin"] - G[i]["deb"] <= 2.0]
-        cibles = np.linspace(0.30, 0.62, n) if n > 1 else [0.45]
-        pris = []
-        for c in cibles:
-            tc = t0 + c * (t1 - t0)
-            libres = [i for i in cand if all(abs(i - p) > 1 for p in pris)]
-            if not libres:
-                break
-            best = min(libres, key=lambda i: abs((G[i]["deb"] + G[i]["fin"]) / 2 - tc))
-            pris.append(best)
-        couleurs = [hex2rgb(R.couleur_1), hex2rgb(R.couleur_2)]
-        for k, i in enumerate(sorted(pris)):
-            G[i]["ecran"] = couleurs[k % 2]
+    choisir_ecrans(G, R)
 
     return {"mots": mots, "zones": zones, "plans": plans, "groupes": G, "corps": corps,
             "total": corps + (R.duree_fin if R.ecran_fin else 0.0)}
+
+
+def choisir_ecrans(G, R, temps=None):
+    """Place les écrans de couleur sur des groupes courts, au milieu de la vidéo (couleurs alternées).
+    `temps(g)` donne la position du groupe dans la vidéo finale (par défaut : son milieu en temps source)."""
+    temps = temps or (lambda g: (g["deb"] + g["fin"]) / 2)
+    n = max(0, int(R.nb_ecrans_couleur))
+    if not (n and len(G) >= 6):
+        return []
+    t0, t1 = temps(G[0]), temps(G[-1])
+    cand = [i for i in range(2, len(G) - 2) if 0.45 <= G[i]["fin"] - G[i]["deb"] <= 2.0]
+    cibles = np.linspace(0.30, 0.62, n) if n > 1 else [0.45]
+    pris = []
+    for c in cibles:
+        tc = t0 + c * (t1 - t0)
+        libres = [i for i in cand if all(abs(i - p) > 1 for p in pris)]
+        if not libres:
+            break
+        pris.append(min(libres, key=lambda i: abs(temps(G[i]) - tc)))
+    couleurs = [hex2rgb(R.couleur_1), hex2rgb(R.couleur_2)]
+    for k, i in enumerate(sorted(pris)):
+        G[i]["ecran"] = couleurs[k % 2]
+    return sorted(pris)
 
 
 def src2out(plan, t):

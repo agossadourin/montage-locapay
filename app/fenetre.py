@@ -53,7 +53,7 @@ def habiller_app_mac():
 
 def avec_chrome(binaire):
     import interface as I
-    url = I.lancer(navigateur=False, bloquant=False)
+    url = I.lancer(navigateur=False, bloquant=False) + "editeur"     # on démarre sur la timeline
     profil = os.path.join(os.path.expanduser("~"), "Library", "Application Support", NOM, "navigateur")
     os.makedirs(profil, exist_ok=True)
     proc = subprocess.Popen([binaire, f"--app={url}", f"--user-data-dir={profil}", "--window-size=1440,960",
@@ -74,7 +74,7 @@ def avec_pywebview():
     def demarrer():
         import interface as I
         fenetre.title = f"{NOM} {I.VERSION}"
-        fenetre.load_url(I.lancer(navigateur=False, bloquant=False))
+        fenetre.load_url(I.lancer(navigateur=False, bloquant=False) + "editeur")
 
     webview.start(demarrer)
     os._exit(0)
