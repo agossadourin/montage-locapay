@@ -39,6 +39,8 @@ Ouvrez **Montage Locapay** (Launchpad / Applications / Spotlight). Glissez la vi
 
 **🖼 Illustrations** : au premier clic sur **Monter**, l'outil propose des images/vidéos aux moments où l'on parle de quelque chose de concret. Cliquez sur une illustration puis **🔄 Autre proposition** ou **📁 Mon fichier** ; modifiez la recherche puis **🔍 Relancer** ; décochez **Garder** pour la retirer.
 
+**✂️ Retoucher comme dans CapCut** : après le montage, cliquez sur **Retoucher dans l'éditeur (timeline)** (ou lien **l'éditeur** en haut de page pour rouvrir un projet). Aperçu en direct et pistes Vidéo / Sous-titres / Illustrations / Écrans / Musique : glisser pour déplacer, bords pour raccourcir, **S** couper, **Suppr** supprimer, **⌘Z** annuler, **Espace** lecture. Cliquez sur un élément pour le modifier dans le panneau de droite. **Exporter** refait la vidéo.
+
 **Corriger un mot** : **✏️ Corrections de mots › ➕** — choisissez le **moment** (une phrase précise, ou partout), cliquez sur le ou les **mots**, tapez la **correction** (vide = supprimer), **✔ Ajouter**, puis **Monter la vidéo**. Les corrections « dans toutes mes vidéos » sont mémorisées (`Vidéos › Montages Locapay › .dictionnaire_corrections.json`).
 
 **Plusieurs rushs ?** Onglet **Plusieurs vidéos (prémontage)** : déposez-les, réglez l'ordre, le début et la fin de chacun (en secondes), décochez ceux à ignorer, cliquez sur **Assembler**, puis sur **Monter la vidéo**. Les prémontages sont gardés dans **Vidéos › Montages Locapay › prémontages**.
@@ -61,7 +63,10 @@ Double-cliquez sur **`Mettre à jour.command`** (ou `git pull` dans le dossier).
 | `app/analyse_style.py` | Analyse d'une vidéo de référence → profil de style. |
 | `app/illustrations.py` | Choix des moments à illustrer, recherche Pexels/Pixabay, téléchargement. |
 | `app/ia.py` | Appels facultatifs à Claude (API Anthropic). |
-| `app/fenetre.py` | Ouvre l'interface dans une fenêtre Mac native (pywebview). |
+| `app/fenetre.py` | Ouvre l'app dans une fenêtre Chrome dédiée (ou WebKit/pywebview à défaut). |
+| `app/projet.py` | Projet éditable (pistes) : création depuis un montage, conversion en plan, rendu. |
+| `app/editeur.py` | Serveur de l'éditeur : projet, médias, export en tâche de fond. |
+| `app/editeur.html` | L'éditeur timeline (HTML/JS, sans dépendance). |
 | `app/polices/`, `app/logo_locapay.png` | Polices (Playfair Display, Montserrat — licence OFL) et logo. |
 | `macos/build_app.sh` | Crée `Montage Locapay.app` (lanceur léger qui pointe vers ce dossier). |
 | `macos/AppIcon.icns` | Icône de l'app. |
@@ -80,6 +85,7 @@ Double-cliquez sur **`Mettre à jour.command`** (ou `git pull` dans le dossier).
 - **Styles** : champs de `ProfilStyle` (`configuration.py`) ↔ `Reglages` (`montage_auto.py`) ; étalonnages dans `ETALONNAGES`.
 - **Analyse de référence** : seuils et règles dans `analyse_style.py` (`est_ecran_uni`, `choisir_etalonnage`, `mesures_sous_titres`).
 - **Illustrations** : dictionnaire `MOTS_IMAGES` (mot → recherche en anglais) et `choisir_moments` dans `illustrations.py` ; rendu `Illustration` dans `montage_auto.py`.
+- **Éditeur timeline** : `editeur.html` (aperçu : `rendreScene`, pistes : `dessinerTimeline`, gestes : bloc « glisser / rogner », inspecteur : `inspecter`) ; format du projet décrit en tête de `projet.py`.
 - **Corrections de mots** : `corriger` dans `montage_auto.py` (par index de mots ou par expression), éditeur ➕ dans `interface.py` (bloc « corrections de mots »).
 - **Détection des passages à valider** : `analyser` (seuil `SEUIL_CONFIANCE`, règles de reprise) et `appliquer_validation` dans `montage_auto.py`.
 - **Prémontage** (assemblage de plusieurs rushs) : `premontage` dans `montage_auto.py`, onglet « Plusieurs vidéos » dans `interface.py`.

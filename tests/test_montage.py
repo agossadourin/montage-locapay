@@ -264,3 +264,89 @@ def test_analyse_de_style_reference(tmp_path):
     assert p.ecran_fin is True
     assert p.nb_ecrans_couleur == 1
     assert 0.8 <= p.duree_plan_max <= 3.0
+
+
+# ---------------------------------------------------------------- v0.7 : projet éditable (timeline)
+import projet as P  # noqa: E402
+
+
+def test_projet_aller_retour():
+    R = M.Reglages(nb_ecrans_couleur=2)
+    plan = M.construire_plan(MOTS, 19.06, R)
+    import unittest.mock as um
+    with um.patch.object(M, "duree_video", return_value=19.06):
+        proj = P.creer("/x/brut.mp4", plan, R)
+    assert len(proj["clips"]) == len(plan["plans"]) and len(proj["ecrans"]) == 2
+    plan2, R2 = P.vers_plan(json.loads(json.dumps(proj)))          # passe par du JSON, comme l'éditeur
+    assert abs(plan2["corps"] - plan["corps"]) < 1e-6
+    assert [g["cle"] for g in plan2["groupes"]] == [g["cle"] for g in plan["groupes"]]
+    assert sum(1 for g in plan2["groupes"] if g["ecran"] is not None) == 2
+    # éditions : supprimer un plan, couper un autre en deux
+    proj["clips"].pop(1)
+    c = proj["clips"][0]; milieu = (c["a"] + c["b"]) / 2
+    proj["clips"][0:1] = [dict(c, b=milieu), dict(c, id="x", a=milieu)]
+    plan3, _ = P.vers_plan(proj)
+    assert abs(plan3["corps"] - (plan["corps"] - (plan["plans"][1]["b"] - plan["plans"][1]["a"]))) < 1e-6
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg absent")
+def test_rendu_projet_plans_inverses(tmp_path):
+    """Plans remis dans le désordre (la source doit être relue en arrière) + écran ajouté + musique décalée."""
+    src = tmp_path / "brut.mp4"
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=720x1280:rate=30:d=6",
+                    "-f", "lavfi", "-i", "sine=frequency=220:duration=6", "-c:v", "libx264", "-preset", "ultrafast",
+                    "-c:a", "aac", "-shortest", str(src)], check=True)
+    mus = tmp_path / "m.wav"
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=20", str(mus)],
+                   check=True)
+    proj = {"version": 1, "video": str(src), "duree_source": 6.0,
+            "clips": [{"id": "1", "a": 4.0, "b": 5.5, "zoom": 1.0}, {"id": "2", "a": 0.5, "b": 2.0, "zoom": 1.15}],
+            "sous_titres": [{"id": "s", "deb": 4.1, "fin": 5.4, "mots": [{"w": "Bonjour", "t": 4.1},
+                                                                          {"w": "Locapay", "t": 4.6}], "cle": 1}],
+            "ecrans": [{"id": "e", "deb": 1.0, "fin": 1.6, "couleur": "#2E2C51"}],
+            "illustrations": [], "musique": {"fichier": str(mus), "volume": 0.2, "decalage": 5.0},
+            "reglages": {"duree_fin": 0.5, "nb_ecrans_couleur": 0}}
+    out = tmp_path / "edit.mp4"
+    P.rendre(proj, str(out))
+    assert abs(M.duree_video(str(out)) - 3.5) < 0.25
+    r = subprocess.run(["ffmpeg", "-loglevel", "error", "-ss", "2.0", "-i", str(out), "-frames:v", "1",
+                        "-vf", "crop=10:10:20:20,scale=1:1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+                       capture_output=True)
+    assert tuple(r.stdout) == (0x2E, 0x2C, 0x51) or abs(r.stdout[2] - 0x51) < 12   # écran bleu nuit à 2,0 s
+
+
+def test_serveur_editeur(tmp_path):
+    """Routes de l'éditeur : page, projet (lecture/écriture), média en lecture partielle, export."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    import editeur as E
+    src = tmp_path / "brut.mp4"
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=360x640:rate=30:d=3",
+                    "-f", "lavfi", "-i", "sine=frequency=220:duration=3", "-c:v", "libx264", "-preset", "ultrafast",
+                    "-c:a", "aac", "-shortest", str(src)], check=True)
+    proj = {"version": 1, "video": str(src), "duree_source": 3.0,
+            "clips": [{"id": "1", "a": 0.2, "b": 2.0, "zoom": 1.0}], "sous_titres": [], "ecrans": [],
+            "illustrations": [], "musique": None, "reglages": {"duree_fin": 0.3}}
+    chemin = tmp_path / "essai.projet.json"
+    P.sauver(proj, str(chemin))
+    E.SORTIES = str(tmp_path)
+    api = FastAPI(); E.ajouter_routes(api, [str(tmp_path)])
+    c = TestClient(api)
+    assert "timeline" in c.get("/editeur").text.lower() or c.get("/editeur").status_code == 200
+    assert c.get("/editeur/api/projet", params={"p": str(chemin)}).json()["projet"]["clips"][0]["b"] == 2.0
+    proj["clips"][0]["b"] = 1.5
+    assert c.put("/editeur/api/projet", params={"p": str(chemin)}, json=proj).json()["ok"]
+    assert P.charger(str(chemin))["clips"][0]["b"] == 1.5
+    r = c.get("/editeur/media", params={"f": str(src)}, headers={"Range": "bytes=0-99"})
+    assert r.status_code == 206 and len(r.content) == 100
+    assert c.get("/editeur/media", params={"f": "/etc/passwd"}).status_code == 404
+    assert c.get("/editeur/api/projet", params={"p": "/etc/passwd"}).status_code == 403
+    assert len(c.get("/editeur/api/onde", params={"f": str(src)}).json()["pics"]) > 10
+    job = c.post("/editeur/api/exporter", params={"p": str(chemin)}, json=proj).json()["job"]
+    import time as _t
+    for _ in range(120):
+        e = c.get("/editeur/api/etat", params={"job": job}).json()
+        if e["fini"]:
+            break
+        _t.sleep(0.5)
+    assert e["erreur"] is None and abs(M.duree_video(e["sortie"]) - 1.6) < 0.25

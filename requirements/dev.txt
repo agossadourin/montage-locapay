@@ -3,3 +3,5 @@ pillow>=10
 numpy
 pytest>=8
 httpx
+fastapi
+python-multipart

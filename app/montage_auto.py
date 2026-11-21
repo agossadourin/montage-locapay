@@ -48,6 +48,7 @@ class Reglages:
     ecran_fin: bool = True
     # --- illustrations (B-roll) : [{"deb", "fin" (temps source), "fichier", "type": image|video}]
     illustrations: list = field(default_factory=list)
+    decalage_musique: float = 0.0         # la musique démarre à cette seconde du morceau
 
 
 ETALONNAGES = {
@@ -776,7 +777,10 @@ def monter(video, plan, R: Reglages, sortie, musique=None, progression=True, rap
         logo_des = min(logo_des, plans[-1]["a"])
 
     # écrans de couleur en temps source
-    ecrans = [(g["deb"] - 0.04, g["fin"], g["ecran"]) for g in plan["groupes"] if g["ecran"] is not None]
+    if plan.get("ecrans") is not None:          # projet édité : écrans de couleur indépendants
+        ecrans = [(a, b, c) for a, b, c in plan["ecrans"]]
+    else:
+        ecrans = [(g["deb"] - 0.04, g["fin"], g["ecran"]) for g in plan["groupes"] if g["ecran"] is not None]
     illustrations = [Illustration(it) for it in (R.illustrations or [])
                      if it.get("fichier") and os.path.exists(it["fichier"])]
 
@@ -787,13 +791,27 @@ def monter(video, plan, R: Reglages, sortie, musique=None, progression=True, rap
     vf = f"fps={FPS},scale={SW}:{SH}:flags=bicubic"
     if R.etalonnage and R.style_etalonnage in ETALONNAGES:
         vf += "," + ETALONNAGES[R.style_etalonnage]
-    lecteur = subprocess.Popen(["ffmpeg", "-loglevel", "error", "-i", video, "-vf", vf, "-f", "rawvideo",
-                                "-pix_fmt", "rgb24", "-"], stdout=subprocess.PIPE)
     taille = SW * SH * 3
-    etat = {"idx": -1, "img": None}
+    etat = {"idx": -1, "img": None, "proc": None}
+
+    def ouvrir_lecteur(depuis_idx):
+        """(Re)démarre la lecture de la source à l'image depuis_idx (retour en arrière ou grand saut)."""
+        if etat["proc"] is not None:
+            etat["proc"].kill()
+        cmd = ["ffmpeg", "-loglevel", "error"]
+        if depuis_idx > 0:
+            cmd += ["-ss", f"{depuis_idx / FPS:.3f}"]
+        etat["proc"] = subprocess.Popen(cmd + ["-i", video, "-vf", vf, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+                                        stdout=subprocess.PIPE)
+        etat["idx"] = depuis_idx - 1
+
+    ouvrir_lecteur(0)
 
     def image_source(idx):
+        if idx < etat["idx"] or idx - etat["idx"] > FPS * 4:
+            ouvrir_lecteur(idx)
         while etat["idx"] < idx:
+            lecteur = etat["proc"]
             buf = lecteur.stdout.read(taille)
             if len(buf) < taille:
                 break
@@ -846,7 +864,7 @@ def monter(video, plan, R: Reglages, sortie, musique=None, progression=True, rap
             print(f"  image {n}/{nb}  ({100 * n // nb} %)", flush=True)
         if rappel is not None and n % 15 == 0:
             rappel(n / nb)
-    ecrivain.stdin.close(); ecrivain.wait(); lecteur.kill()
+    ecrivain.stdin.close(); ecrivain.wait(); etat["proc"].kill()
     for b in illustrations:
         b.fermer()
 
@@ -883,7 +901,8 @@ def monter(video, plan, R: Reglages, sortie, musique=None, progression=True, rap
     entrees = ["-i", video, "-i", sfx]
     if musique:
         entrees += ["-stream_loop", "-1", "-i", musique]
-        f += (f";[2:a]atrim=0:{total:.3f},asetpts=PTS-STARTPTS,aresample={SR},aformat=channel_layouts=stereo,"
+        dm = max(0.0, float(getattr(R, "decalage_musique", 0.0) or 0.0))
+        f += (f";[2:a]atrim={dm:.3f}:{dm + total:.3f},asetpts=PTS-STARTPTS,aresample={SR},aformat=channel_layouts=stereo,"
               f"volume={R.volume_musique},afade=t=in:d=0.6,afade=t=out:st={max(0, total - 1.5):.3f}:d=1.5[m0];"
               f"[m0][vk]sidechaincompress=threshold=0.02:ratio=6:attack=15:release=350[m];"
               f"[v][s][m]amix=inputs=3:normalize=0:duration=first,alimiter=limit=0.89[aout]")

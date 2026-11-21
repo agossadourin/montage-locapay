@@ -1,14 +1,25 @@
-"""Lance le montage automatique dans une fenêtre Mac native (pywebview / WebKit), sans navigateur."""
+"""Lance le montage automatique dans sa propre fenêtre.
+
+1. Si Google Chrome (ou Edge, Brave) est installé : fenêtre « application » dédiée (sans barre d'adresse),
+   avec un profil séparé — lecture vidéo fiable, idéale pour l'éditeur (timeline).
+2. Sinon : fenêtre native pywebview (WebKit).
+"""
 import os
-import socket
+import subprocess
 import sys
 import time
-import urllib.request
 
 ICI = os.path.dirname(os.path.abspath(__file__))
 RACINE = os.path.dirname(ICI)
 sys.path.insert(0, ICI)
 NOM = "Montage Locapay"
+
+NAVIGATEURS = [
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+    "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+    os.path.expanduser("~/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+]
 
 CHARGEMENT = """<html><body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;
 background:#2E2C51;color:#fff;font-family:-apple-system,Helvetica,sans-serif">
@@ -16,12 +27,8 @@ background:#2E2C51;color:#fff;font-family:-apple-system,Helvetica,sans-serif">
 <div style="opacity:.7;margin-top:10px">Démarrage…</div></div></body></html>"""
 
 
-def port_libre():
-    s = socket.socket()
-    s.bind(("127.0.0.1", 0))
-    p = s.getsockname()[1]
-    s.close()
-    return p
+def navigateur_app():
+    return next((n for n in NAVIGATEURS if os.path.exists(n)), None)
 
 
 def habiller_app_mac():
@@ -44,33 +51,41 @@ def habiller_app_mac():
         pass
 
 
-def main():
+def avec_chrome(binaire):
+    import interface as I
+    url = I.lancer(navigateur=False, bloquant=False)
+    profil = os.path.join(os.path.expanduser("~"), "Library", "Application Support", NOM, "navigateur")
+    os.makedirs(profil, exist_ok=True)
+    proc = subprocess.Popen([binaire, f"--app={url}", f"--user-data-dir={profil}", "--window-size=1440,960",
+                             "--no-first-run", "--no-default-browser-check", "--disable-features=Translate"])
+    proc.wait()          # la fenêtre est fermée : on arrête tout
+    os._exit(0)
+
+
+def avec_pywebview():
     habiller_app_mac()
     import webview
-
     try:
         webview.settings["ALLOW_DOWNLOADS"] = True
     except Exception:
         pass
+    fenetre = webview.create_window(NOM, html=CHARGEMENT, width=1440, height=960, min_size=(900, 640))
 
-    port = port_libre()
-    url = f"http://127.0.0.1:{port}/"
-    fenetre = webview.create_window(NOM, html=CHARGEMENT, width=1280, height=900, min_size=(900, 640))
-
-    def demarrer_serveur():
+    def demarrer():
         import interface as I
         fenetre.title = f"{NOM} {I.VERSION}"
-        I.lancer(port=port, navigateur=False, bloquant=False)
-        for _ in range(200):  # attend que le serveur réponde (≤ 20 s)
-            try:
-                urllib.request.urlopen(url, timeout=1)
-                break
-            except Exception:
-                time.sleep(0.1)
-        fenetre.load_url(url)
+        fenetre.load_url(I.lancer(navigateur=False, bloquant=False))
 
-    webview.start(demarrer_serveur)
-    os._exit(0)  # ferme aussi le serveur quand on ferme la fenêtre
+    webview.start(demarrer)
+    os._exit(0)
+
+
+def main():
+    binaire = navigateur_app() if os.environ.get("MONTAGE_FENETRE") != "webkit" else None
+    if binaire:
+        avec_chrome(binaire)
+    else:
+        avec_pywebview()
 
 
 if __name__ == "__main__":

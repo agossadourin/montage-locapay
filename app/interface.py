@@ -14,6 +14,7 @@ import analyse_style as A
 import configuration as C
 import illustrations as I
 import montage_auto as M
+import projet as P
 
 SORTIES = os.path.join(os.path.expanduser("~"), "Movies", "Montages Locapay")
 os.makedirs(SORTIES, exist_ok=True)
@@ -58,7 +59,13 @@ def _profil(valeurs):
 def _identite(valeurs):
     d = dict(zip(IDENTITE_CLES, valeurs))
     base = C.charger_config()["identite"]
-    return {k: (d.get(k) or base.get(k)) for k in IDENTITE_CLES}
+    ident = {k: (d.get(k) or base.get(k)) for k in IDENTITE_CLES}
+    # le logo affiché par l'interface est une copie temporaire : on en garde une copie durable
+    logo = ident.get("fichier_logo")
+    if logo and os.path.exists(logo) and not any(os.path.realpath(logo).startswith(os.path.realpath(r))
+                                                   for r in (C.DOSSIER, ICI)):
+        ident["fichier_logo"] = _ranger(logo, "logo_courant")
+    return ident
 
 
 def _ranger(fichier, nom):
@@ -302,7 +309,7 @@ def monter(video, musique, *args, progress=gr.Progress()):
                             "une clé gratuite dans **Paramètres › Clés API**.")
                 return (rien, rien, rien, rien, msg, cache, rien, analyse, M.lignes_validation(phrases),
                         gr.update(open=True), maj_moments, illus, _lignes_illus(illus), _galerie(illus),
-                        gr.update(open=bool(illus)))
+                        gr.update(open=bool(illus)), rien, rien)
             lignes = _lignes(tableau)
             if analyse["cle"] != cle_analyse:      # des corrections ont été ajoutées depuis l'analyse
                 phrases = M.analyser(mots)
@@ -327,6 +334,12 @@ def monter(video, musique, *args, progress=gr.Progress()):
         M.monter(video, plan, R, sortie, musique=musique or None, progression=False,
                  rappel=lambda f: progress(0.30 + 0.62 * f, desc="Montage…"))
         progress(0.95, desc="Finalisation…")
+        try:   # projet éditable dans la timeline
+            proj = P.creer(P.garder_source(video), plan, R, musique=P.garder_source(musique) if musique else None)
+            chemin_projet = P.sauver(proj, sortie[:-4] + ".projet.json")
+        except Exception:
+            traceback.print_exc()
+            chemin_projet = ""
         srt = sortie.replace(".mp4", ".srt"); M.ecrire_srt(plan, srt)
         txt = sortie.replace(".mp4", "_transcription.txt")
         open(txt, "w", encoding="utf-8").write(M.texte_transcription(mots))
@@ -339,7 +352,8 @@ def monter(video, musique, *args, progress=gr.Progress()):
             except Exception:
                 pass
         return (sortie, M.texte_transcription(mots), M.resume_plan(plan), [sortie, srt, txt], info, cache, sortie,
-                analyse, tableau if valider else rien, rien, maj_moments, illus, rien, rien, rien)
+                analyse, tableau if valider else rien, rien, maj_moments, illus, rien, rien, rien,
+                chemin_projet, gr.update(visible=bool(chemin_projet)))
     except gr.Error:
         raise
     except Exception as e:
@@ -578,7 +592,8 @@ STYLE0 = C.charger_style(CFG["style_actif"])
 with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": THEME})) as app:
     gr.Markdown(f"# 🎬 Montage automatique Locapay <small style='opacity:.5'>{VERSION}</small>\n"
                 "Glissez une vidéo brute face caméra (ou plusieurs, à assembler), cliquez sur **Monter la vidéo**, "
-                "récupérez la vidéo prête à publier.")
+                "récupérez la vidéo prête à publier — puis retouchez-la si besoin dans "
+                "[✂️ l'éditeur (timeline)](/editeur).")
     cache = gr.State(None)
     chemins_clips = gr.State([])
     derniere_video = gr.State(None)
@@ -704,8 +719,10 @@ with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": 
         with gr.Column(scale=1):
             resultat = gr.Video(label="Vidéo montée", height=560)
             info = gr.Markdown()
+            editer = gr.Button("✂️ Retoucher dans l'éditeur (timeline)", variant="primary", visible=False)
+            chemin_projet = gr.Textbox(visible=False)
             with gr.Row():
-                quicktime = gr.Button("▶️ Lire dans QuickTime", variant="primary")
+                quicktime = gr.Button("▶️ Lire dans QuickTime", variant="secondary")
                 dossier = gr.Button("📂 Ouvrir le dossier des montages")
             fichiers = gr.File(label="Fichiers (vidéo, sous-titres .srt, transcription)", file_count="multiple")
             with gr.Accordion("Transcription et plan de montage", open=False):
@@ -751,7 +768,9 @@ with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": 
     bouton.click(monter, [video, musique, *comps_identite, *comps_style, *comps_cles, *comps_avance,
                           corrections, cache, valider, analyse, tableau_valid, illus, table_illus],
                  [resultat, transcription, plan, fichiers, info, cache, derniere_video, analyse, tableau_valid,
-                  acc_valid, moment, illus, table_illus, galerie, acc_illus])
+                  acc_valid, moment, illus, table_illus, galerie, acc_illus, chemin_projet, editer])
+    editer.click(None, [chemin_projet], None,
+                 js="(p) => { if (p) window.location.href = '/editeur?p=' + encodeURIComponent(p); }")
 
     bouton_identite.click(sauver_identite, [nom_marque, c1, c2, logo, police_serif, police_grasse],
                           [info_identite, logo, police_serif_ch, police_grasse_ch])
@@ -785,10 +804,48 @@ with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": 
     bouton_assembler.click(assembler, [tableau, chemins_clips], [video, derniere_video, info_pre, onglets])
 
 
+def _port_libre(prefere=7860):
+    import socket
+    for p in [prefere] + [0]:
+        so = socket.socket()
+        try:
+            so.bind(("127.0.0.1", p))
+            port = so.getsockname()[1]
+            so.close()
+            return port
+        except OSError:
+            so.close()
+    return prefere
+
+
 def lancer(port=None, navigateur=True, bloquant=True):
-    app.queue().launch(inbrowser=navigateur, server_name="127.0.0.1", server_port=port,
-                       allowed_paths=[SORTIES, I.DOSSIER_CACHE, C.DOSSIER, ICI], prevent_thread_lock=not bloquant,
-                       **({"theme": THEME} if GR6 else {}))
+    """Serveur unique : interface (/) + éditeur timeline (/editeur). Renvoie l'adresse."""
+    import threading
+    import webbrowser
+    import uvicorn
+    from fastapi import FastAPI
+    import editeur as E
+
+    racines = [SORTIES, I.DOSSIER_CACHE, C.DOSSIER, ICI]
+    api = FastAPI()
+    E.ajouter_routes(api, racines)
+    api = gr.mount_gradio_app(api, app.queue(), path="/", allowed_paths=racines,
+                              **({"theme": THEME} if GR6 else {}))
+    port = port or _port_libre()
+    url = f"http://127.0.0.1:{port}/"
+    serveur = uvicorn.Server(uvicorn.Config(api, host="127.0.0.1", port=port, log_level="warning"))
+    print(f"* Montage Locapay : {url}", flush=True)
+    if bloquant:
+        if navigateur:
+            threading.Timer(2.0, lambda: webbrowser.open(url)).start()
+        serveur.run()
+    else:
+        threading.Thread(target=serveur.run, daemon=True).start()
+        for _ in range(200):
+            if serveur.started:
+                break
+            time.sleep(0.1)
+    return url
 
 
 if __name__ == "__main__":

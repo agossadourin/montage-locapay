@@ -1,5 +1,14 @@
 # Historique des versions
 
+## 0.7.0 — 2026-11-21
+- **✂️ Éditeur façon CapCut** : après chaque montage automatique, bouton « Retoucher dans l'éditeur ». Aperçu en direct (sous-titres animés, illustrations, écrans de couleur, logo, écran de fin, musique) et 5 pistes : Vidéo (avec forme d'onde de la voix), Sous-titres, Illustrations, Écrans, Musique.
+  - Glisser pour déplacer, tirer les bords pour raccourcir, **S** pour couper un plan, **Suppr** pour supprimer, **⌘Z / ⇧⌘Z** annuler/rétablir, **Espace** lecture, flèches image par image.
+  - Inspecteur : texte et mot clé d'un sous-titre, cadrage (zoom) d'un plan, couleur d'un écran, remplacement d'une illustration, volume et départ de la musique ; ajout de sous-titres, écrans, illustrations, musique.
+  - Sous-titres, illustrations et écrans restent calés sur la voix quand on raccourcit ou réordonne les plans.
+  - Enregistrement automatique ; **Exporter** refait la vidéo finale (lecture QuickTime / Finder).
+- L'app s'ouvre dans une **fenêtre Chrome dédiée** (sans barre d'adresse) quand Chrome est installé : lecture vidéo fiable. Repli sur la fenêtre WebKit sinon.
+- Les vidéos sources sont conservées (`Montages Locapay/.sources`) pour pouvoir rouvrir les projets plus tard.
+
 ## 0.6.0 — 2026-11-21
 - **⚙️ Paramètres** en onglets : **Identité visuelle** (nom, couleurs, logo, polices — enregistrée et appliquée à tous les styles), **Style**, **Clés API**, **Avancé**.
 - **Profils de style** : un style = rythme des coupes, zooms, sous-titres (position, taille, mots à la fois, mot clé, casse, animation), étalonnage, écrans de couleur, écran de fin, densité d'illustrations. Styles enregistrables, ajustables, sélectionnables.
