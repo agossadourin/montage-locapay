@@ -425,3 +425,25 @@ def test_ia_ollama_simulee():
     assert ia.tester_ollama(client=client)[0] is True
     assert ia.config_ia({"cles": {"anthropic": "k"}})["fournisseur"] == "claude"     # compatibilité
     assert ia.config_ia({"cles": {}, "ia": {"fournisseur": "aucune"}}) is None
+
+
+def test_musique_libre_openverse_simulee(tmp_path, monkeypatch):
+    import httpx
+    import musique as MU
+    monkeypatch.setattr(MU, "DOSSIER", str(tmp_path))
+    def reponse(req):
+        if req.url.path.startswith("/v1/audio"):
+            assert req.url.params["license_type"] == "commercial"
+            return httpx.Response(200, json={"results": [
+                {"title": "Sunny", "creator": "Ana", "license": "by", "license_version": "4.0", "url": "https://x/a.mp3",
+                 "foreign_landing_url": "https://x/page", "duration": 95000},
+                {"title": "Interdit", "creator": "B", "license": "by-nc", "url": "https://x/b.mp3", "duration": 90000},
+                {"title": "Libre", "creator": "C", "license": "cc0", "url": "https://x/c.mp3", "duration": 60000},
+                {"title": "Court", "creator": "D", "license": "cc0", "url": "https://x/d.mp3", "duration": 5000}]})
+        return httpx.Response(200, content=b"ID3fake")
+    client = httpx.Client(transport=httpx.MockTransport(reponse))
+    res = MU.rechercher("upbeat", client=client)
+    assert [r["titre"] for r in res] == ["Sunny", "Libre"]                 # pas de NC, pas de morceau trop court
+    assert "Ana" in res[0]["credit"] and "CC BY" in res[0]["credit"] and res[1]["credit"] == ""
+    chemin = MU.telecharger(res[0], client=client)
+    assert open(chemin, "rb").read() == b"ID3fake" and chemin.endswith(".mp3")

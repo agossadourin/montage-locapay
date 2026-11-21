@@ -49,6 +49,8 @@ Le **mode classique** (et les **⚙️ Paramètres** : identité, style, clés) 
 
 **✂️ Retoucher comme dans CapCut** : après le montage, cliquez sur **Retoucher dans l'éditeur (timeline)** (ou lien **l'éditeur** en haut de page pour rouvrir un projet). Aperçu en direct et pistes Vidéo / Sous-titres / Illustrations / Écrans / Musique : glisser pour déplacer, bords pour raccourcir, **S** couper, **Suppr** supprimer, **⌘Z** annuler, **Espace** lecture. Cliquez sur un élément pour le modifier dans le panneau de droite. **Exporter** refait la vidéo.
 
+**🎵 Musique** : dans l'éditeur, **＋ Musique** → choisissez une ambiance, écoutez, **Utiliser** (musiques libres pour usage commercial, via Openverse). Si l'artiste doit être crédité, le texte à mettre en description est fourni et enregistré à côté de la vidéo.
+
 **Corriger un mot** : **✏️ Corrections de mots › ➕** — choisissez le **moment** (une phrase précise, ou partout), cliquez sur le ou les **mots**, tapez la **correction** (vide = supprimer), **✔ Ajouter**, puis **Monter la vidéo**. Les corrections « dans toutes mes vidéos » sont mémorisées (`Vidéos › Montages Locapay › .dictionnaire_corrections.json`).
 
 **Plusieurs rushs ?** Onglet **Plusieurs vidéos (prémontage)** : déposez-les, réglez l'ordre, le début et la fin de chacun (en secondes), décochez ceux à ignorer, cliquez sur **Assembler**, puis sur **Monter la vidéo**. Les prémontages sont gardés dans **Vidéos › Montages Locapay › prémontages**.
@@ -70,6 +72,7 @@ Double-cliquez sur **`Mettre à jour.command`** (ou `git pull` dans le dossier).
 | `app/configuration.py` | Paramètres persistants (identité, clés, profils de style) dans `Vidéos › Montages Locapay › .parametres`. |
 | `app/analyse_style.py` | Analyse d'une vidéo de référence → profil de style. |
 | `app/illustrations.py` | Choix des moments à illustrer, recherche Pexels/Pixabay, téléchargement. |
+| `app/musique.py` | Recherche de musique libre (Openverse, usage commercial) et crédits. |
 | `app/ia.py` | Appels facultatifs à Claude (API Anthropic). |
 | `app/fenetre.py` | Ouvre l'app dans une fenêtre Chrome dédiée (ou WebKit/pywebview à défaut). |
 | `app/projet.py` | Projet éditable (pistes) : création depuis un montage, conversion en plan, rendu. |

@@ -6,6 +6,7 @@ ICI = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ICI)
 # Les apps lancées depuis le Finder n'ont pas toujours Homebrew dans le PATH
 os.environ["PATH"] = os.pathsep.join(["/opt/homebrew/bin", "/usr/local/bin", os.environ.get("PATH", "")])
+os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")      # aucune statistique envoyée à Gradio
 
 import gradio as gr
 from PIL import Image, ImageDraw

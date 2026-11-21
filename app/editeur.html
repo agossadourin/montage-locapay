@@ -387,7 +387,7 @@ function dessinerTimeline() {
   poser("p-alerte", proj.alertes, "alerte", it => (it.type === "incompris" ? "⚠️ Incompris (fon ?) · " : "⚠️ Reprise · ") + it.phrase);
   $("b-auto").classList.toggle("attention", !(proj.auto && proj.auto.fait));
   const pm = $("p-mus"); pm.innerHTML = "";
-  if (proj.musique) { const d = el("mus", 0, tot, "🎵 " + proj.musique.fichier.split("/").pop() + ` · volume ${Math.round((proj.musique.volume ?? .18) * 100)} %`, { type: "mus", id: "mus" }); pm.appendChild(d); }
+  if (proj.musique) { const d = el("mus", 0, tot, "🎵 " + (proj.musique.titre || proj.musique.fichier.split("/").pop()) + ` · volume ${Math.round((proj.musique.volume ?? .18) * 100)} %`, { type: "mus", id: "mus" }); pm.appendChild(d); }
   const nb = masques.st + masques.ill + masques.ecran;
   $("statut").dataset.masques = nb;
   rendreScene(false);
@@ -500,7 +500,7 @@ $("f-envoi").addEventListener("change", async () => {
   const fd = new FormData(); fd.append("fichier", f);
   const r = await (await fetch("/editeur/api/envoyer", { method: "POST", body: fd })).json();
   memoriser();
-  if (envoiPour === "mus") proj.musique = { fichier: r.chemin, volume: proj.musique?.volume ?? 0.18, decalage: 0 };
+  if (envoiPour === "mus") proj.musique = { fichier: r.chemin, volume: proj.musique?.volume ?? 0.18, decalage: 0, titre: f.name, credit: "" };
   else if (envoiPour === "ill") {
     const p = versSource(Math.min(t, corps() - 0.01)); if (!p) return;
     const d = r.type === "video" && r.duree ? Math.min(3, r.duree) : 2;
@@ -610,14 +610,61 @@ function inspecter() {
     $("i-suppr").onclick = supprimer;
   } else if (sel.type === "mus") {
     const m = proj.musique; if (!m) { sel = null; return inspecter(); }
-    ins.innerHTML = `<h3>🎵 Musique</h3><p class="aide">${m.fichier.split("/").pop()}</p>` +
+    ins.innerHTML = `<h3>🎵 Musique</h3><p class="aide">${(m.titre || m.fichier.split("/").pop()).replace(/</g, "&lt;")}</p>` +
+      (m.credit ? `<label>Crédit à mettre dans la description de la publication</label><textarea readonly id="i-credit">${m.credit.replace(/</g, "&lt;")}</textarea><button id="i-copier">📋 Copier le crédit</button>` : "") +
       champ("Volume (sous la voix)", `<input type="range" id="i-vol" min="0" max="0.6" step="0.01" value="${m.volume ?? 0.18}" style="width:100%">`) +
       champ("Démarrer le morceau à (secondes)", `<input type="number" id="i-dec" min="0" step="0.5" value="${m.decalage || 0}" style="width:100px">`) +
       `<p class="aide">À l'export, la musique baisse automatiquement quand on parle.</p><div class="rangee"><button id="i-remp">📁 Changer de musique</button><button class="danger" id="i-suppr">🗑 Retirer</button></div>`;
     $("i-vol").onchange = () => { memoriser(); m.volume = +$("i-vol").value; apresModif(); };
     $("i-dec").onchange = () => { memoriser(); m.decalage = Math.max(0, +$("i-dec").value); apresModif(); };
-    $("i-remp").onclick = () => choisirFichier("mus", "audio/*"); $("i-suppr").onclick = supprimer;
+    $("i-remp").onclick = choisirMusique; $("i-suppr").onclick = supprimer;
+    if ($("i-copier")) $("i-copier").onclick = () => { navigator.clipboard.writeText(m.credit); $("i-copier").textContent = "✓ Copié"; };
   }
+}
+
+// ------------------------------------------------------------------ musique libre (Openverse)
+let ecouteMusique = null;
+async function choisirMusique() {
+  arreter();
+  const boite = $("modal-boite"); $("modal").style.display = "flex"; boite.style.width = "560px";
+  const amb = await (await fetch("/editeur/api/ambiances")).json();
+  boite.innerHTML = `<h3>🎵 Musique de fond</h3>
+    <p class="aide">Musiques libres de droits <b>autorisées pour un usage commercial</b> (Openverse). Si l'artiste doit être crédité, le texte à mettre en description vous est donné.</p>
+    <div class="rangee">${Object.keys(amb).map(k => `<button class="amb" data-q="${amb[k]}">${k}</button>`).join("")}</div>
+    <div class="rangee" style="margin-top:8px"><input id="m-q" placeholder="ou tapez une recherche (en anglais : chill, afro, piano…)" style="flex:1;min-width:400px"><button id="m-go">🔍</button></div>
+    <div id="m-res" style="max-height:320px;overflow:auto;margin-top:10px"></div>
+    <div class="rangee" style="margin-top:12px"><button id="m-fichier">📁 Utiliser mon fichier</button><button id="m-fermer" style="margin-left:auto">Fermer</button></div>`;
+  const fermer = () => { if (ecouteMusique) ecouteMusique.pause(); $("modal").style.display = "none"; boite.style.width = ""; };
+  $("m-fermer").onclick = fermer;
+  $("m-fichier").onclick = () => { fermer(); choisirFichier("mus", "audio/*"); };
+  const chercher = async (q) => {
+    $("m-res").innerHTML = `<p class="aide">Recherche…</p>`;
+    const r = await fetch("/editeur/api/musiques?q=" + encodeURIComponent(q));
+    if (!r.ok) { $("m-res").innerHTML = `<p class="aide">⚠️ ${(await r.json()).detail || "Recherche impossible"}</p>`; return; }
+    const res = await r.json();
+    if (!res.length) { $("m-res").innerHTML = `<p class="aide">Aucun morceau trouvé : essayez une autre ambiance.</p>`; return; }
+    $("m-res").innerHTML = "";
+    res.forEach(m => {
+      const d = document.createElement("div"); d.className = "proj"; d.style.alignItems = "center";
+      d.innerHTML = `<span style="flex:1"><b>${m.titre.replace(/</g, "&lt;")}</b><br><small class="aide">${m.artiste.replace(/</g, "&lt;")} · ${m.duree ? Math.round(m.duree) + " s · " : ""}${m.licence === "cc0" || m.licence === "pdm" ? "domaine public" : "CC " + m.licence.toUpperCase() + " (crédit)"}</small></span>`;
+      const ec = document.createElement("button"); ec.textContent = "▶️"; ec.title = "Écouter";
+      ec.onclick = () => { if (ecouteMusique) ecouteMusique.pause(); if (ec.textContent === "⏸") { ec.textContent = "▶️"; return; }
+        $("m-res").querySelectorAll("button.ec").forEach(b => b.textContent = "▶️"); ecouteMusique = new Audio(m.url); ecouteMusique.volume = 0.6; ecouteMusique.play(); ec.textContent = "⏸"; };
+      ec.className = "ec";
+      const ok = document.createElement("button"); ok.className = "primaire"; ok.textContent = "Utiliser"; ok.style.marginLeft = "6px";
+      ok.onclick = async () => {
+        ok.textContent = "…"; const rep = await fetch("/editeur/api/musique/prendre", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(m) });
+        if (!rep.ok) { ok.textContent = "⚠️"; return; }
+        const p = await rep.json(); memoriser();
+        proj.musique = { fichier: p.fichier, volume: proj.musique?.volume ?? 0.18, decalage: 0, titre: `${m.titre} — ${m.artiste}`, credit: p.credit };
+        fermer(); chargerMusique(); sel = { type: "mus", id: "mus" }; apresModif();
+      };
+      d.appendChild(ec); d.appendChild(ok); $("m-res").appendChild(d);
+    });
+  };
+  boite.querySelectorAll(".amb").forEach(b => b.onclick = () => chercher(b.dataset.q));
+  $("m-go").onclick = () => chercher($("m-q").value);
+  $("m-q").onkeydown = (e) => { if (e.key === "Enter") chercher($("m-q").value); };
 }
 
 // ------------------------------------------------------------------ montage automatique
@@ -655,7 +702,9 @@ async function exporter() {
     $("m-prog").value = e.progression; $("m-txt").textContent = `Montage… ${Math.round(e.progression * 100)} %`;
     if (!e.fini) return setTimeout(suivre, 800);
     if (e.erreur) { boite.innerHTML = `<h3>⚠️ Export impossible</h3><p class="aide">${e.erreur}</p><button onclick="document.getElementById('modal').style.display='none'">Fermer</button>`; return; }
-    boite.innerHTML = `<h3>✅ Vidéo exportée</h3><p class="aide">${e.sortie.split("/").pop()}<br>dans Vidéos › Montages Locapay</p>
+    const cr = (e.resultat && e.resultat.credit) || "";
+    boite.innerHTML = `<h3>✅ Vidéo exportée</h3><p class="aide">${e.sortie.split("/").pop()}<br>dans Vidéos › Montages Locapay</p>` +
+      (cr ? `<p class="aide">🎵 À mettre dans la description de votre publication (licence de la musique) :</p><textarea readonly style="width:100%;min-height:60px">${cr.replace(/</g, "&lt;")}</textarea>` : "") + `
       <div class="rangee"><button class="primaire" id="m-lire">▶️ Lire dans QuickTime</button><button id="m-finder">📂 Afficher dans le Finder</button><button id="m-fermer">Fermer</button></div>`;
     $("m-lire").onclick = () => fetch("/editeur/api/ouvrir?mode=lire&f=" + encodeURIComponent(e.sortie), { method: "POST" });
     $("m-finder").onclick = () => fetch("/editeur/api/ouvrir?mode=finder&f=" + encodeURIComponent(e.sortie), { method: "POST" });
@@ -681,7 +730,7 @@ $("b-couper").onclick = couper; $("b-suppr").onclick = supprimer;
 $("b-annuler").onclick = annuler; $("b-retablir").onclick = retablir;
 $("b-add-st").onclick = ajouterSousTitre; $("b-add-ecran").onclick = ajouterEcran;
 $("b-add-ill").onclick = () => choisirFichier("ill", "image/*,video/*");
-$("b-add-mus").onclick = () => choisirFichier("mus", "audio/*");
+$("b-add-mus").onclick = choisirMusique;
 $("b-exporter").onclick = exporter;
 $("b-auto").onclick = montageAuto;
 $("zoom").oninput = () => { pxs = +$("zoom").value; dessinerTimeline(); };

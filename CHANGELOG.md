@@ -1,5 +1,10 @@
 # Historique des versions
 
+## 0.10.0 — 2026-11-21
+- **🎵 Musique libre de droits, gratuite et sans clé** (Openverse) : dans l'éditeur, « ＋ Musique » → ambiances (Dynamique, Afro, Inspirant, Joyeux, Calme, Électro) ou recherche libre, écoute ▶️, « Utiliser ». Seuls les morceaux **autorisés pour un usage commercial** sont proposés.
+- **Crédits** : si la licence demande de citer l'artiste (CC BY), le texte est affiché (bouton Copier), rappelé à l'export et enregistré à côté de la vidéo (`…_credits.txt`).
+- Plus aucune statistique envoyée par l'interface (Gradio).
+
 ## 0.9.0 — 2026-11-21
 - **IA locale gratuite avec Ollama** : alternative à Claude pour choisir les moments à illustrer et analyser un style (modèle `qwen2.5vl:3b`, texte + images, ≈ 3 Go, adapté à un Mac 8 Go ; mémoire libérée après chaque usage). Installation : « Installer IA locale (Ollama).command ».
 - Paramètres › Clés API : choix de l'IA (Aucune / Ollama / Claude) et bouton « 🔌 Tester Ollama ».

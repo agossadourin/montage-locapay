@@ -21,6 +21,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 import configuration as C
 import illustrations as I
 import montage_auto as M
+import musique as MU
 import projet as P
 
 ICI = os.path.dirname(os.path.abspath(__file__))
@@ -141,7 +142,14 @@ def ajouter_routes(api: FastAPI, racines):
         P.sauver(proj, chemin)
         base = os.path.basename(chemin)[:-len(".projet.json")]
         sortie = os.path.join(SORTIES, f"{base}_edit_{time.strftime('%Y%m%d-%H%M%S')}.mp4")
-        job = lancer_travail(lambda rappel: P.rendre(proj, sortie, rappel=lambda x: rappel(x, "Montage…")))
+        def rendu(rappel):
+            P.rendre(proj, sortie, rappel=lambda x: rappel(x, "Montage…"))
+            credit = (proj.get("musique") or {}).get("credit")
+            if credit:        # licence « BY » : crédit à mettre dans la description de la publication
+                with open(os.path.splitext(sortie)[0] + "_credits.txt", "w", encoding="utf-8") as f:
+                    f.write(credit + "\n")
+            return {"credit": credit or ""}
+        job = lancer_travail(rendu)
         _travaux[job]["sortie"] = sortie
         return {"job": job}
 
@@ -194,6 +202,25 @@ def ajouter_routes(api: FastAPI, racines):
     async def prendre(req: Request):
         r = await req.json()
         return {"fichier": I.telecharger(r), "type": r.get("type", "image")}
+
+    @api.get("/editeur/api/ambiances")
+    def ambiances():
+        return MU.AMBIANCES
+
+    @api.get("/editeur/api/musiques")
+    def musiques(q: str):
+        try:
+            return MU.rechercher(q)
+        except Exception as e:
+            raise HTTPException(502, f"Recherche de musique impossible : {e}")
+
+    @api.post("/editeur/api/musique/prendre")
+    async def prendre_musique(req: Request):
+        r = await req.json()
+        try:
+            return {"fichier": MU.telecharger(r), "credit": r.get("credit", ""), "titre": r.get("titre", "")}
+        except Exception as e:
+            raise HTTPException(502, f"Téléchargement impossible : {e}")
 
     @api.post("/editeur/api/ouvrir")
     def ouvrir(f: str, mode: str = "lire"):
