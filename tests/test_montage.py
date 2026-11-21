@@ -74,3 +74,14 @@ def test_rendu_complet(tmp_path):
     assert out.exists() and out.stat().st_size > 10_000
     assert abs(M.duree_video(str(out)) - plan["total"]) < 0.3
     assert "Bonjour" in (tmp_path / "monte.srt").read_text(encoding="utf-8")
+
+
+def test_notebook_colab_a_jour():
+    """Le moteur intégré au notebook Colab doit être identique à app/montage_auto.py."""
+    import base64, gzip, re
+    nb = json.load(open(os.path.join(RACINE, "colab", "Montage_auto_Locapay.ipynb"), encoding="utf-8"))
+    code = "".join(nb["cells"][1]["source"])
+    blob = re.search(r'montage_auto\.py", "wb"\)\.write\(gzip\.decompress\(base64\.b64decode\("([^"]+)"\)\)\)', code).group(1)
+    integre = gzip.decompress(base64.b64decode(blob))
+    attendu = open(os.path.join(RACINE, "app", "montage_auto.py"), "rb").read()
+    assert integre == attendu, "Notebook Colab pas à jour : lancez  python colab/build_nb.py"

@@ -18,10 +18,6 @@ jobs:
         run: pip install -r requirements/dev.txt
       - name: Tests
         run: python -m pytest -q
-      - name: Notebook Colab à jour
-        run: |
-          python colab/build_nb.py
-          git diff --exit-code colab/Montage_auto_Locapay.ipynb || (echo "Le notebook Colab n'est pas à jour : lancez python colab/build_nb.py" && exit 1)
       - name: Scripts shell valides
         run: |
           bash -n Installer.command
