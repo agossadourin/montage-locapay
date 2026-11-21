@@ -533,3 +533,13 @@ def test_illustration_paysage_entiere_sur_fond_flou(tmp_path):
     assert fr.getpixel((M.W // 2, M.H // 2))[0] > 200 and fr.getpixel((M.W // 2, 40))[0] < 170
     # forcé en plein écran
     assert M.Illustration({"deb": 0, "fin": 2, "fichier": str(chemin), "cadrage": "remplir"}).mode == "remplir"
+
+
+def test_coupes_franches_par_defaut(tmp_path):
+    """Par défaut, coupes franches ; un ancien projet (fondu par défaut de la v0.12) revient aux coupes."""
+    assert M.Reglages().transition == "coupe" and C.ProfilStyle().transition == "coupe"
+    ancien = {"version": 1, "reglages": {"transition": "fondu"}, "clips": [{"a": 0, "b": 1, "transition": "flash"}]}
+    chemin = tmp_path / "ancien.projet.json"
+    chemin.write_text(json.dumps(ancien), encoding="utf-8")
+    proj = P.charger(str(chemin))
+    assert proj["reglages"]["transition"] == "coupe" and proj["clips"][0]["transition"] == "flash"

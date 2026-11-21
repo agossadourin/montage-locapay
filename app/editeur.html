@@ -217,7 +217,7 @@ function total() { return corps() + dureeFin(); }
 function versSource(x) { for (const c of clips()) if (x >= c.o && x < c.o + c.d) return { c, s: c.a + (x - c.o) }; return null; }
 function versSortie(s) { for (const c of clips()) if (s >= c.a && s < c.b) return c.o + (s - c.a); return null; }
 const lisse = (p) => { p = clamp(p, 0, 1); return p * p * (3 - 2 * p); };
-function typeTransition(c) { return (c && c.transition) || R().transition || "fondu"; }
+function typeTransition(c) { return (c && c.transition) || R().transition || "coupe"; }
 function dureeTr() { return clamp(+(R().duree_transition ?? 0.25) || 0.25, 0.08, 1); }
 function contigu(c, n) { return !!n && Math.abs(n.a - c.b) < 2 / FPS; }
 function zoomPlan(c, s) { return (c.zoom || 1) * (1 + 0.025 * clamp((s - c.a) / Math.max(1e-6, c.b - c.a), 0, 1)) * 1.03; }
@@ -722,7 +722,7 @@ function inspecter() {
   if (!sel) { ins.innerHTML = `<h3>Projet</h3><p class="aide">${proj.clips.length} plans · ${proj.sous_titres.length} sous-titres · ${proj.illustrations.length} illustrations · ${proj.ecrans.length} écrans</p>` +
       (proj.alertes.length ? `<p>⚠️ <b>${proj.alertes.length} passage(s) à vérifier</b> sur la piste rouge : cliquez dessus pour écouter, couper, traduire ou garder.</p>` : "") +
       (proj.auto && proj.auto.sans_cle_images ? `<p class="aide">🖼 Aucune illustration cherchée : ajoutez une clé Pexels (gratuite) dans <a href="/?parametres=1">⚙️ Paramètres › Clés API</a>, puis relancez ✨.</p>` : "") +
-      champ("Transitions entre les plans", `<div class="rangee"><select id="i-trans-tout">${Object.entries(TRANSITIONS).map(([k, [n, i]]) => `<option value="${k}" ${(R().transition || "fondu") === k ? "selected" : ""}>${i} ${n}</option>`).join("")}</select>
+      champ("Transitions entre les plans", `<div class="rangee"><select id="i-trans-tout">${Object.entries(TRANSITIONS).map(([k, [n, i]]) => `<option value="${k}" ${(R().transition || "coupe") === k ? "selected" : ""}>${i} ${n}</option>`).join("")}</select>
         <select id="i-trans-duree">${[[0.15, "Rapide"], [0.25, "Normale"], [0.4, "Lente"], [0.6, "Très lente"]].map(([d, n]) => `<option value="${d}" ${Math.abs(dureeTr() - d) < 0.04 ? "selected" : ""}>${n}</option>`).join("")}</select></div>
         <p class="aide">Pour un seul plan : cliquez sur le petit rond entre deux plans de la piste 🎬.</p>`) +
       ($("statut").dataset.masques > 0 ? `<p class="aide">ℹ️ ${$("statut").dataset.masques} élément(s) tombent dans des passages coupés et ne s'affichent pas.</p>` : "") + aide;
@@ -735,7 +735,7 @@ function inspecter() {
     ins.innerHTML = `<h3>🎬 Plan</h3>` +
       champ("Extrait de la vidéo brute", `<div class="rangee"><input type="number" step="0.1" id="i-a" value="${c.a.toFixed(2)}" style="width:90px"> → <input type="number" step="0.1" id="i-b" value="${c.b.toFixed(2)}" style="width:90px"> s</div>`) +
       champ("Cadrage", `<select id="i-zoom">${[[1, "Normal"], [1.05, "Léger zoom"], [1.15, "Zoom (punch-in)"], [1.25, "Gros plan"]].map(([z, n]) => `<option value="${z}" ${Math.abs((c.zoom || 1) - z) < 0.011 ? "selected" : ""}>${n}</option>`).join("")}</select>`) +
-      (proj.clips.indexOf(c) < proj.clips.length - 1 ? champ("Transition vers le plan suivant", `<div class="rangee"><select id="i-trans"><option value="">Comme le style (${(TRANSITIONS[R().transition || "fondu"] || ["?"])[0]})</option>${Object.entries(TRANSITIONS).map(([k, [n, i]]) => `<option value="${k}" ${c.transition === k ? "selected" : ""}>${i} ${n}</option>`).join("")}</select><button id="i-voir-trans" title="Voir la transition">▶︎ Voir</button></div>`) : "") +
+      (proj.clips.indexOf(c) < proj.clips.length - 1 ? champ("Transition vers le plan suivant", `<div class="rangee"><select id="i-trans"><option value="">Comme le style (${(TRANSITIONS[R().transition || "coupe"] || ["?"])[0]})</option>${Object.entries(TRANSITIONS).map(([k, [n, i]]) => `<option value="${k}" ${c.transition === k ? "selected" : ""}>${i} ${n}</option>`).join("")}</select><button id="i-voir-trans" title="Voir la transition">▶︎ Voir</button></div>`) : "") +
       `<div class="rangee" style="margin-top:12px"><button id="i-couper">✂️ Couper ici</button><button class="danger" id="i-suppr">🗑 Supprimer</button></div>` + aide;
     $("i-a").onchange = () => { memoriser(); c.a = clamp(+$("i-a").value, 0, c.b - 0.1); apresModif(); };
     $("i-b").onchange = () => { memoriser(); c.b = clamp(+$("i-b").value, c.a + 0.1, proj.duree_source); apresModif(); };

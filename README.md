@@ -49,7 +49,7 @@ Le **mode classique** (et les **⚙️ Paramètres** : identité, style, clés) 
 
 **✂️ Retoucher comme dans CapCut** : après le montage, cliquez sur **Retoucher dans l'éditeur (timeline)** (ou lien **l'éditeur** en haut de page pour rouvrir un projet). Aperçu en direct et pistes Vidéo / Sous-titres / Illustrations / Écrans / Musique : glisser pour déplacer, bords pour raccourcir, **S** couper, **Suppr** supprimer, **⌘Z** annuler, **Espace** lecture. Cliquez sur un élément pour le modifier dans le panneau de droite. **Exporter** refait la vidéo.
 
-**🎞 Transitions** : fondu (par défaut), zoom, flash, glissement ou coupe franche — dans **⚙️ Paramètres › Style**, pour tout le projet dans l'éditeur (panneau de droite, rien de sélectionné), ou pour un seul enchaînement en cliquant sur le petit rond entre deux plans de la piste 🎬.
+**🎞 Transitions** : coupe franche (par défaut), fondu, zoom, flash ou glissement — dans **⚙️ Paramètres › Style**, pour tout le projet dans l'éditeur (panneau de droite, rien de sélectionné), ou pour un seul enchaînement en cliquant sur le petit rond entre deux plans de la piste 🎬.
 
 **✏️ Sous-titres** : en pause, cliquez sur le texte **dans la vidéo** pour le modifier (Entrée pour valider, Échap pour annuler) ; ⌥ + clic sur un mot pour le mettre en GRAS.
 

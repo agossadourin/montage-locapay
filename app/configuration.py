@@ -32,7 +32,7 @@ class ProfilStyle:
     ecran_fin: bool = True
     logo_en_coin: bool = True
     illustrations_par_minute: float = 6.0     # densité d'images d'illustration proposées
-    transition: str = "fondu"                  # entre deux plans : coupe / fondu / zoom / flash / glissement
+    transition: str = "coupe"                  # entre deux plans : coupe / fondu / zoom / flash / glissement
     duree_transition: float = 0.25
 
     @classmethod

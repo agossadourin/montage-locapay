@@ -49,7 +49,7 @@ class Reglages:
     # --- illustrations (B-roll) : [{"deb", "fin" (temps source), "fichier", "type": image|video}]
     illustrations: list = field(default_factory=list)
     decalage_musique: float = 0.0         # la musique démarre à cette seconde du morceau
-    transition: str = "fondu"             # entre deux plans : coupe / fondu / zoom / flash / glissement
+    transition: str = "coupe"             # entre deux plans : coupe / fondu / zoom / flash / glissement
     duree_transition: float = 0.25
 
 

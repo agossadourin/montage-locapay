@@ -54,7 +54,7 @@ def creer(video, plan, R, musique=None):
     mots_cle = lambda g: g["cle"]
     reglages = {k: v for k, v in asdict(R).items() if k != "illustrations"}
     return {
-        "version": 1,
+        "version": 2,
         "video": video,
         "duree_source": M.duree_video(video),
         "clips": [{"id": _id(), "a": round(p["a"], 3), "b": round(p["b"], 3), "zoom": p["zoom"]} for p in plan["plans"]],
@@ -136,7 +136,15 @@ def sauver(proj, chemin):
 
 def charger(chemin):
     with open(chemin, encoding="utf-8") as f:
-        return json.load(f)
+        proj = json.load(f)
+    if proj.get("version", 1) < 2:
+        # v0.12 mettait un fondu entre tous les plans par défaut : on revient aux coupes franches
+        # (les transitions choisies plan par plan sont gardées)
+        reg = proj.setdefault("reglages", {})
+        if reg.get("transition") in (None, "fondu"):
+            reg["transition"] = "coupe"
+        proj["version"] = 2
+    return proj
 
 
 # ================================================================== démarrer par la timeline
@@ -173,7 +181,7 @@ def nouveau(fichiers, nom=None, rappel=None):
             t += d
         clips[-1]["b"] = min(clips[-1]["b"], round(M.duree_video(source), 3))
     cfg, profil, R = _config_courante()
-    proj = {"version": 1, "video": source, "duree_source": M.duree_video(source), "clips": clips,
+    proj = {"version": 2, "video": source, "duree_source": M.duree_video(source), "clips": clips,
             "sous_titres": [], "ecrans": [], "illustrations": [], "alertes": [], "musique": None,
             "reglages": {k: v for k, v in asdict(R).items() if k != "illustrations"},
             "style": asdict(profil)}
