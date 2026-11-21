@@ -5,7 +5,7 @@
 import base64, gzip, json, os
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-mod = base64.b64encode(gzip.compress(open(os.path.join(RACINE, "app", "montage_auto.py"), "rb").read())).decode()
+mod = base64.b64encode(gzip.compress(open(os.path.join(RACINE, "app", "montage_auto.py"), "rb").read(), mtime=0)).decode()
 logo = base64.b64encode(open(os.path.join(RACINE, "app", "logo_locapay.png"), "rb").read()).decode()
 SORTIE = os.path.join(RACINE, "colab", "Montage_auto_Locapay.ipynb")
 
