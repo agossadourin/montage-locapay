@@ -32,6 +32,13 @@ Ouvrez **Montage Locapay** (Launchpad / Applications / Spotlight). Glissez la vi
 
 **Validation des passages** (activée par défaut) : au premier clic sur **Monter la vidéo**, l'outil liste les phrases et signale ⚠️ les **passages incompris** (bruit, fon ou autre langue), les **prises répétées** et les **faux départs**. Cliquez sur une ligne pour l'écouter, cochez/décochez **Garder** et **Sous-titres**, corrigez le texte — pour un passage en fon, tapez la traduction française, elle s'affichera en sous-titres — puis recliquez sur **Monter la vidéo**.
 
+**⚙️ Paramètres** :
+- **🎨 Identité visuelle** : nom, couleurs, logo, polices de votre marque (bouton 💾). Appliquée à tous les styles.
+- **🎞 Style** : choisissez un style, ajustez-le (🎚), ou **copiez le style d'une vidéo** : déposez une vidéo dont vous aimez le montage, l'outil l'analyse et crée un style réutilisable.
+- **🔑 Clés API** (facultatives) : **Pexels** / **Pixabay** (gratuites) pour trouver des images d'illustration ; **Claude** (payante, quelques centimes par vidéo) pour un choix des moments et une analyse de style plus fins.
+
+**🖼 Illustrations** : au premier clic sur **Monter**, l'outil propose des images/vidéos aux moments où l'on parle de quelque chose de concret. Cliquez sur une illustration puis **🔄 Autre proposition** ou **📁 Mon fichier** ; modifiez la recherche puis **🔍 Relancer** ; décochez **Garder** pour la retirer.
+
 **Corriger un mot** : **✏️ Corrections de mots › ➕** — choisissez le **moment** (une phrase précise, ou partout), cliquez sur le ou les **mots**, tapez la **correction** (vide = supprimer), **✔ Ajouter**, puis **Monter la vidéo**. Les corrections « dans toutes mes vidéos » sont mémorisées (`Vidéos › Montages Locapay › .dictionnaire_corrections.json`).
 
 **Plusieurs rushs ?** Onglet **Plusieurs vidéos (prémontage)** : déposez-les, réglez l'ordre, le début et la fin de chacun (en secondes), décochez ceux à ignorer, cliquez sur **Assembler**, puis sur **Monter la vidéo**. Les prémontages sont gardés dans **Vidéos › Montages Locapay › prémontages**.
@@ -49,7 +56,11 @@ Double-cliquez sur **`Mettre à jour.command`** (ou `git pull` dans le dossier).
 | Chemin | Rôle |
 |---|---|
 | `app/montage_auto.py` | **Le moteur** : transcription, plan de montage (coupes, groupes de sous-titres, mots clés, écrans de couleur), rendu image par image, effets sonores, mixage audio. |
-| `app/interface.py` | Interface (Gradio) : réglages, bouton Monter, aperçu. |
+| `app/interface.py` | Interface (Gradio) : paramètres, validation, corrections, illustrations, bouton Monter. |
+| `app/configuration.py` | Paramètres persistants (identité, clés, profils de style) dans `Vidéos › Montages Locapay › .parametres`. |
+| `app/analyse_style.py` | Analyse d'une vidéo de référence → profil de style. |
+| `app/illustrations.py` | Choix des moments à illustrer, recherche Pexels/Pixabay, téléchargement. |
+| `app/ia.py` | Appels facultatifs à Claude (API Anthropic). |
 | `app/fenetre.py` | Ouvre l'interface dans une fenêtre Mac native (pywebview). |
 | `app/polices/`, `app/logo_locapay.png` | Polices (Playfair Display, Montserrat — licence OFL) et logo. |
 | `macos/build_app.sh` | Crée `Montage Locapay.app` (lanceur léger qui pointe vers ce dossier). |
@@ -66,6 +77,9 @@ Double-cliquez sur **`Mettre à jour.command`** (ou `git pull` dans le dossier).
 - **Rythme des coupes / zooms** : `Reglages.duree_plan_max`, `Reglages.zoom`, `cycle`.
 - **Écrans de couleur** : nombre et position dans `construire_plan` (bloc « écrans de couleur »).
 - **Effets sonores** : fonctions `sfx_*` et la liste `evts` dans `monter`.
+- **Styles** : champs de `ProfilStyle` (`configuration.py`) ↔ `Reglages` (`montage_auto.py`) ; étalonnages dans `ETALONNAGES`.
+- **Analyse de référence** : seuils et règles dans `analyse_style.py` (`est_ecran_uni`, `choisir_etalonnage`, `mesures_sous_titres`).
+- **Illustrations** : dictionnaire `MOTS_IMAGES` (mot → recherche en anglais) et `choisir_moments` dans `illustrations.py` ; rendu `Illustration` dans `montage_auto.py`.
 - **Corrections de mots** : `corriger` dans `montage_auto.py` (par index de mots ou par expression), éditeur ➕ dans `interface.py` (bloc « corrections de mots »).
 - **Détection des passages à valider** : `analyser` (seuil `SEUIL_CONFIANCE`, règles de reprise) et `appliquer_validation` dans `montage_auto.py`.
 - **Prémontage** (assemblage de plusieurs rushs) : `premontage` dans `montage_auto.py`, onglet « Plusieurs vidéos » dans `interface.py`.

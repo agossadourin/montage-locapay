@@ -1,0 +1,261 @@
+"""Analyse d'une vidéo de référence → profil de style (ProfilStyle).
+
+Mesures locales (gratuites) : rythme des coupes, écrans de couleur, écran de fin, étalonnage,
+sous-titres par OCR (Apple Vision via « ocrmac » sur Mac, sinon Tesseract s'il est installé).
+Avec une clé Claude : lecture visuelle d'images de la vidéo pour affiner (sous-titres, animation,
+illustrations, mot clé), en plus des mesures.
+"""
+import os
+import re
+import shutil
+import subprocess
+import tempfile
+
+import numpy as np
+from PIL import Image
+
+import configuration as C
+import ia
+
+
+def _duree(video):
+    out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", video],
+                         capture_output=True, text=True).stdout.strip()
+    return float(out or 0)
+
+
+def images(video, fps, largeur=360):
+    """Images de la vidéo (redressée) à `fps` images/s, largeur réduite."""
+    dossier = tempfile.mkdtemp(prefix="ref_")
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-i", video, "-vf", f"fps={fps},scale={largeur}:-2",
+                    os.path.join(dossier, "%05d.jpg")], check=True)
+    fichiers = sorted(os.listdir(dossier))
+    ims = [(i / fps, Image.open(os.path.join(dossier, f)).convert("RGB")) for i, f in enumerate(fichiers)]
+    for _, im in ims:
+        im.load()
+    shutil.rmtree(dossier, ignore_errors=True)
+    return ims
+
+
+def coupes(video, seuil=0.3):
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-i", video, "-vf", f"select='gt(scene,{seuil})',showinfo",
+                        "-an", "-f", "null", "-"], capture_output=True, text=True)
+    return [float(t) for t in re.findall(r"pts_time:([0-9.]+)", r.stderr)]
+
+
+def est_ecran_uni(im):
+    """Vrai si l'image est un aplat de couleur (éventuellement avec un peu de texte)."""
+    a = np.asarray(im.resize((64, 112))).reshape(-1, 3).astype(int)
+    med = np.median(a, axis=0)
+    proche = (np.abs(a - med).max(axis=1) < 18).mean()
+    return proche > 0.80, tuple(int(x) for x in med)
+
+
+def mesures_image(ims):
+    sat, con, chaud = [], [], []
+    for _, im in ims:
+        hsv = np.asarray(im.convert("HSV")).astype(float) / 255
+        rgb = np.asarray(im).astype(float)
+        luma = 0.299 * rgb[..., 0] + 0.587 * rgb[..., 1] + 0.114 * rgb[..., 2]
+        sat.append(hsv[..., 1].mean()); con.append(luma.std()); chaud.append((rgb[..., 0] - rgb[..., 2]).mean())
+    return float(np.mean(sat)), float(np.mean(con)), float(np.mean(chaud))
+
+
+def choisir_etalonnage(sat, con, chaud):
+    if sat < 0.20:
+        return "désaturé"
+    if chaud > 14:
+        return "chaud"
+    if chaud < -6:
+        return "froid"
+    if con > 62:
+        return "contrasté"
+    return "naturel"
+
+
+# ------------------------------------------------------------------ OCR
+def _ocr_mac(im):
+    from ocrmac import ocrmac  # Apple Vision (macOS)
+    res = ocrmac.OCR(im, language_preference=["fr-FR"]).recognize()
+    out = []
+    for texte, conf, (x, y, w, h) in res:   # boîte normalisée, origine en bas à gauche
+        if conf > 0.4:
+            out.append((texte, x, 1 - y - h, w, h))
+    return out
+
+
+def _ocr_tesseract(im):
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+        im.save(f.name)
+        chemin = f.name
+    r = subprocess.run(["tesseract", chemin, "-", "-l", "fra", "--psm", "11", "tsv"],
+                       capture_output=True, text=True)
+    os.remove(chemin)
+    out = []
+    for ligne in r.stdout.splitlines()[1:]:
+        c = ligne.split("\t")
+        if len(c) == 12 and float(c[10]) > 65 and re.fullmatch(r"[A-Za-zÀ-ÿ'’-]{2,}[,.!?…]?", c[11].strip()):
+            x, y, w, h = (int(v) for v in c[6:10])
+            out.append((c[11].strip(), x / im.width, y / im.height, w / im.width, h / im.height))
+    return out
+
+
+def moteur_ocr():
+    try:
+        import ocrmac  # noqa: F401
+        return _ocr_mac
+    except Exception:
+        pass
+    if shutil.which("tesseract"):
+        return _ocr_tesseract
+    return None
+
+
+def mesures_sous_titres(ims, ocr):
+    """Position, taille, casse et nombre de mots des textes incrustés."""
+    ys, hs, nmots, maj, mixte = [], [], [], 0, 0
+    total = 0
+    for _, im in ims:
+        try:
+            brut = ocr(im)
+        except Exception as e:      # OCR indisponible ou image illisible : on ignore cette image
+            print("OCR :", e)
+            continue
+        mots = [m for m in brut if re.fullmatch(r"[A-Za-zÀ-ÿ'’-]{2,}[,.!?…]?", m[0].strip())]
+        if not mots:
+            continue
+        total += 1
+        ys.append(float(np.median([y + h / 2 for _, _, y, _, h in mots])))
+        hs.append(float(np.median([h for *_, h in mots])))
+        nmots.append(sum(len(t.split()) for t, *_ in mots))
+        lettres = "".join(t for t, *_ in mots if t.isalpha() or True)
+        hautes = sum(1 for ch in lettres if ch.isupper())
+        basses = sum(1 for ch in lettres if ch.islower())
+        if hautes > 2 * max(1, basses):
+            maj += 1
+        if any(t.isupper() and len(t) > 2 for t, *_ in mots) and any(t.islower() for t, *_ in mots):
+            mixte += 1
+    if total < 3:
+        return {}
+    hauteur_ref = 0.030   # hauteur relative d'un mot de nos sous-titres (taille 1.0)
+    return {"position_sous_titres": round(min(0.88, max(0.12, float(np.median(ys)))), 2),
+            "taille_texte": round(min(1.5, max(0.6, float(np.median(hs)) / hauteur_ref)), 2),
+            "mots_par_groupe": int(min(6, max(1, round(float(np.percentile(nmots, 80)))))),
+            "casse": "majuscules" if maj / total > 0.6 else "normale",
+            "mot_cle": mixte / total > 0.15,
+            "_frames_texte": total}
+
+
+# ------------------------------------------------------------------ analyse complète
+CONSIGNE_IA = """Tu analyses le style de montage d'une courte vidéo verticale (Reels/TikTok) à partir de {n} images
+prises à intervalles réguliers (dans l'ordre). Des mesures automatiques ont déjà été faites : {mesures}.
+Décris le style pour qu'un outil de montage automatique le reproduise avec une autre marque.
+Réponds UNIQUEMENT avec un objet JSON contenant ces clés (garde la valeur mesurée si tu n'es pas sûr) :
+- "description": 1 à 2 phrases en français décrivant le style
+- "position_sous_titres": hauteur du centre des sous-titres, 0 = haut, 1 = bas
+- "taille_texte": taille relative des sous-titres (1.0 = moyen, 0.7 = petit, 1.4 = très gros)
+- "mots_par_groupe": nombre de mots affichés en même temps (1 à 6)
+- "mot_cle": true si un mot est mis en valeur (gras, couleur, capitales) dans chaque sous-titre
+- "casse": "normale", "majuscules" ou "minuscules"
+- "animation": "pop" (les mots apparaissent avec un petit rebond), "fondu" ou "aucune"
+- "style_etalonnage": "naturel", "chaud", "contrasté", "froid" ou "désaturé"
+- "illustrations_par_minute": nombre d'images/vidéos d'illustration (B-roll) insérées par minute
+- "ecran_fin": true si la vidéo finit sur un écran avec logo
+"""
+
+
+def analyser(video, cle_api="", ocr=True, rappel=None):
+    """Renvoie (ProfilStyle, rapport lisible)."""
+    def etape(f, txt):
+        if rappel:
+            rappel(f, txt)
+
+    duree = _duree(video)
+    etape(0.05, "Rythme des coupes…")
+    ts = coupes(video)
+    nb_plans = len(ts) + 1
+    plan_moyen = duree / nb_plans if nb_plans else duree
+
+    etape(0.25, "Couleurs et écrans…")
+    ims = images(video, fps=4 if duree < 90 else 2)
+    unis = [(t, est_ecran_uni(im)) for t, im in ims]
+    cartes, en_carte = 0, False
+    for t, (uni, _) in unis:
+        if uni and not en_carte:
+            cartes += 1
+        en_carte = uni
+    fin = [u for t, (u, _) in unis if t >= duree - 1.2]
+    ecran_fin = bool(fin) and sum(fin) / len(fin) > 0.6
+    sat, con, chaud = mesures_image([(t, im) for (t, im), (_, (u, _)) in zip(ims, unis) if not u] or ims)
+
+    p = C.ProfilStyle()
+    p.duree_plan_max = round(min(5.0, max(0.8, plan_moyen * 1.1)), 1)
+    p.zoom = 1.15 if plan_moyen < 3 else 1.06
+    p.pause_max = 0.35 if plan_moyen < 1.8 else 0.45 if plan_moyen < 4 else 0.7
+    p.nb_ecrans_couleur = int(min(4, max(0, cartes - (1 if ecran_fin else 0))))
+    p.ecran_fin = bool(ecran_fin)
+    p.style_etalonnage = choisir_etalonnage(sat, con, chaud)
+    p.effets_sonores = "léger"
+
+    rapport = [f"Durée : {duree:.1f} s — {nb_plans} plans (≈ {plan_moyen:.1f} s par plan)",
+               f"Écrans de couleur détectés : {cartes}" + (" (dont l'écran de fin)" if ecran_fin else ""),
+               f"Étalonnage : {p.style_etalonnage} (saturation {sat:.2f}, contraste {con:.0f}, chaleur {chaud:+.0f})"]
+
+    if ocr:
+        moteur = moteur_ocr()
+        if moteur:
+            etape(0.5, "Lecture des sous-titres (OCR)…")
+            grandes = images(video, fps=2 if duree < 60 else 1, largeur=720)[:60]
+            st = mesures_sous_titres([x for x in grandes if not est_ecran_uni(x[1])[0]], moteur)
+            for k, v in st.items():
+                if not k.startswith("_"):
+                    setattr(p, k, v)
+            if st:
+                rapport.append(f"Sous-titres : à {round(100 * st['position_sous_titres'])} % de la hauteur, "
+                               f"taille ×{st['taille_texte']}, {st['mots_par_groupe']} mot(s) à la fois, "
+                               f"casse {st['casse']}, mot clé mis en valeur : {'oui' if st['mot_cle'] else 'non'}")
+            else:
+                rapport.append("Sous-titres : peu ou pas de texte détecté")
+        else:
+            rapport.append("Sous-titres : OCR indisponible (réglages par défaut conservés)")
+
+    if cle_api:
+        etape(0.75, "Lecture visuelle par Claude…")
+        choix = [im for _, im in ims[:: max(1, len(ims) // 10)]][:10]
+        mesures = {k: getattr(p, k) for k in ("position_sous_titres", "taille_texte", "mots_par_groupe",
+                                                 "casse", "style_etalonnage", "ecran_fin")}
+        mesures.update({"plans": nb_plans, "duree_s": round(duree, 1), "ecrans_couleur": cartes})
+        try:
+            d = ia.demander_json(cle_api, CONSIGNE_IA.format(n=len(choix), mesures=mesures), choix)
+            for k in ("description", "position_sous_titres", "taille_texte", "mots_par_groupe", "mot_cle", "casse",
+                      "animation", "style_etalonnage", "illustrations_par_minute", "ecran_fin"):
+                if k in d:
+                    setattr(p, k, d[k])
+            p = C.ProfilStyle.depuis(_bornes(p.__dict__))
+            rapport.append("Analyse visuelle Claude : " + (p.description or "ok"))
+        except Exception as e:
+            rapport.append(f"Analyse Claude impossible ({e}) — mesures locales utilisées")
+    if not p.description:
+        p.description = f"Style analysé : plans de ≈{plan_moyen:.1f} s, étalonnage {p.style_etalonnage}."
+    etape(1.0, "Terminé")
+    return p, "\n".join(rapport)
+
+
+def _bornes(d):
+    d = dict(d)
+    def f(k, lo, hi, typ=float):
+        try:
+            d[k] = typ(min(hi, max(lo, float(d[k]))))
+        except (KeyError, TypeError, ValueError):
+            d.pop(k, None)
+    f("position_sous_titres", 0.1, 0.9); f("taille_texte", 0.5, 2.0); f("mots_par_groupe", 1, 6, int)
+    f("illustrations_par_minute", 0, 20); f("nb_ecrans_couleur", 0, 6, int)
+    if d.get("casse") not in ("normale", "majuscules", "minuscules"):
+        d["casse"] = "normale"
+    if d.get("animation") not in ("pop", "fondu", "aucune"):
+        d["animation"] = "pop"
+    if d.get("style_etalonnage") not in ("naturel", "chaud", "contrasté", "froid", "désaturé"):
+        d["style_etalonnage"] = "naturel"
+    for k in ("mot_cle", "ecran_fin"):
+        d[k] = bool(d.get(k, True))
+    return d

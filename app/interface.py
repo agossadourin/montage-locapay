@@ -1,5 +1,6 @@
 """Interface du montage automatique Locapay (fenêtre Mac via fenetre.py, ou navigateur)."""
-import json, os, subprocess, sys, time, traceback
+import json, os, shutil, subprocess, sys, time, traceback
+from dataclasses import asdict, fields
 
 ICI = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ICI)
@@ -7,24 +8,24 @@ sys.path.insert(0, ICI)
 os.environ["PATH"] = os.pathsep.join(["/opt/homebrew/bin", "/usr/local/bin", os.environ.get("PATH", "")])
 
 import gradio as gr
+from PIL import Image, ImageDraw
+
+import analyse_style as A
+import configuration as C
+import illustrations as I
 import montage_auto as M
 
 SORTIES = os.path.join(os.path.expanduser("~"), "Movies", "Montages Locapay")
 os.makedirs(SORTIES, exist_ok=True)
-LOGO_DEFAUT = os.path.join(ICI, "logo_locapay.png")
 try:
     VERSION = "v" + open(os.path.join(os.path.dirname(ICI), "VERSION")).read().strip()
 except OSError:
     VERSION = ""
 
-
-def _reglages(c1, c2, ecrans, position, hesit, pause, effets, vol, logo, autre_logo):
-    fichier_logo = (autre_logo or LOGO_DEFAUT) if logo else ""
-    return M.Reglages(couleur_1=c1, couleur_2=c2, nb_ecrans_couleur=int(ecrans), position_sous_titres=position,
-                      supprimer_hesitations=hesit, pause_max=pause, effets_sonores=effets, volume_musique=vol,
-                      logo_en_coin=logo, fichier_logo=fichier_logo,
-                      police_serif=os.path.join(ICI, "polices", "serif.ttf"),
-                      police_grasse=os.path.join(ICI, "polices", "gras.ttf"))
+STYLE_CLES = [f.name for f in fields(C.ProfilStyle) if f.name != "description"]
+IDENTITE_CLES = ["nom", "couleur_1", "couleur_2", "fichier_logo", "police_serif", "police_grasse"]
+CLES_API = ["anthropic", "pexels", "pixabay"]
+AVANCE_CLES = ["supprimer_hesitations", "volume_musique", "vocabulaire", "modele", "auto_qt"]
 
 
 def _lignes(tableau):
@@ -46,13 +47,225 @@ def _fusionner_validation(anciennes_phrases, anciennes_lignes, nouvelles_phrases
     return lignes
 
 
-def monter(video, musique, c1, c2, ecrans, position, hesit, pause, effets, vol, logo, autre_logo,
-           vocabulaire, modele, corrections, cache, auto_qt=False, valider=True, analyse=None, tableau=None,
-           progress=gr.Progress()):
+# ============================================================ paramètres (identité, style, clés)
+def _profil(valeurs):
+    d = dict(zip(STYLE_CLES, valeurs))
+    for k in ("mots_par_groupe", "nb_ecrans_couleur"):
+        d[k] = int(d[k])
+    return C.ProfilStyle.depuis(d)
+
+
+def _identite(valeurs):
+    d = dict(zip(IDENTITE_CLES, valeurs))
+    base = C.charger_config()["identite"]
+    return {k: (d.get(k) or base.get(k)) for k in IDENTITE_CLES}
+
+
+def _ranger(fichier, nom):
+    """Copie un fichier déposé (logo, police) dans les paramètres, pour qu'il survive au redémarrage."""
+    if not fichier or not os.path.exists(fichier) or os.path.dirname(fichier) == os.path.join(C.DOSSIER, "identite"):
+        return fichier
+    dest = os.path.join(C.DOSSIER, "identite", nom + os.path.splitext(fichier)[1].lower())
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    shutil.copyfile(fichier, dest)
+    return dest
+
+
+def sauver_identite(nom, c1, c2, logo, serif, grasse):
+    cfg = C.charger_config()
+    cfg["identite"].update({"nom": nom or "", "couleur_1": c1, "couleur_2": c2})
+    if logo:
+        cfg["identite"]["fichier_logo"] = _ranger(logo, "logo")
+    if serif:
+        cfg["identite"]["police_serif"] = _ranger(serif, "police_texte")
+    if grasse:
+        cfg["identite"]["police_grasse"] = _ranger(grasse, "police_mot_cle")
+    C.sauver_config(cfg)
+    i = cfg["identite"]
+    return (f"✅ Identité « {i['nom']} » enregistrée. Polices : texte `{os.path.basename(i['police_serif'])}`, "
+            f"mot clé `{os.path.basename(i['police_grasse'])}`.", i["fichier_logo"], i["police_serif"],
+            i["police_grasse"])
+
+
+def sauver_cles(anthropic, pexels, pixabay):
+    cfg = C.charger_config()
+    cfg["cles"].update({"anthropic": (anthropic or "").strip(), "pexels": (pexels or "").strip(),
+                        "pixabay": (pixabay or "").strip()})
+    C.sauver_config(cfg)
+    actives = [n for n, v in (("Claude", anthropic), ("Pexels", pexels), ("Pixabay", pixabay)) if (v or "").strip()]
+    return "✅ Clés enregistrées : " + (", ".join(actives) if actives else "aucune (mode local)")
+
+
+def charger_style_ui(nom):
+    p = C.charger_style(nom)
+    cfg = C.charger_config(); cfg["style_actif"] = nom or "Locapay"; C.sauver_config(cfg)
+    return [getattr(p, k) for k in STYLE_CLES] + [f"*{p.description}*" if p.description else ""]
+
+
+def sauver_style_ui(nouveau_nom, nom_choisi, *valeurs):
+    nom = (nouveau_nom or "").strip() or nom_choisi or "Mon style"
+    p = _profil(valeurs)
+    p.description = C.charger_style(nom_choisi).description if not (nouveau_nom or "").strip() else \
+        f"Style « {nom} » (ajusté à la main)."
+    C.sauver_style(nom, p)
+    cfg = C.charger_config(); cfg["style_actif"] = nom; C.sauver_config(cfg)
+    return gr.update(choices=C.lister_styles(), value=nom), f"✅ Style « {nom} » enregistré."
+
+
+def analyser_reference(video, nom, cle_anthropic, progress=gr.Progress()):
+    if not video:
+        raise gr.Error("Déposez d'abord une vidéo de référence.")
+    nom = (nom or "").strip() or os.path.splitext(os.path.basename(video))[0][:30]
+    try:
+        p, rapport = A.analyser(video, cle_api=(cle_anthropic or "").strip(),
+                                rappel=lambda f, t: progress(f, desc=t))
+    except Exception as e:
+        traceback.print_exc()
+        raise gr.Error(f"Analyse impossible : {e}")
+    C.sauver_style(nom, p)
+    cfg = C.charger_config(); cfg["style_actif"] = nom; C.sauver_config(cfg)
+    return ([gr.update(choices=C.lister_styles(), value=nom)] + [getattr(p, k) for k in STYLE_CLES]
+            + [f"*{p.description}*", f"✅ Style « {nom} » créé et sélectionné.\n\n" + rapport])
+
+
+# ============================================================ illustrations (B-roll)
+def _vignette_vide():
+    chemin = os.path.join(I.DOSSIER_CACHE, "_aucune.png")
+    if not os.path.exists(chemin):
+        os.makedirs(I.DOSSIER_CACHE, exist_ok=True)
+        im = Image.new("RGB", (360, 640), (60, 60, 70))
+        d = ImageDraw.Draw(im)
+        for k, t in enumerate(["Aucune image", "", "Ajoutez une clé Pexels", "(gratuite) dans", "Paramètres › Clés",
+                               "ou votre fichier"]):
+            d.text((30, 240 + 26 * k), t, fill=(230, 230, 230))
+        im.save(chemin)
+    return chemin
+
+
+def _vignette_fichier(chemin):
+    if not chemin.lower().endswith(M.EXT_VIDEO):
+        return chemin
+    v = chemin + ".jpg"
+    if not os.path.exists(v):
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-ss", "0.5", "-i", chemin, "-frames:v", "1",
+                        "-vf", "scale=360:-2", v])
+    return v if os.path.exists(v) else _vignette_vide()
+
+
+def _apercu(p):
+    if p.get("fichier"):
+        return _vignette_fichier(p["fichier"])
+    if p.get("resultats"):
+        return p["resultats"][p.get("choix", 0) % len(p["resultats"])]["apercu"] or _vignette_vide()
+    return _vignette_vide()
+
+
+def _galerie(illus):
+    out = []
+    for n, p in enumerate(illus or [], 1):
+        src = "votre fichier" if p.get("fichier") else (
+            ("vidéo" if p["resultats"][p.get("choix", 0) % len(p["resultats"])]["type"] == "video" else "photo")
+            if p.get("resultats") else "à fournir")
+        out.append((_apercu(p), f"{n} · {M_tc(p['deb'])} · {p['requete']} ({src})"))
+    return out
+
+
+def M_tc(t):
+    return f"{int(t // 60):02d}:{t % 60:04.1f}"
+
+
+def _lignes_illus(illus):
+    return [[n, M_tc(p["deb"]), p.get("mot", ""), p["requete"], True] for n, p in enumerate(illus or [], 1)] \
+        or [[None, "", "", "", False]]
+
+
+def proposer_illustrations(mots, duree, par_minute, cles, progress=None):
+    props = I.choisir_moments(mots, duree, par_minute=par_minute, cle_api=cles.get("anthropic", ""))
+    banques = cles.get("pexels") or cles.get("pixabay")
+    for k, p in enumerate(props):
+        if progress:
+            progress(0.5 + 0.4 * k / max(1, len(props)), desc="Recherche d'illustrations…")
+        p.update({"resultats": I.rechercher(p["requete"], cles) if banques else [], "choix": 0,
+                  "fichier": None, "requete_init": p["requete"]})
+    return props
+
+
+def illustrations_pour_rendu(illus, lignes, cles):
+    """Applique les choix (Garder, recherche modifiée) et télécharge les médias retenus."""
+    items = []
+    lignes = _lignes(lignes)
+    for p, ligne in zip(illus or [], lignes):
+        ligne = (list(ligne) + [None] * 5)[:5]
+        if not M._vrai(ligne[4]):
+            continue
+        requete = str(ligne[3] or p["requete"]).strip()
+        if requete != p["requete"] and not p.get("fichier"):
+            p["requete"], p["choix"] = requete, 0
+            p["resultats"] = I.rechercher(requete, cles) if (cles.get("pexels") or cles.get("pixabay")) else []
+        fichier, typ = p.get("fichier"), None
+        if not fichier and p.get("resultats"):
+            r = p["resultats"][p.get("choix", 0) % len(p["resultats"])]
+            try:
+                fichier, typ = I.telecharger(r), r["type"]
+            except Exception as e:
+                print("Téléchargement impossible :", e)
+                fichier = None
+        if fichier:
+            items.append({"deb": p["deb"], "fin": p["fin"], "fichier": fichier, "type": typ})
+    return items
+
+
+def selection_illus(evt: gr.SelectData):
+    return evt.index[0] if isinstance(evt.index, (list, tuple)) else evt.index
+
+
+def autre_proposition(illus, sel):
+    if illus is None or sel is None or not (0 <= sel < len(illus)):
+        raise gr.Error("Cliquez d'abord sur une illustration (dans la galerie ou le tableau).")
+    p = illus[sel]
+    if not p.get("resultats"):
+        raise gr.Error("Pas d'autre résultat : modifiez la recherche ou ajoutez votre fichier.")
+    p["fichier"] = None
+    p["choix"] = (p.get("choix", 0) + 1) % len(p["resultats"])
+    return illus, _galerie(illus)
+
+
+def relancer_recherches(illus, lignes, cle_pexels, cle_pixabay):
+    cles = {"pexels": (cle_pexels or "").strip(), "pixabay": (cle_pixabay or "").strip()}
+    if not (cles["pexels"] or cles["pixabay"]):
+        raise gr.Error("Ajoutez une clé Pexels ou Pixabay (gratuite) dans Paramètres › Clés API.")
+    for p, ligne in zip(illus or [], _lignes(lignes)):
+        requete = str((list(ligne) + [None] * 4)[3] or p["requete"]).strip()
+        if requete != p["requete"] or not p.get("resultats"):
+            p.update({"requete": requete, "resultats": I.rechercher(requete, cles), "choix": 0, "fichier": None})
+    return illus, _galerie(illus)
+
+
+def mon_fichier(fichier, illus, sel):
+    if not fichier:
+        return illus, _galerie(illus), gr.update()
+    if illus is None or sel is None or not (0 <= sel < len(illus)):
+        raise gr.Error("Cliquez d'abord sur l'illustration à remplacer.")
+    dest = os.path.join(I.DOSSIER_CACHE, f"perso_{int(time.time())}_{os.path.basename(fichier)}")
+    os.makedirs(I.DOSSIER_CACHE, exist_ok=True)
+    shutil.copyfile(fichier, dest)
+    illus[sel]["fichier"] = dest
+    return illus, _galerie(illus), None
+
+
+# ============================================================ montage
+def monter(video, musique, *args, progress=gr.Progress()):
+    n_i, n_s, n_k, n_a = len(IDENTITE_CLES), len(STYLE_CLES), len(CLES_API), len(AVANCE_CLES)
+    identite = _identite(args[:n_i]); args = args[n_i:]
+    profil = _profil(args[:n_s]); args = args[n_s:]
+    cles = dict(zip(CLES_API, [(x or "").strip() for x in args[:n_k]])); args = args[n_k:]
+    av = dict(zip(AVANCE_CLES, args[:n_a])); args = args[n_a:]
+    corrections, cache, valider, analyse, tableau, illus, table_illus = args
     if not video:
         raise gr.Error("Ajoutez d'abord une vidéo brute.")
     try:
-        modele = "small" if modele.startswith("Rapide") else "turbo"
+        modele = "small" if str(av["modele"]).startswith("Rapide") else "turbo"
+        vocabulaire = av["vocabulaire"]
         cle = (video, os.path.getsize(video), modele, vocabulaire)
         if cache and cache.get("cle") == cle:
             mots_bruts = cache["mots"]
@@ -60,27 +273,36 @@ def monter(video, musique, c1, c2, ecrans, position, hesit, pause, effets, vol, 
             progress(0.02, desc="Transcription de la voix… (la 1re fois, le modèle se télécharge)")
             mots_bruts = M.transcrire(video, modele=modele, langue="fr", vocabulaire=vocabulaire)
             cache = {"cle": cle, "mots": mots_bruts, "phrases": M.analyser(mots_bruts), "video": video}
+        duree = M.duree_video(video)
         # les corrections « à un moment précis » ne valent que pour la transcription où on les a choisies
         corr = [c for c in (corrections or []) if c.get("portee") != "moment" or c.get("cle") == cle]
         mots = M.corriger(mots_bruts, corr)
         maj_moments = gr.update(choices=choix_moments(cache))
+        rien = gr.update()
 
         if valider:
             cle_analyse = (cle, repr([(c.get("portee"), c.get("i"), c.get("j"), c.get("avant"), c.get("apres"))
                                       for c in corr]))
             if not analyse or analyse.get("cle")[0] != cle:
-                # 1er clic : on propose les passages à vérifier et on attend la validation
+                # 1er clic : passages à vérifier + illustrations proposées, puis on attend la validation
                 phrases = M.analyser(mots)
                 analyse = {"cle": cle_analyse, "phrases": phrases, "video": video}
+                progress(0.45, desc="Choix des illustrations…")
+                gardes = M.appliquer_validation(mots, phrases, M.lignes_validation(phrases))  # sans les passages écartés
+                illus = proposer_illustrations(gardes, duree, profil.illustrations_par_minute, cles, progress) \
+                    if profil.illustrations_par_minute > 0 else []
                 n = sum(1 for p in phrases if p["alertes"])
-                msg = (f"🔎 **{n} passage(s) à vérifier** sur {len(phrases)} (lignes signalées dans « À vérifier »). "
-                       "Cliquez sur une ligne pour **l'écouter**, cochez/décochez **Garder** et **Sous-titres**, "
-                       "corrigez le texte si besoin (pour un passage en **fon**, tapez la traduction française : "
-                       "elle s'affichera en sous-titres), puis recliquez sur **🎬 Monter la vidéo**. "
-                       "Pour corriger un mot précis, utilisez **✏️ Corrections de mots › ➕**."
-                       if n else "✅ Rien de suspect détecté. Vérifiez si vous voulez, puis recliquez sur **🎬 Monter la vidéo**.")
-                return (gr.update(), gr.update(), gr.update(), gr.update(), msg, cache, gr.update(),
-                        analyse, M.lignes_validation(phrases), gr.update(open=True), maj_moments)
+                msg = (f"🔎 **{n} passage(s) à vérifier** sur {len(phrases)}" if n else "✅ Aucun passage suspect")
+                msg += (f" · 🖼 **{len(illus)} illustration(s) proposée(s)**" if illus else "")
+                msg += (". Vérifiez les panneaux **Validation des passages** et **Illustrations** en bas de page "
+                        "(cliquez sur une ligne pour l'écouter, changez une image, décochez ce qui ne convient pas), "
+                        "puis recliquez sur **🎬 Monter la vidéo**.")
+                if illus and not (cles.get("pexels") or cles.get("pixabay")):
+                    msg += (" ℹ️ Sans clé Pexels/Pixabay, aucune image n'est cherchée : ajoutez vos fichiers ou "
+                            "une clé gratuite dans **Paramètres › Clés API**.")
+                return (rien, rien, rien, rien, msg, cache, rien, analyse, M.lignes_validation(phrases),
+                        gr.update(open=True), maj_moments, illus, _lignes_illus(illus), _galerie(illus),
+                        gr.update(open=bool(illus)))
             lignes = _lignes(tableau)
             if analyse["cle"] != cle_analyse:      # des corrections ont été ajoutées depuis l'analyse
                 phrases = M.analyser(mots)
@@ -88,9 +310,16 @@ def monter(video, musique, c1, c2, ecrans, position, hesit, pause, effets, vol, 
                 analyse = {"cle": cle_analyse, "phrases": phrases, "video": video}
             tableau = lignes
             mots = M.appliquer_validation(mots, analyse["phrases"], lignes)
+        else:
+            illus = proposer_illustrations(mots, duree, profil.illustrations_par_minute, cles) \
+                if profil.illustrations_par_minute > 0 else []
+            table_illus = _lignes_illus(illus)
 
-        R = _reglages(c1, c2, ecrans, position, hesit, pause, effets, vol, logo, autre_logo)
-        plan = M.construire_plan(mots, M.duree_video(video), R)
+        progress(0.25, desc="Téléchargement des illustrations…")
+        items = illustrations_pour_rendu(illus, table_illus, cles)
+        R = C.reglages(M, identite, profil, supprimer_hesitations=av["supprimer_hesitations"],
+                       volume_musique=av["volume_musique"], illustrations=items)
+        plan = M.construire_plan(mots, duree, R)
 
         base = os.path.splitext(os.path.basename(video))[0]
         sortie = os.path.join(SORTIES, f"{base}_monte_{time.strftime('%Y%m%d-%H%M%S')}.mp4")
@@ -102,13 +331,15 @@ def monter(video, musique, c1, c2, ecrans, position, hesit, pause, effets, vol, 
         txt = sortie.replace(".mp4", "_transcription.txt")
         open(txt, "w", encoding="utf-8").write(M.texte_transcription(mots))
         info = f"✅ Vidéo enregistrée dans **Vidéos › Montages Locapay** : `{os.path.basename(sortie)}`"
-        if auto_qt:
+        if items:
+            info += f" · {len(items)} illustration(s) insérée(s)"
+        if av["auto_qt"]:
             try:
                 lire_quicktime(sortie)
             except Exception:
                 pass
         return (sortie, M.texte_transcription(mots), M.resume_plan(plan), [sortie, srt, txt], info, cache, sortie,
-                analyse, tableau if valider else gr.update(), gr.update(), maj_moments)
+                analyse, tableau if valider else rien, rien, maj_moments, illus, rien, rien, rien)
     except gr.Error:
         raise
     except Exception as e:
@@ -334,6 +565,16 @@ def ouvrir_dossier():
 
 GR6 = int(gr.__version__.split(".")[0]) >= 6
 THEME = gr.themes.Soft(primary_hue="teal")
+
+
+def _cols(n):
+    return {"column_count": (n, "fixed")} if GR6 else {"col_count": (n, "fixed")}
+
+
+CFG = C.charger_config()
+ID0, CLES0 = CFG["identite"], CFG["cles"]
+STYLE0 = C.charger_style(CFG["style_actif"])
+
 with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": THEME})) as app:
     gr.Markdown(f"# 🎬 Montage automatique Locapay <small style='opacity:.5'>{VERSION}</small>\n"
                 "Glissez une vidéo brute face caméra (ou plusieurs, à assembler), cliquez sur **Monter la vidéo**, "
@@ -341,6 +582,9 @@ with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": 
     cache = gr.State(None)
     chemins_clips = gr.State([])
     derniere_video = gr.State(None)
+    analyse = gr.State(None)
+    illus = gr.State(None)
+    illus_sel = gr.State(None)
     with gr.Row():
         with gr.Column(scale=1):
             with gr.Tabs(selected="une") as onglets:
@@ -353,28 +597,83 @@ with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": 
                     clips = gr.File(label="Vidéos à assembler", file_types=["video"], file_count="multiple",
                                     type="filepath")
                     tableau = gr.Dataframe(headers=COLONNES, datatype=["number", "str", "number", "number", "number", "bool"],
-                                           interactive=True, wrap=True, type="array",
-                                           **({"column_count": (6, "fixed")} if GR6 else {"col_count": (6, "fixed")}),
+                                           interactive=True, wrap=True, type="array", **_cols(6),
                                            label="Ordre et découpe")
                     bouton_assembler = gr.Button("🧩 Assembler les vidéos", variant="secondary")
                     info_pre = gr.Markdown()
             musique = gr.File(label="Musique de fond (facultatif)", file_types=["audio"], type="filepath")
-            with gr.Accordion("Réglages", open=False):
-                with gr.Row():
-                    c1 = gr.ColorPicker(value="#2E2C51", label="Couleur 1 (écrans + fin)")
-                    c2 = gr.ColorPicker(value="#0AC2A4", label="Couleur 2")
-                ecrans = gr.Slider(0, 4, value=2, step=1, label="Nombre d'écrans de couleur")
-                position = gr.Slider(0.40, 0.85, value=0.66, step=0.01, label="Hauteur des sous-titres (0 = haut, 1 = bas)")
-                hesit = gr.Checkbox(value=True, label="Couper les hésitations (euh, hum…)")
-                pause = gr.Slider(0.20, 1.00, value=0.45, step=0.05, label="Blanc maximum conservé (secondes)")
-                effets = gr.Radio(["léger", "aucun"], value="léger", label="Effets sonores")
-                vol = gr.Slider(0.05, 0.50, value=0.18, step=0.01, label="Volume de la musique")
-                logo = gr.Checkbox(value=True, label="Afficher le logo")
-                autre_logo = gr.File(label="Autre logo (PNG, facultatif)", file_types=["image"], type="filepath")
-                vocabulaire = gr.Textbox(value="Locapay, démarcheurs, loyer, propriétaire, locataire, Cotonou, Bénin",
-                                         label="Mots rares à bien reconnaître")
-                modele = gr.Radio(["Précis (recommandé)", "Rapide"], value="Précis (recommandé)", label="Transcription")
-                auto_qt = gr.Checkbox(value=(sys.platform == "darwin"), label="Ouvrir la vidéo dans QuickTime à la fin du montage")
+
+            with gr.Accordion("⚙️ Paramètres", open=False):
+                with gr.Tabs():
+                    with gr.Tab("🎨 Identité visuelle"):
+                        gr.Markdown("Votre marque : appliquée à **tous** les styles (couleurs des écrans, logo, polices).")
+                        nom_marque = gr.Textbox(value=ID0.get("nom", ""), label="Nom de la marque")
+                        with gr.Row():
+                            c1 = gr.ColorPicker(value=ID0["couleur_1"], label="Couleur principale (écrans, fin)")
+                            c2 = gr.ColorPicker(value=ID0["couleur_2"], label="Couleur secondaire")
+                        logo = gr.Image(value=ID0["fichier_logo"], type="filepath", label="Logo (PNG transparent)",
+                                        height=120, image_mode="RGBA", format="png")
+                        with gr.Row():
+                            police_serif = gr.File(label="Police du texte (.ttf/.otf)", file_types=[".ttf", ".otf"],
+                                                   type="filepath")
+                            police_grasse = gr.File(label="Police du mot clé (.ttf/.otf)", file_types=[".ttf", ".otf"],
+                                                    type="filepath")
+                        police_serif_ch = gr.State(ID0["police_serif"])
+                        police_grasse_ch = gr.State(ID0["police_grasse"])
+                        bouton_identite = gr.Button("💾 Enregistrer l'identité", size="sm")
+                        info_identite = gr.Markdown(f"Polices actuelles : texte `{os.path.basename(ID0['police_serif'])}`, "
+                                                    f"mot clé `{os.path.basename(ID0['police_grasse'])}`.")
+                    with gr.Tab("🎞 Style"):
+                        style_choisi = gr.Dropdown(choices=C.lister_styles(), value=CFG["style_actif"],
+                                                   label="Style de montage")
+                        desc_style = gr.Markdown(f"*{STYLE0.description}*" if STYLE0.description else "")
+                        with gr.Accordion("🔍 Copier le style d'une vidéo", open=False):
+                            gr.Markdown("Déposez une vidéo dont vous aimez le montage : l'outil mesure son rythme, ses "
+                                        "sous-titres, ses couleurs… et crée un style, appliqué avec **votre** identité. "
+                                        "Avec une clé Claude, l'analyse est plus fine.")
+                            ref_video = gr.File(label="Vidéo de référence", file_types=["video"], type="filepath")
+                            nom_ref = gr.Textbox(label="Nom du nouveau style", placeholder="ex. Style dynamique")
+                            bouton_ref = gr.Button("🔍 Analyser et créer le style", variant="primary", size="sm")
+                            rapport_ref = gr.Markdown()
+                        with gr.Accordion("🎚 Ajuster le style", open=False):
+                            cs = {}
+                            cs["position_sous_titres"] = gr.Slider(0.1, 0.9, step=0.01, value=getattr(STYLE0, "position_sous_titres"), label="Hauteur des sous-titres (0 = haut, 1 = bas)")
+                            cs["taille_texte"] = gr.Slider(0.5, 2.0, step=0.05, value=getattr(STYLE0, "taille_texte"), label="Taille des sous-titres")
+                            cs["mots_par_groupe"] = gr.Slider(1, 6, step=1, value=getattr(STYLE0, "mots_par_groupe"), label="Mots affichés en même temps")
+                            cs["mot_cle"] = gr.Checkbox(value=getattr(STYLE0, "mot_cle"), label="Un mot clé en GRAS CAPITALES par sous-titre")
+                            cs["casse"] = gr.Radio(["normale", "majuscules", "minuscules"], value=getattr(STYLE0, "casse"), label="Casse des autres mots")
+                            cs["animation"] = gr.Radio(["pop", "fondu", "aucune"], value=getattr(STYLE0, "animation"), label="Apparition des mots")
+                            cs["style_etalonnage"] = gr.Dropdown(list(M.ETALONNAGES), value=getattr(STYLE0, "style_etalonnage"), label="Étalonnage (couleurs de l'image)")
+                            cs["pause_max"] = gr.Slider(0.2, 1.0, step=0.05, value=getattr(STYLE0, "pause_max"), label="Blanc maximum conservé (s)")
+                            cs["duree_plan_max"] = gr.Slider(0.8, 6.0, step=0.1, value=getattr(STYLE0, "duree_plan_max"), label="Durée max d'un plan avant recadrage (s)")
+                            cs["zoom"] = gr.Slider(1.0, 1.3, step=0.01, value=getattr(STYLE0, "zoom"), label="Force des recadrages (zoom)")
+                            cs["nb_ecrans_couleur"] = gr.Slider(0, 6, step=1, value=getattr(STYLE0, "nb_ecrans_couleur"), label="Écrans de couleur")
+                            cs["effets_sonores"] = gr.Radio(["léger", "aucun"], value=getattr(STYLE0, "effets_sonores"), label="Effets sonores")
+                            cs["ecran_fin"] = gr.Checkbox(value=getattr(STYLE0, "ecran_fin"), label="Écran de fin avec logo")
+                            cs["logo_en_coin"] = gr.Checkbox(value=getattr(STYLE0, "logo_en_coin"), label="Logo en bas à gauche sur la fin")
+                            cs["illustrations_par_minute"] = gr.Slider(0, 15, step=0.5, value=getattr(STYLE0, "illustrations_par_minute"), label="Illustrations proposées par minute (0 = aucune)")
+                            nouveau_style = gr.Textbox(label="Enregistrer sous un nouveau nom (facultatif)")
+                            bouton_style = gr.Button("💾 Enregistrer le style", size="sm")
+                            info_style = gr.Markdown()
+                    with gr.Tab("🔑 Clés API"):
+                        gr.Markdown("Facultatives. **Pexels** et **Pixabay** (gratuites) : recherche d'images et de vidéos "
+                                    "d'illustration libres de droits — [pexels.com/api](https://www.pexels.com/api/), "
+                                    "[pixabay.com/api/docs](https://pixabay.com/api/docs/). **Claude** (payante, quelques "
+                                    "centimes par vidéo) : choix des moments à illustrer et analyse de style plus fins — "
+                                    "[console.anthropic.com](https://console.anthropic.com/). Les clés restent sur ce Mac.")
+                        cle_anthropic = gr.Textbox(value=CLES0.get("anthropic", ""), type="password", label="Clé Claude (Anthropic)")
+                        cle_pexels = gr.Textbox(value=CLES0.get("pexels", ""), type="password", label="Clé Pexels")
+                        cle_pixabay = gr.Textbox(value=CLES0.get("pixabay", ""), type="password", label="Clé Pixabay")
+                        bouton_cles = gr.Button("💾 Enregistrer les clés", size="sm")
+                        info_cles = gr.Markdown()
+                    with gr.Tab("🔧 Avancé"):
+                        hesit = gr.Checkbox(value=True, label="Couper les hésitations (euh, hum…)")
+                        vol = gr.Slider(0.05, 0.50, value=0.18, step=0.01, label="Volume de la musique")
+                        vocabulaire = gr.Textbox(value="Locapay, démarcheurs, loyer, propriétaire, locataire, Cotonou, Bénin",
+                                                 label="Mots rares à bien reconnaître")
+                        modele = gr.Radio(["Précis (recommandé)", "Rapide"], value="Précis (recommandé)", label="Transcription")
+                        auto_qt = gr.Checkbox(value=(sys.platform == "darwin"), label="Ouvrir la vidéo dans QuickTime à la fin du montage")
+
             corrections = gr.State(charger_dico())
             corr_choisie = gr.State(None)
             with gr.Accordion("✏️ Corrections de mots", open=False) as acc_corr:
@@ -399,8 +698,8 @@ with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": 
                     with gr.Row():
                         ok_corr = gr.Button("✔ Ajouter", variant="primary", size="sm")
                         annuler_corr = gr.Button("Annuler", size="sm")
-            valider = gr.Checkbox(value=True, label="Me faire valider les passages douteux avant le montage "
-                                                    "(reprises, passages incompris, fon…)")
+            valider = gr.Checkbox(value=True, label="Me faire valider avant le montage (passages douteux, fon, "
+                                                    "illustrations proposées)")
             bouton = gr.Button("🎬 Monter la vidéo", variant="primary", size="lg")
         with gr.Column(scale=1):
             resultat = gr.Video(label="Vidéo montée", height=560)
@@ -419,19 +718,55 @@ with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": 
                     "Vous pouvez corriger le **texte** : pour un passage en fon, tapez la traduction française.")
         tableau_valid = gr.Dataframe(headers=M.COLONNES_VALIDATION,
                                      datatype=["number", "number", "number", "str", "str", "str", "bool", "bool"],
-                                     interactive=True, wrap=True, type="array",
-                                     **({"column_count": (8, "fixed")} if GR6 else {"col_count": (8, "fixed")}),
+                                     interactive=True, wrap=True, type="array", **_cols(8),
                                      column_widths=["5%", "7%", "7%", "41%", "9%", "17%", "7%", "7%"],
                                      label="Passages")
         with gr.Row():
             ecoute = gr.Audio(label="Écoute du passage", autoplay=True, visible=(sys.platform != "darwin"))
             stop = gr.Button("⏹ Arrêter l'écoute", visible=(sys.platform == "darwin"))
-    analyse = gr.State(None)
 
-    bouton.click(monter, [video, musique, c1, c2, ecrans, position, hesit, pause, effets, vol, logo, autre_logo,
-                          vocabulaire, modele, corrections, cache, auto_qt, valider, analyse, tableau_valid],
+    with gr.Accordion("🖼 Illustrations proposées", open=False) as acc_illus:
+        gr.Markdown("Une image ou vidéo est proposée aux moments où l'on parle de quelque chose de concret. "
+                    "**Cliquez sur une illustration** (galerie ou tableau) puis : **🔄 Autre proposition**, ou "
+                    "**📁 Mon fichier** pour mettre la vôtre. Modifiez la **Recherche** (en anglais de préférence) puis "
+                    "**🔍 Relancer**. Décochez **Garder** pour retirer une illustration.")
+        galerie = gr.Gallery(label="Illustrations", columns=6, rows=1, height=300, object_fit="cover",
+                             allow_preview=False, preview=False)
+        table_illus = gr.Dataframe(headers=["N°", "Moment", "Mot", "Recherche (modifiable)", "Garder"],
+                                   datatype=["number", "str", "str", "str", "bool"], interactive=True, wrap=True,
+                                   type="array", **_cols(5), column_widths=["7%", "12%", "18%", "53%", "10%"],
+                                   label="Moments illustrés")
+        with gr.Row():
+            autre = gr.Button("🔄 Autre proposition", size="sm")
+            relancer = gr.Button("🔍 Relancer les recherches modifiées", size="sm")
+            fichier_perso = gr.File(label="📁 Mon image ou vidéo pour l'illustration sélectionnée",
+                                    file_types=["image", "video"], type="filepath", height=90)
+
+    # ------------------------------------------------------------------ événements
+    comps_style = [cs[k] for k in STYLE_CLES]
+    comps_identite = [nom_marque, c1, c2, logo, police_serif_ch, police_grasse_ch]
+    comps_cles = [cle_anthropic, cle_pexels, cle_pixabay]
+    comps_avance = [hesit, vol, vocabulaire, modele, auto_qt]
+
+    bouton.click(monter, [video, musique, *comps_identite, *comps_style, *comps_cles, *comps_avance,
+                          corrections, cache, valider, analyse, tableau_valid, illus, table_illus],
                  [resultat, transcription, plan, fichiers, info, cache, derniere_video, analyse, tableau_valid,
-                  acc_valid, moment])
+                  acc_valid, moment, illus, table_illus, galerie, acc_illus])
+
+    bouton_identite.click(sauver_identite, [nom_marque, c1, c2, logo, police_serif, police_grasse],
+                          [info_identite, logo, police_serif_ch, police_grasse_ch])
+    bouton_cles.click(sauver_cles, comps_cles, [info_cles])
+    style_choisi.change(charger_style_ui, [style_choisi], comps_style + [desc_style])
+    bouton_style.click(sauver_style_ui, [nouveau_style, style_choisi, *comps_style], [style_choisi, info_style])
+    bouton_ref.click(analyser_reference, [ref_video, nom_ref, cle_anthropic],
+                     [style_choisi, *comps_style, desc_style, rapport_ref])
+
+    galerie.select(selection_illus, None, [illus_sel])
+    table_illus.select(selection_illus, None, [illus_sel])
+    autre.click(autre_proposition, [illus, illus_sel], [illus, galerie])
+    relancer.click(relancer_recherches, [illus, table_illus, cle_pexels, cle_pixabay], [illus, galerie])
+    fichier_perso.upload(mon_fichier, [fichier_perso, illus, illus_sel], [illus, galerie, fichier_perso])
+
     plus.click(ouvrir_formulaire, [cache], [formulaire, moment, mots_sel, avant, apres, info_corr])
     annuler_corr.click(fermer_formulaire, None, [formulaire])
     moment.change(choisir_moment, [moment, cache], [mots_sel, avant])
@@ -449,9 +784,10 @@ with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": 
     clips.change(lister_clips, [clips], [tableau, chemins_clips])
     bouton_assembler.click(assembler, [tableau, chemins_clips], [video, derniere_video, info_pre, onglets])
 
+
 def lancer(port=None, navigateur=True, bloquant=True):
     app.queue().launch(inbrowser=navigateur, server_name="127.0.0.1", server_port=port,
-                       allowed_paths=[SORTIES], prevent_thread_lock=not bloquant,
+                       allowed_paths=[SORTIES, I.DOSSIER_CACHE, C.DOSSIER, ICI], prevent_thread_lock=not bloquant,
                        **({"theme": THEME} if GR6 else {}))
 
 

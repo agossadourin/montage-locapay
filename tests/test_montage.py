@@ -159,3 +159,108 @@ def test_corrections_ciblees_et_globales():
     out2 = M.corriger(mots, [{"portee": "toujours", "avant": "loca pay", "apres": "Locapay"},
                              {"portee": "video", "avant": "Bienvenue", "apres": ""}])
     assert [m["w"] for m in out2][:3] == ["chez", "Locapay,", "Locapay"]
+
+
+# ---------------------------------------------------------------- v0.6 : style, illustrations, IA
+sys.path.insert(0, os.path.join(RACINE, "app"))
+import illustrations as I  # noqa: E402
+import ia  # noqa: E402
+import configuration as C  # noqa: E402
+
+
+def test_moments_a_illustrer_mots_cles():
+    mots = (_mots("Bonjour à tous, aujourd'hui on parle du loyer.", 0.0)
+            + _mots("Avec Locapay vous payez depuis votre téléphone en toute sécurité.", 4.0)
+            + _mots("Plus besoin de courir après le propriétaire avec de l'argent.", 9.0)
+            + _mots("Merci et à bientôt.", 14.0))
+    props = I.choisir_moments(mots, 16.0, par_minute=12)
+    requetes = [p["requete"] for p in props]
+    assert props and all(props[i + 1]["deb"] >= props[i]["fin"] for i in range(len(props) - 1))
+    assert any("smartphone" in r or "rent" in r or "money" in r for r in requetes)
+    assert all(p["deb"] >= 1.0 for p in props)
+
+
+def test_recherche_pexels_simulee():
+    import httpx
+
+    def reponse(req):
+        if "videos/search" in str(req.url):
+            return httpx.Response(200, json={"videos": [{"id": 1, "image": "https://x/t.jpg", "user": {"name": "A"},
+                                                         "video_files": [{"link": "https://x/v.mp4", "height": 1920},
+                                                                         {"link": "https://x/s.mp4", "height": 360}]}]})
+        return httpx.Response(200, json={"photos": [{"id": 2, "photographer": "B",
+                                                     "src": {"portrait": "https://x/p.jpg", "medium": "https://x/m.jpg"}}]})
+    client = httpx.Client(transport=httpx.MockTransport(reponse))
+    res = I.rechercher("money", {"pexels": "cle"}, client=client)
+    assert [r["type"] for r in res] == ["video", "image"]
+    assert res[0]["url"] == "https://x/v.mp4"          # la plus petite définition HD (≥ 720 px)
+
+
+def test_ia_reponse_json_simulee():
+    import httpx
+    texte = 'Voici :\n```json\n[{"deb": 3.0, "fin": 5.0, "mot": "loyer", "requete": "paying rent"}]\n```'
+    client = httpx.Client(transport=httpx.MockTransport(
+        lambda req: httpx.Response(200, json={"content": [{"type": "text", "text": texte}]})))
+    assert ia.demander_json("cle", "?", client=client)[0]["requete"] == "paying rent"
+
+
+def test_profil_de_style_et_identite(tmp_path, monkeypatch):
+    monkeypatch.setattr(C, "DOSSIER_STYLES", str(tmp_path))
+    p = C.ProfilStyle(position_sous_titres=0.5, mots_par_groupe=2, casse="majuscules", animation="fondu")
+    C.sauver_style("Mon style", p)
+    assert "Mon style" in C.lister_styles()
+    q = C.charger_style("Mon style")
+    R = C.reglages(M, {"couleur_1": "#112233"}, q, volume_musique=0.3)
+    assert (R.position_sous_titres, R.mots_par_groupe, R.casse, R.animation, R.couleur_1, R.volume_musique) == \
+        (0.5, 2, "majuscules", "fondu", "#112233", 0.3)
+    plan = M.construire_plan(MOTS, 19.06, R)
+    assert max(len(g["mots"]) for g in plan["groupes"]) <= 2
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg absent")
+def test_rendu_avec_illustrations_et_style(tmp_path):
+    src = tmp_path / "brut.mp4"
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "color=c=gray:size=720x1280:rate=30:d=6",
+                    "-f", "lavfi", "-i", "sine=frequency=220:duration=6", "-c:v", "libx264", "-preset", "ultrafast",
+                    "-c:a", "aac", "-shortest", str(src)], check=True)
+    img = tmp_path / "photo.jpg"
+    from PIL import Image as Img
+    Img.new("RGB", (1200, 800), (200, 30, 30)).save(img)
+    vid = tmp_path / "clip.mp4"
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "color=c=blue:size=1280x720:rate=25:d=3",
+                    "-c:v", "libx264", "-preset", "ultrafast", str(vid)], check=True)
+    mots = [{"w": w, "s": s, "e": s + 0.3} for w, s in
+            [("Le", 0.3), ("loyer", 0.6), ("se", 0.9), ("paie", 1.2), ("ici", 1.5), ("avec", 2.6), ("Locapay", 2.9),
+             ("et", 3.8), ("votre", 4.1), ("téléphone", 4.4)]]
+    R = M.Reglages(nb_ecrans_couleur=0, duree_fin=0.5, style_etalonnage="froid", animation="fondu", casse="majuscules",
+                   illustrations=[{"deb": 0.6, "fin": 1.6, "fichier": str(img)},
+                                  {"deb": 4.0, "fin": 5.0, "fichier": str(vid)}])
+    plan = M.construire_plan(mots, 6.0, R)
+    out = tmp_path / "monte.mp4"
+    M.monter(str(src), plan, R, str(out), progression=False)
+    def pixel(t):
+        r = subprocess.run(["ffmpeg", "-loglevel", "error", "-ss", f"{t}", "-i", str(out), "-frames:v", "1",
+                            "-vf", "crop=10:10:20:20,scale=1:1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+                           capture_output=True)
+        return tuple(r.stdout)
+    o_img, o_vid = M.src2out(plan, 1.0), M.src2out(plan, 4.6)
+    assert pixel(o_img)[0] > 150 and pixel(o_img)[2] < 90      # photo rouge à l'écran
+    assert pixel(o_vid)[2] > 150 and pixel(o_vid)[0] < 90      # vidéo bleue à l'écran
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg absent")
+def test_analyse_de_style_reference(tmp_path):
+    import analyse_style as A
+    ref = tmp_path / "ref.mp4"
+    filtre = ("[0][1][2][3]concat=n=4:v=1:a=0[v]")
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y",
+                    "-f", "lavfi", "-i", "testsrc2=size=360x640:rate=25:d=2",
+                    "-f", "lavfi", "-i", "color=c=0x2E2C51:size=360x640:rate=25:d=1",
+                    "-f", "lavfi", "-i", "mandelbrot=size=360x640:rate=25,trim=duration=2",
+                    "-f", "lavfi", "-i", "color=c=0x0AC2A4:size=360x640:rate=25:d=1.5",
+                    "-filter_complex", filtre, "-map", "[v]", "-c:v", "libx264", "-preset", "ultrafast",
+                    str(ref)], check=True)
+    p, rapport = A.analyser(str(ref), ocr=False)
+    assert p.ecran_fin is True
+    assert p.nb_ecrans_couleur == 1
+    assert 0.8 <= p.duree_plan_max <= 3.0

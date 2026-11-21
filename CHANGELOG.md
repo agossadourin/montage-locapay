@@ -1,5 +1,12 @@
 # Historique des versions
 
+## 0.6.0 — 2026-11-21
+- **⚙️ Paramètres** en onglets : **Identité visuelle** (nom, couleurs, logo, polices — enregistrée et appliquée à tous les styles), **Style**, **Clés API**, **Avancé**.
+- **Profils de style** : un style = rythme des coupes, zooms, sous-titres (position, taille, mots à la fois, mot clé, casse, animation), étalonnage, écrans de couleur, écran de fin, densité d'illustrations. Styles enregistrables, ajustables, sélectionnables.
+- **Copier le style d'une vidéo** : analyse d'une vidéo de référence (coupes, écrans de couleur, étalonnage, écran de fin, sous-titres par OCR Apple Vision) → nouveau style, appliqué avec votre identité. Plus fin avec une clé Claude (lecture visuelle des images).
+- **Illustrations (B-roll)** : aux moments où l'on parle de quelque chose de concret (loyer, téléphone, maison…), une image ou vidéo libre de droits est proposée (Pexels / Pixabay, clés gratuites ; choix des moments par Claude si une clé est fournie). Validation : autre proposition, votre propre fichier, recherche modifiable, retrait. Insertion plein écran (léger zoom sur les photos), sous-titres conservés par-dessus.
+- Nouveaux étalonnages : naturel, chaud, contrasté, froid, désaturé.
+
 ## 0.5.0 — 2026-11-21
 - **Corrections de mots, version pro** : bouton ➕ → on choisit le **moment** (une phrase précise, avec son minutage, ou « partout »), puis le ou les **mots** dans la phrase, puis la **correction** (vide = supprimer ces mots). Écoute du moment, liste des corrections, suppression d'une ligne.
 - **Dictionnaire permanent** : les corrections « dans toutes mes vidéos » (ex. Locapé → Locapay) sont mémorisées et appliquées automatiquement aux prochaines vidéos.

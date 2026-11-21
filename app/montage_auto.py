@@ -38,6 +38,25 @@ class Reglages:
     fichier_logo: str = ""
     police_serif: str = ""
     police_grasse: str = ""
+    # --- profil de style
+    taille_texte: float = 1.0             # multiplicateur de la taille des sous-titres
+    mots_par_groupe: int = 4              # nombre max de mots affichés ensemble
+    mot_cle: bool = True                  # un mot clé en GRAS CAPITALES par groupe
+    casse: str = "normale"                # casse des autres mots : normale / majuscules / minuscules
+    animation: str = "pop"                # apparition des mots : pop / fondu / aucune
+    style_etalonnage: str = "chaud"       # naturel / chaud / contrasté / froid / désaturé
+    ecran_fin: bool = True
+    # --- illustrations (B-roll) : [{"deb", "fin" (temps source), "fichier", "type": image|video}]
+    illustrations: list = field(default_factory=list)
+
+
+ETALONNAGES = {
+    "naturel": "eq=contrast=1.03:saturation=1.03",
+    "chaud": "eq=contrast=1.06:saturation=1.08:gamma=0.98,colorbalance=rs=0.03:bs=-0.03:rm=0.02:bm=-0.02",
+    "contrasté": "eq=contrast=1.15:saturation=1.12:gamma=0.96",
+    "froid": "eq=contrast=1.05:saturation=1.0,colorbalance=rs=-0.03:bs=0.04:bm=0.02",
+    "désaturé": "eq=contrast=1.08:saturation=0.72",
+}
 
 
 def hex2rgb(h):
@@ -364,7 +383,8 @@ def construire_plan(mots, duree, R: Reglages):
             prev = mots[cur[-1]]
             nchar = sum(len(mots[j]["w"]) for j in cur) + len(m["w"])
             if (m["s"] - prev["e"] > 0.30 or re.search(r"[,.!?;:…]$", prev["w"])
-                    or len(cur) >= 4 or nchar > 24 or m["zone"] != prev["zone"]
+                    or len(cur) >= max(1, R.mots_par_groupe) or nchar > 6 * max(1, R.mots_par_groupe)
+                    or m["zone"] != prev["zone"]
                     or m["e"] - mots[cur[0]]["s"] > 1.8):
                 groupes.append(cur); cur = []
         cur.append(i)
@@ -373,7 +393,8 @@ def construire_plan(mots, duree, R: Reglages):
     # ne pas finir un groupe sur un petit mot (« les », « et », « ne »…) : il passe au groupe suivant
     for gi in range(len(groupes) - 1):
         g, nx = groupes[gi], groupes[gi + 1]
-        while (len(g) > 1 and norm(mots[g[-1]]["w"]) in FAIBLES
+        while (len(g) > 1 and len(nx) < R.mots_par_groupe + (1 if R.mots_par_groupe >= 3 else 0)
+               and norm(mots[g[-1]]["w"]) in FAIBLES
                and not re.search(r"[,.!?;:…]$", mots[g[-1]]["w"])
                and mots[g[-1]]["zone"] == mots[nx[0]]["zone"]
                and mots[nx[0]]["s"] - mots[g[-1]]["e"] < 0.30):
@@ -388,7 +409,7 @@ def construire_plan(mots, duree, R: Reglages):
         fin = min(nxt, ws[-1]["e"] + 0.6, z["b"])
         cands = [(len(norm(w["w"])), k) for k, w in enumerate(ws)
                  if norm(w["w"]) not in STOP and len(norm(w["w"])) >= 4]
-        cle = max(cands)[1] if cands else None
+        cle = max(cands)[1] if (cands and R.mot_cle) else None
         G.append({"mots": ws, "deb": deb, "fin": fin, "cle": cle, "ecran": None})
 
     # --- écrans de couleur (milieu de la vidéo, groupes courts)
@@ -410,7 +431,7 @@ def construire_plan(mots, duree, R: Reglages):
             G[i]["ecran"] = couleurs[k % 2]
 
     return {"mots": mots, "zones": zones, "plans": plans, "groupes": G, "corps": corps,
-            "total": corps + R.duree_fin}
+            "total": corps + (R.duree_fin if R.ecran_fin else 0.0)}
 
 
 def src2out(plan, t):
@@ -470,22 +491,28 @@ class Polices:
         return self.cache[k]
 
 
+def _casse(t, R):
+    return t.upper() if R.casse == "majuscules" else t.lower() if R.casse == "minuscules" else t
+
+
 def mise_en_page(G, R, polices):
     """Pré-calcule la position finale de chaque mot (aucun saut quand un mot apparaît)."""
+    k_t = max(0.4, float(R.taille_texte or 1.0))
     for g in G:
         items = []
         if g["ecran"] is None:
             ws, k = g["mots"], g["cle"]
             if k is None:
-                lignes = [[(w["w"], "s", w["s"]) for w in ws]]
+                lignes = [[(_casse(w["w"], R), "s", w["s"]) for w in ws]]
             else:
-                avant = [(w["w"], "s", w["s"]) for w in ws[:k]]
+                avant = [(_casse(w["w"], R), "s", w["s"]) for w in ws[:k]]
                 cle = [(re.sub(r"[,.;:]+$", "", ws[k]["w"]).upper(), "b", ws[k]["s"])]
-                apres = [(w["w"], "s", w["s"]) for w in ws[k + 1:]]
+                apres = [(_casse(w["w"], R), "s", w["s"]) for w in ws[k + 1:]]
                 lignes = [l for l in (avant, cle, apres) if l]
             rangs = []
             for ligne in lignes:
                 for taille_s, taille_b in ((80, 84), (68, 72), (58, 62), (48, 52)):
+                    taille_s, taille_b = int(taille_s * k_t), int(taille_b * k_t)
                     ims = [(image_mot(t, polices.get(st, taille_b if st == "b" else taille_s)), ts)
                            for t, st, ts in ligne]
                     esp = int(0.28 * taille_s)
@@ -505,7 +532,8 @@ def mise_en_page(G, R, polices):
         else:
             ligne = [(w["w"], w["s"]) for w in g["mots"]]
             for taille in (96, 82, 70, 60):
-                ims = [(image_mot(t, polices.get("c", taille)), ts) for t, ts in ligne]
+                taille = int(taille * k_t)
+                ims = [(image_mot(_casse(t, R), polices.get("c", taille)), ts) for t, ts in ligne]
                 esp = int(0.26 * taille)
                 lw = sum(i[0][2] for i in ims) + esp * (len(ims) - 1)
                 if lw <= W * 0.86:
@@ -523,10 +551,12 @@ def _ease(x):
     return 1 - (1 - x) ** 3
 
 
-def coller_anime(canvas, im, x, y, p):
+def coller_anime(canvas, im, x, y, p, animation="pop"):
     if p <= 0:
         return
-    e = _ease(p); sc = 0.82 + 0.18 * e; a = min(1.0, p * 1.6)
+    if animation == "aucune":
+        canvas.alpha_composite(im, (int(x), int(y))); return
+    e = _ease(p); sc = 0.82 + 0.18 * e if animation == "pop" else 1.0; a = min(1.0, p * 1.6)
     if sc < 0.999:
         nw, nh = max(1, int(im.width * sc)), max(1, int(im.height * sc))
         im2 = im.resize((nw, nh), Image.BILINEAR)
@@ -683,6 +713,51 @@ def ecrire_srt(plan, chemin):
             f.write(f"{k}\n{_srt_temps(a)} --> {_srt_temps(b)}\n{' '.join(w['w'] for w in g['mots'])}\n\n"); k += 1
 
 
+EXT_VIDEO = (".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi")
+
+
+class Illustration:
+    """Image ou vidéo d'illustration (B-roll) affichée plein écran entre deb et fin (temps source)."""
+
+    def __init__(self, item):
+        self.deb, self.fin = float(item["deb"]), float(item["fin"])
+        self.fichier = item["fichier"]
+        self.type = item.get("type") or ("video" if self.fichier.lower().endswith(EXT_VIDEO) else "image")
+        self.proc, self.img, self.idx, self.derniere = None, None, -1, None
+
+    def image(self, st):
+        frac = min(1.0, max(0.0, (st - self.deb) / max(1e-6, self.fin - self.deb)))
+        if self.type == "image":
+            if self.img is None:
+                im = Image.open(self.fichier).convert("RGB")
+                s = max(W / im.width, H / im.height) * 1.10
+                self.img = im.resize((int(im.width * s) + 1, int(im.height * s) + 1), Image.LANCZOS)
+            z = 1.0 + 0.08 * frac                      # effet Ken Burns : léger zoom avant
+            cw, ch = W * 1.10 / z, H * 1.10 / z
+            x0, y0 = (self.img.width - cw) / 2, (self.img.height - ch) / 2
+            return self.img.resize((W, H), Image.BICUBIC, box=(x0, y0, x0 + cw, y0 + ch)).convert("RGBA")
+        if self.proc is None:
+            self.proc = subprocess.Popen(
+                ["ffmpeg", "-loglevel", "error", "-i", self.fichier, "-an", "-vf",
+                 f"fps={FPS},scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1",
+                 "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], stdout=subprocess.PIPE)
+        k = int((st - self.deb) * FPS)
+        while self.idx < k:
+            buf = self.proc.stdout.read(W * H * 3)
+            if len(buf) < W * H * 3:
+                break
+            self.idx += 1
+            self.derniere = buf
+        if self.derniere is None:
+            return Image.new("RGBA", (W, H), (0, 0, 0, 255))
+        return Image.frombuffer("RGB", (W, H), self.derniere, "raw", "RGB", 0, 1).convert("RGBA")
+
+    def fermer(self):
+        if self.proc is not None:
+            self.proc.kill(); self.proc = None
+        self.img = None
+
+
 def monter(video, plan, R: Reglages, sortie, musique=None, progression=True, rappel=None):
     polices = Polices(R)
     mise_en_page(plan["groupes"], R, polices)
@@ -702,14 +777,16 @@ def monter(video, plan, R: Reglages, sortie, musique=None, progression=True, rap
 
     # écrans de couleur en temps source
     ecrans = [(g["deb"] - 0.04, g["fin"], g["ecran"]) for g in plan["groupes"] if g["ecran"] is not None]
+    illustrations = [Illustration(it) for it in (R.illustrations or [])
+                     if it.get("fichier") and os.path.exists(it["fichier"])]
 
     # lecture de la source, déjà redressée, mise à l'échelle « cover » et étalonnée
     sw, sh = _taille_affichee(video)
     s = max(W / sw, H / sh)
     SW, SH = int(math.ceil(sw * s / 2) * 2), int(math.ceil(sh * s / 2) * 2)
     vf = f"fps={FPS},scale={SW}:{SH}:flags=bicubic"
-    if R.etalonnage:
-        vf += ",eq=contrast=1.06:saturation=1.08:gamma=0.98,colorbalance=rs=0.03:bs=-0.03:rm=0.02:bm=-0.02"
+    if R.etalonnage and R.style_etalonnage in ETALONNAGES:
+        vf += "," + ETALONNAGES[R.style_etalonnage]
     lecteur = subprocess.Popen(["ffmpeg", "-loglevel", "error", "-i", video, "-vf", vf, "-f", "rawvideo",
                                 "-pix_fmt", "rgb24", "-"], stdout=subprocess.PIPE)
     taille = SW * SH * 3
@@ -739,8 +816,14 @@ def monter(video, plan, R: Reglages, sortie, musique=None, progression=True, rap
             st = p["a"] + (ot - p["o"])
             img = image_source(int(round(st * FPS)))
             ecran = next((c for a, b, c in ecrans if a <= st < b), None)
+            ill = next((b for b in illustrations if b.deb <= st < b.fin), None) if ecran is None else None
+            for b in illustrations:
+                if b is not ill and st >= b.fin:
+                    b.fermer()
             if ecran is not None or img is None:
                 canvas = Image.new("RGBA", (W, H), (ecran or c1) + (255,))
+            elif ill is not None:
+                canvas = ill.image(st)
             else:
                 frac = (st - p["a"]) / max(1e-6, p["b"] - p["a"])
                 z = p["zoom"] * (1.0 + 0.025 * frac) * 1.03
@@ -750,8 +833,8 @@ def monter(video, plan, R: Reglages, sortie, musique=None, progression=True, rap
             for g in plan["groupes"]:
                 if g["deb"] - 0.001 <= st < g["fin"]:
                     for im, x, y, ts in g["items"]:
-                        coller_anime(canvas, im, x, y, (st - ts) / 0.14)
-            if logo_petit is not None and R.logo_en_coin and st >= logo_des and ecran is None:
+                        coller_anime(canvas, im, x, y, (st - ts) / 0.14, R.animation)
+            if logo_petit is not None and R.logo_en_coin and st >= logo_des and ecran is None and ill is None:
                 coller_anime(canvas, logo_petit, 70, H - 230, (st - logo_des) / 0.35)
         else:
             canvas = Image.new("RGBA", (W, H), c1 + (255,))
@@ -764,6 +847,8 @@ def monter(video, plan, R: Reglages, sortie, musique=None, progression=True, rap
         if rappel is not None and n % 15 == 0:
             rappel(n / nb)
     ecrivain.stdin.close(); ecrivain.wait(); lecteur.kill()
+    for b in illustrations:
+        b.fermer()
 
     # ---------------- audio
     evts = []
