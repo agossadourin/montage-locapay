@@ -620,7 +620,11 @@ def test_generation_cloudflare_gratuite_simulee(tmp_path, monkeypatch):
     def reponse(req):
         vus.append(req)
         assert req.headers["authorization"] == "Bearer jeton" and "/accounts/compte1/ai/run/@cf/black-forest-labs/flux-1-schnell" in str(req.url)
-        assert json.loads(req.content)["steps"] <= 8
+        corps = json.loads(req.content)
+        if "steps" in corps:                 # le service refuse un champ : on doit réessayer avec la consigne seule
+            return httpx.Response(400, json={"success": False, "errors": [{"message": "AiError: Bad input: Error: "
+                                  "Additional or unevaluated properties '/steps' at '/' not allowed"}]})
+        assert set(corps) == {"prompt"}
         return httpx.Response(200, json={"success": True, "result": {"image": _png_b64()}})
     cfg = {"cles": {"cloudflare_compte": "compte1", "cloudflare_jeton": "jeton", "gemini": "g"},
            "illustrations": {"source": "banques"}}
@@ -630,8 +634,8 @@ def test_generation_cloudflare_gratuite_simulee(tmp_path, monkeypatch):
     consigne = I.prompt_illustration({"phrase": "payez votre loyer", "requete": "paying rent"}, "Cotonou, Bénin", "cloudflare")
     assert consigne.startswith("Authentic realistic photograph") and "paying rent" in consigne
     f = I.generer(consigne, cfg, client=httpx.Client(transport=httpx.MockTransport(reponse)))
-    assert os.path.exists(f) and len(vus) == 1
-    assert I.generer(consigne, cfg, client=httpx.Client(transport=httpx.MockTransport(reponse))) == f and len(vus) == 1
+    assert os.path.exists(f) and len(vus) == 2
+    assert I.generer(consigne, cfg, client=httpx.Client(transport=httpx.MockTransport(reponse))) == f and len(vus) == 2
     quota = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(
         429, json={"success": False, "errors": [{"message": "you have used up your daily free allocation of 10,000 neurons"}]})))
     with pytest.raises(RuntimeError, match="Quota gratuit Cloudflare"):

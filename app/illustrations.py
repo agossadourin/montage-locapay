@@ -330,13 +330,16 @@ def generer_image_cloudflare(prompt, compte, jeton, client=None, modele=None):
     if os.path.exists(chemin):
         return chemin
     c = client or _client()
-    r = c.post(CLOUDFLARE_URL.format(compte=compte.strip(), modele=modele),
-               headers={"Authorization": f"Bearer {jeton.strip()}"},
-               json={"prompt": prompt[:2048], "steps": 4, "seed": int(empreinte[:7], 16)}, timeout=120)
-    try:
-        d = r.json()
-    except ValueError:
-        d = {}
+    # paramètres acceptés par le modèle : prompt (+ steps) ; s'il refuse un champ, on réessaie avec la consigne seule
+    for corps in ({"prompt": prompt[:2048], "steps": 4}, {"prompt": prompt[:2048]}):
+        r = c.post(CLOUDFLARE_URL.format(compte=compte.strip(), modele=modele),
+                   headers={"Authorization": f"Bearer {jeton.strip()}"}, json=corps, timeout=120)
+        try:
+            d = r.json()
+        except ValueError:
+            d = {}
+        if not (r.status_code == 400 and "propert" in r.text):
+            break
     if r.status_code != 200 or not (d.get("result") or {}).get("image"):
         message = "; ".join(e.get("message", "") for e in d.get("errors") or []) or r.text[:200]
         if r.status_code == 429 or "neurons" in message.lower() or "limit" in message.lower():

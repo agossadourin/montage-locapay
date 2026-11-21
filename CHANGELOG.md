@@ -1,5 +1,8 @@
 # Historique des versions
 
+## 0.15.1 — 2026-11-21
+- Cloudflare : correction de l'erreur « Additional or unevaluated properties '/seed' » (champ refusé par le modèle) ; si un autre paramètre est refusé, la demande est refaite avec la consigne seule.
+
 ## 0.15.0 — 2026-11-21
 - **✨ Images créées par IA, gratuitement** avec Cloudflare Workers AI (modèle FLUX.1 schnell, licence Apache 2.0 : usage commercial permis) : environ 170 images par jour sans payer, sans carte bancaire. Compte Cloudflare gratuit + identifiant de compte + jeton « Workers AI » dans ⚙️ Paramètres › Clés API (bouton « Tester »).
 - Source des illustrations du montage automatique : banques d'images, **Cloudflare (gratuit)** ou Gemini (payant). Dans l'éditeur, « ✨ Image IA » et « ✨ Créer l'image » utilisent le générateur choisi (Cloudflare en priorité s'il est configuré).
