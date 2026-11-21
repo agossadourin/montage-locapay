@@ -273,7 +273,8 @@ def auto(proj, rappel=None, transcrire=None, rechercher=None, telecharger=None):
     gardes = [w for w in mots_v if w.get("st", True) and w.get("w") and sortie(w["s"]) is not None]
     duree_sortie = sum(c["b"] - c["a"] for c in proj["clips"])
     if par_minute > 0 and (cles.get("pexels") or cles.get("pixabay")):
-        props = I.choisir_moments(gardes, duree_sortie, par_minute=par_minute, cle_api=cles.get("anthropic", ""))
+        import ia
+        props = I.choisir_moments(gardes, duree_sortie, par_minute=par_minute, cle_api=ia.config_ia(cfg))
         for k, pr in enumerate(props):
             etape(0.6 + 0.35 * k / max(1, len(props)), "Recherche d'illustrations…")
             res = rechercher(pr["requete"], cles)

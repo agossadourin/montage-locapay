@@ -11,6 +11,7 @@ import gradio as gr
 from PIL import Image, ImageDraw
 
 import analyse_style as A
+import ia
 import configuration as C
 import illustrations as I
 import montage_auto as M
@@ -26,6 +27,16 @@ except OSError:
 STYLE_CLES = [f.name for f in fields(C.ProfilStyle) if f.name != "description"]
 IDENTITE_CLES = ["nom", "couleur_1", "couleur_2", "fichier_logo", "police_serif", "police_grasse"]
 CLES_API = ["anthropic", "pexels", "pixabay"]
+CHOIX_IA = {"Aucune (règles automatiques, gratuit)": "aucune", "Ollama — sur ce Mac, gratuit": "ollama",
+            "Claude — en ligne, payant": "claude"}
+
+
+def _ia_depuis(cles=None):
+    """Configuration d'IA d'après les paramètres enregistrés (et la clé Claude saisie dans l'interface)."""
+    cfg = C.charger_config()
+    if cles:
+        cfg["cles"] = {**cfg["cles"], **{k: v for k, v in cles.items() if v}}
+    return ia.config_ia(cfg)
 AVANCE_CLES = ["supprimer_hesitations", "volume_musique", "vocabulaire", "modele", "auto_qt"]
 
 
@@ -94,13 +105,20 @@ def sauver_identite(nom, c1, c2, logo, serif, grasse):
             i["police_grasse"])
 
 
-def sauver_cles(anthropic, pexels, pixabay):
+def sauver_cles(anthropic, pexels, pixabay, choix_ia=None):
     cfg = C.charger_config()
+    if choix_ia:
+        cfg.setdefault("ia", {})["fournisseur"] = CHOIX_IA.get(choix_ia, "aucune")
     cfg["cles"].update({"anthropic": (anthropic or "").strip(), "pexels": (pexels or "").strip(),
                         "pixabay": (pixabay or "").strip()})
     C.sauver_config(cfg)
     actives = [n for n, v in (("Claude", anthropic), ("Pexels", pexels), ("Pixabay", pixabay)) if (v or "").strip()]
-    return "✅ Clés enregistrées : " + (", ".join(actives) if actives else "aucune (mode local)")
+    return ("✅ Clés enregistrées : " + (", ".join(actives) if actives else "aucune")
+            + f" · IA : {ia.nom_ia(ia.config_ia(cfg))}")
+
+
+def tester_ollama_ui():
+    return ia.tester_ollama()[1]
 
 
 def charger_style_ui(nom):
@@ -124,7 +142,7 @@ def analyser_reference(video, nom, cle_anthropic, progress=gr.Progress()):
         raise gr.Error("Déposez d'abord une vidéo de référence.")
     nom = (nom or "").strip() or os.path.splitext(os.path.basename(video))[0][:30]
     try:
-        p, rapport = A.analyser(video, cle_api=(cle_anthropic or "").strip(),
+        p, rapport = A.analyser(video, cle_api=_ia_depuis({"anthropic": (cle_anthropic or "").strip()}),
                                 rappel=lambda f, t: progress(f, desc=t))
     except Exception as e:
         traceback.print_exc()
@@ -187,7 +205,7 @@ def _lignes_illus(illus):
 
 
 def proposer_illustrations(mots, duree, par_minute, cles, progress=None):
-    props = I.choisir_moments(mots, duree, par_minute=par_minute, cle_api=cles.get("anthropic", ""))
+    props = I.choisir_moments(mots, duree, par_minute=par_minute, cle_api=_ia_depuis(cles))
     banques = cles.get("pexels") or cles.get("pixabay")
     for k, p in enumerate(props):
         if progress:
@@ -673,9 +691,18 @@ with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": 
                     with gr.Tab("🔑 Clés API"):
                         gr.Markdown("Facultatives. **Pexels** et **Pixabay** (gratuites) : recherche d'images et de vidéos "
                                     "d'illustration libres de droits — [pexels.com/api](https://www.pexels.com/api/), "
-                                    "[pixabay.com/api/docs](https://pixabay.com/api/docs/). **Claude** (payante, quelques "
-                                    "centimes par vidéo) : choix des moments à illustrer et analyse de style plus fins — "
+                                    "[pixabay.com/api/docs](https://pixabay.com/api/docs/). **IA** : **Ollama** (gratuite, sur ce Mac — "
+                                    "installez-la avec « Installer IA locale (Ollama).command ») ou **Claude** (payante, quelques "
+                                    "centimes par vidéo) pour un choix des moments à illustrer et une analyse de style plus fins — "
                                     "[console.anthropic.com](https://console.anthropic.com/). Les clés restent sur ce Mac.")
+                        choix_ia = gr.Radio(list(CHOIX_IA), label="IA (choix des moments à illustrer, analyse de style)",
+                                            value=next((k for k, v in CHOIX_IA.items()
+                                                        if v == ((CFG.get("ia") or {}).get("fournisseur")
+                                                                 or ("claude" if CLES0.get("anthropic") else "aucune"))),
+                                                       "Aucune (règles automatiques, gratuit)"))
+                        with gr.Row():
+                            test_ollama = gr.Button("🔌 Tester Ollama", size="sm")
+                            info_ollama = gr.Markdown()
                         cle_anthropic = gr.Textbox(value=CLES0.get("anthropic", ""), type="password", label="Clé Claude (Anthropic)")
                         cle_pexels = gr.Textbox(value=CLES0.get("pexels", ""), type="password", label="Clé Pexels")
                         cle_pixabay = gr.Textbox(value=CLES0.get("pixabay", ""), type="password", label="Clé Pixabay")
@@ -774,7 +801,8 @@ with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": 
 
     bouton_identite.click(sauver_identite, [nom_marque, c1, c2, logo, police_serif, police_grasse],
                           [info_identite, logo, police_serif_ch, police_grasse_ch])
-    bouton_cles.click(sauver_cles, comps_cles, [info_cles])
+    bouton_cles.click(sauver_cles, comps_cles + [choix_ia], [info_cles])
+    test_ollama.click(tester_ollama_ui, None, [info_ollama])
     style_choisi.change(charger_style_ui, [style_choisi], comps_style + [desc_style])
     bouton_style.click(sauver_style_ui, [nouveau_style, style_choisi, *comps_style], [style_choisi, info_style])
     bouton_ref.click(analyser_reference, [ref_video, nom_ref, cle_anthropic],

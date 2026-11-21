@@ -105,6 +105,14 @@ def transcrire(video, modele="turbo", langue="fr", vocabulaire=""):
         r = mlx_whisper.transcribe(video, path_or_hf_repo=MODELES_MLX.get(modele, modele), language=langue,
                                    word_timestamps=True, initial_prompt=vocabulaire or None,
                                    condition_on_previous_text=False)
+        try:   # libère la mémoire du modèle (utile sur un Mac 8 Go, avant le montage ou l'IA locale)
+            from mlx_whisper.transcribe import ModelHolder
+            ModelHolder.model, ModelHolder.model_path = None, None
+            import gc, mlx.core as mx
+            gc.collect()
+            (getattr(mx, "clear_cache", None) or mx.metal.clear_cache)()
+        except Exception:
+            pass
         return _mots_depuis_segments(r["segments"])
     if moteur == "faster":
         from faster_whisper import WhisperModel

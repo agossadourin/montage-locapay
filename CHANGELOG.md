@@ -1,5 +1,10 @@
 # Historique des versions
 
+## 0.9.0 — 2026-11-21
+- **IA locale gratuite avec Ollama** : alternative à Claude pour choisir les moments à illustrer et analyser un style (modèle `qwen2.5vl:3b`, texte + images, ≈ 3 Go, adapté à un Mac 8 Go ; mémoire libérée après chaque usage). Installation : « Installer IA locale (Ollama).command ».
+- Paramètres › Clés API : choix de l'IA (Aucune / Ollama / Claude) et bouton « 🔌 Tester Ollama ».
+- La mémoire du modèle de transcription est libérée après usage (Mac 8 Go).
+
 ## 0.8.0 — 2026-11-21
 - **On commence par la timeline** : l'app s'ouvre sur l'éditeur. « ＋ Nouveau projet » : on dépose une ou plusieurs vidéos, elles arrivent aussitôt sur la piste vidéo (avec la forme d'onde) pour le prémontage — couper, réordonner, raccourcir, supprimer.
 - **✨ Montage automatique dans la timeline** : sur ce qui est gardé, coupe les blancs et hésitations, ajoute sous-titres, écrans de couleur et illustrations (style + identité des Paramètres). La transcription est gardée dans le projet : relancer est rapide.

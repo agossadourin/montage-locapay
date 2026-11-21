@@ -402,3 +402,26 @@ def test_montage_auto_passage_a_cheval_sur_deux_rushs(monkeypatch, tmp_path):
     garde = sum(min(c["b"], fon["fin"]) - max(c["a"], fon["deb"]) for c in auto["clips"]
                 if c["b"] > fon["deb"] and c["a"] < fon["fin"])
     assert garde > (fon["fin"] - fon["deb"]) - 0.1
+
+
+# ---------------------------------------------------------------- v0.9 : IA locale (Ollama)
+def test_ia_ollama_simulee():
+    import httpx
+    vus = {}
+
+    def reponse(req):
+        if req.url.path == "/api/tags":
+            return httpx.Response(200, json={"models": [{"name": "qwen2.5vl:3b"}]})
+        vus["corps"] = json.loads(req.content)
+        return httpx.Response(200, json={"message": {"content": 'Voici [{"deb": 2, "fin": 4, "requete": "money"}]'}})
+    client = httpx.Client(transport=httpx.MockTransport(reponse))
+    cfg = {"cles": {"anthropic": ""}, "ia": {"fournisseur": "ollama"}}
+    iac = ia.config_ia(cfg)
+    assert iac["fournisseur"] == "ollama" and ia.nom_ia(iac).startswith("Ollama")
+    from PIL import Image as Img
+    res = ia.demander_json(iac, "?", images=[Img.new("RGB", (800, 600))] * 6, client=client)
+    assert res[0]["requete"] == "money"
+    assert vus["corps"]["keep_alive"] == 0 and len(vus["corps"]["messages"][0]["images"]) == 4
+    assert ia.tester_ollama(client=client)[0] is True
+    assert ia.config_ia({"cles": {"anthropic": "k"}})["fournisseur"] == "claude"     # compatibilité
+    assert ia.config_ia({"cles": {}, "ia": {"fournisseur": "aucune"}}) is None

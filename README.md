@@ -42,6 +42,7 @@ Le **mode classique** (et les **⚙️ Paramètres** : identité, style, clés) 
 **⚙️ Paramètres** :
 - **🎨 Identité visuelle** : nom, couleurs, logo, polices de votre marque (bouton 💾). Appliquée à tous les styles.
 - **🎞 Style** : choisissez un style, ajustez-le (🎚), ou **copiez le style d'une vidéo** : déposez une vidéo dont vous aimez le montage, l'outil l'analyse et crée un style réutilisable.
+- **🤖 IA** (facultative) : **Ollama** — gratuite, sur votre Mac (installez-la avec `Installer IA locale (Ollama).command`) — ou **Claude** (payante). Sans IA, des règles automatiques font le travail.
 - **🔑 Clés API** (facultatives) : **Pexels** / **Pixabay** (gratuites) pour trouver des images d'illustration ; **Claude** (payante, quelques centimes par vidéo) pour un choix des moments et une analyse de style plus fins.
 
 **🖼 Illustrations** : au premier clic sur **Monter**, l'outil propose des images/vidéos aux moments où l'on parle de quelque chose de concret. Cliquez sur une illustration puis **🔄 Autre proposition** ou **📁 Mon fichier** ; modifiez la recherche puis **🔍 Relancer** ; décochez **Garder** pour la retirer.
