@@ -1,5 +1,10 @@
 # Historique des versions
 
+## 0.11.0 — 2026-11-21
+- **Modifier un sous-titre directement sur la vidéo** : en pause, cliquez sur le texte dans l'aperçu, tapez, **Entrée** pour valider, **Échap** pour annuler (⌘Z pour revenir en arrière). Le mot clé est conservé s'il est toujours là.
+- **⌥ + clic sur un mot** dans l'aperçu : il devient (ou n'est plus) le mot clé en GRAS.
+- En pause, les mots pas encore prononcés restent visibles, estompés, pour pouvoir les corriger.
+
 ## 0.10.0 — 2026-11-21
 - **🎵 Musique libre de droits, gratuite et sans clé** (Openverse) : dans l'éditeur, « ＋ Musique » → ambiances (Dynamique, Afro, Inspirant, Joyeux, Calme, Électro) ou recherche libre, écoute ▶️, « Utiliser ». Seuls les morceaux **autorisés pour un usage commercial** sont proposés.
 - **Crédits** : si la licence demande de citer l'artiste (CC BY), le texte est affiché (bouton Copier), rappelé à l'export et enregistré à côté de la vidéo (`…_credits.txt`).

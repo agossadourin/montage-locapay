@@ -41,6 +41,13 @@ header .statut{color:var(--doux);margin-left:auto}
 #st-zone{position:absolute;left:0;right:0;display:flex;flex-direction:column;align-items:center;transform:translateY(-50%);pointer-events:none}
 #st-zone .ligne{display:flex;gap:.28em;justify-content:center;white-space:nowrap;line-height:1.05}
 #st-zone span{color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.55);transition:none;display:inline-block}
+#st-zone.editable{pointer-events:auto;cursor:text}
+#st-zone.editable:hover .ligne{outline:1px dashed rgba(255,255,255,.7);outline-offset:4px;border-radius:4px}
+#st-zone .edit-st{pointer-events:auto;cursor:text;min-width:55%;max-width:92%;text-align:center;color:#fff;font-family:"PoliceTexte",Georgia,serif;
+  font-style:italic;line-height:1.15;background:rgba(0,0,0,.45);border:1px dashed #fff;border-radius:8px;padding:.15em .45em;outline:none;
+  text-shadow:0 2px 8px rgba(0,0,0,.55);white-space:pre-wrap}
+#aide-edit{position:absolute;left:6px;right:6px;bottom:8px;text-align:center;font-size:11px;color:#fff;background:rgba(0,0,0,.6);
+  border-radius:6px;padding:5px;display:none;pointer-events:none}
 .serif{font-family:"PoliceTexte",Georgia,serif;font-style:italic}
 .gras{font-family:"PoliceCle",Arial,sans-serif;font-weight:800;text-transform:uppercase}
 #fin{position:absolute;inset:0;display:none;align-items:center;justify-content:center}
@@ -122,6 +129,7 @@ progress{width:100%;height:10px}
         <div class="couche" id="c-ill"></div>
         <div class="couche" id="c-ecran"></div>
         <div id="st-zone"></div>
+        <div id="aide-edit">✏️ Entrée : valider · Échap : annuler<br>Astuce : hors édition, ⌥ + clic sur un mot = mot clé en GRAS</div>
         <img id="logo-coin" alt="">
         <div id="fin"><img id="logo-fin" alt=""></div>
       </div>
@@ -234,15 +242,22 @@ function ecranA(s) { return proj.ecrans.find(e => s >= e.deb && s < e.fin); }
 function illA(s) { return proj.illustrations.find(i => s >= i.deb && s < i.fin); }
 function casse(w) { const c = R().casse; return c === "majuscules" ? w.toUpperCase() : c === "minuscules" ? w.toLowerCase() : w; }
 
+let edition = null;          // sous-titre en cours de modification directement sur la vidéo
 function rendreSousTitres(s, surEcran) {
-  const z = $("st-zone"); z.innerHTML = "";
-  const g = sousTitreA(s); if (!g) return;
+  const z = $("st-zone");
+  if (edition) return;        // on ne touche pas au texte pendant la saisie
+  z.innerHTML = "";
+  const g = sousTitreA(s);
+  z.classList.toggle("editable", !!g && !lecture);
+  z.dataset.id = g ? g.id : ""; z.dataset.ecran = surEcran ? "1" : "";
+  if (!g) return;
+  const mots = g.mots.map((m, i) => ({ ...m, i }));
   const k = SW / 1080, tt = R().taille_texte || 1, anim = R().animation || "pop";
   const lignes = [];
-  if (surEcran) lignes.push(g.mots.map(m => ({ ...m, cls: "serif", px: 96 * tt })));
-  else if (g.cle === null || g.cle === undefined || g.cle >= g.mots.length) lignes.push(g.mots.map(m => ({ ...m, w: casse(m.w), cls: "serif", px: 80 * tt })));
+  if (surEcran) lignes.push(mots.map(m => ({ ...m, cls: "serif", px: 96 * tt })));
+  else if (g.cle === null || g.cle === undefined || g.cle >= g.mots.length) lignes.push(mots.map(m => ({ ...m, w: casse(m.w), cls: "serif", px: 80 * tt })));
   else {
-    const av = g.mots.slice(0, g.cle), cl = g.mots[g.cle], ap = g.mots.slice(g.cle + 1);
+    const av = mots.slice(0, g.cle), cl = mots[g.cle], ap = mots.slice(g.cle + 1);
     if (av.length) lignes.push(av.map(m => ({ ...m, w: casse(m.w), cls: "serif", px: 80 * tt })));
     lignes.push([{ ...cl, w: cl.w.replace(/[,.;:]+$/, ""), cls: "gras", px: 84 * tt }]);
     if (ap.length) lignes.push(ap.map(m => ({ ...m, w: casse(m.w), cls: "serif", px: 80 * tt })));
@@ -252,10 +267,11 @@ function rendreSousTitres(s, surEcran) {
   for (const l of lignes) {
     const d = document.createElement("div"); d.className = "ligne";
     for (const m of l) {
-      const sp = document.createElement("span"); sp.className = m.cls; sp.textContent = m.w;
+      const sp = document.createElement("span"); sp.className = m.cls; sp.textContent = m.w; sp.dataset.i = m.i;
       sp.style.fontSize = (m.px * k) + "px";
       const p = (s - m.t) / 0.14;
-      if (p <= 0) sp.style.visibility = "hidden";
+      if (p <= 0 && lecture) sp.style.visibility = "hidden";
+      else if (p <= 0) sp.style.opacity = 0.35;        // en pause : les mots à venir restent visibles (estompés)
       else if (p < 1 && anim !== "aucune") {
         const e = 1 - Math.pow(1 - p, 3);
         sp.style.opacity = Math.min(1, p * 1.6);
@@ -266,6 +282,61 @@ function rendreSousTitres(s, surEcran) {
     z.appendChild(d);
   }
 }
+
+// ------------------------------------------------------------------ édition directe sur la vidéo
+function changerTexte(g, texte, cle) {
+  const mots = texte.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+  if (!mots.length) return false;
+  const ancienCle = (g.cle !== null && g.cle !== undefined && g.mots[g.cle]) ? g.mots[g.cle].w.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "") : null;
+  if (mots.length === g.mots.length) g.mots = g.mots.map((m, i) => ({ ...m, w: mots[i] }));
+  else {
+    const d = g.fin - g.deb, poids = mots.map(w => w.length + 2), tot = poids.reduce((a, b) => a + b, 0); let x = g.deb;
+    g.mots = mots.map((w, i) => { const r = { w, t: x }; x += d * poids[i] / tot; return r; });
+  }
+  if (cle !== undefined) g.cle = cle;
+  else if (ancienCle !== null) { const k = g.mots.findIndex(m => m.w.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "") === ancienCle); g.cle = k >= 0 ? k : null; }
+  if (g.cle !== null && g.cle >= g.mots.length) g.cle = null;
+  return true;
+}
+function ouvrirEdition(g) {
+  arreter();
+  const z = $("st-zone"), k = SW / 1080, tt = R().taille_texte || 1;
+  edition = { id: g.id };
+  sel = { type: "st", id: g.id }; dessinerTimeline(); inspecter();
+  z.innerHTML = ""; z.classList.remove("editable");
+  const ed = document.createElement("div"); ed.className = "edit-st";
+  ed.contentEditable = "plaintext-only"; if (ed.contentEditable !== "plaintext-only") ed.contentEditable = "true";
+  ed.style.fontSize = (80 * tt * k) + "px";
+  ed.textContent = g.mots.map(m => m.w).join(" ");
+  z.appendChild(ed); $("aide-edit").style.display = "block";
+  ed.focus();
+  const r = document.createRange(); r.selectNodeContents(ed); const sl = getSelection(); sl.removeAllRanges(); sl.addRange(r);
+  let fini = false;
+  const terminer = (valider) => {
+    if (fini) return; fini = true;
+    const texte = ed.innerText; edition = null; $("aide-edit").style.display = "none";
+    if (valider && texte.replace(/\s+/g, " ").trim() !== g.mots.map(m => m.w).join(" ")) {
+      memoriser();
+      if (!changerTexte(g, texte)) { proj.sous_titres = proj.sous_titres.filter(x => x.id !== g.id); sel = null; }
+      apresModif();
+    } else rendreScene(false);
+  };
+  ed.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+    if (e.key === "Enter") { e.preventDefault(); terminer(true); }
+    else if (e.key === "Escape") { e.preventDefault(); terminer(false); }
+  });
+  ed.addEventListener("blur", () => terminer(true));
+}
+$("st-zone").addEventListener("click", (e) => {
+  if (lecture || edition) return;
+  const z = $("st-zone"), g = proj.sous_titres.find(x => x.id === z.dataset.id); if (!g) return;
+  const span = e.target.closest("span[data-i]");
+  if (e.altKey && span) {                                   // ⌥ + clic : ce mot devient le mot clé
+    memoriser(); const i = +span.dataset.i; g.cle = g.cle === i ? null : i; sel = { type: "st", id: g.id }; apresModif(); return;
+  }
+  ouvrirEdition(g);
+});
 
 let illCourante = null;
 function rendreScene(forcerSeek) {
@@ -541,13 +612,12 @@ function inspecter() {
     const g = proj.sous_titres.find(g => g.id === sel.id); if (!g) { sel = null; return inspecter(); }
     ins.innerHTML = `<h3>💬 Sous-titre</h3>` + champ("Texte", `<textarea id="i-texte">${g.mots.map(m => m.w).join(" ").replace(/</g, "&lt;")}</textarea>`) +
       champ("Mot clé (en GRAS CAPITALES)", `<select id="i-cle"><option value="">— aucun —</option>${g.mots.map((m, i) => `<option value="${i}" ${i === g.cle ? "selected" : ""}>${m.w.replace(/</g, "&lt;")}</option>`).join("")}</select>`) +
-      `<p class="aide">${tc(g.deb)} → ${tc(g.fin)} (temps de la vidéo brute)</p><div class="rangee"><button class="primaire" id="i-ok">Appliquer</button><button class="danger" id="i-suppr">🗑 Supprimer</button></div>`;
+      `<p class="aide">${tc(g.deb)} → ${tc(g.fin)} (temps de la vidéo brute)</p><div class="rangee"><button class="primaire" id="i-ok">Appliquer</button><button class="danger" id="i-suppr">🗑 Supprimer</button></div>
+      <p class="aide">💡 Vous pouvez aussi cliquer directement sur le texte dans la vidéo (en pause) pour le modifier, et faire ⌥ + clic sur un mot pour le mettre en GRAS.</p>`;
     const appliquer = () => {
-      memoriser(); const mots = $("i-texte").value.trim().split(/\s+/).filter(Boolean);
-      if (!mots.length) { supprimer(); return; }
-      if (mots.length === g.mots.length) g.mots = g.mots.map((m, i) => ({ ...m, w: mots[i] }));
-      else { const d = (g.fin - g.deb); const poids = mots.map(w => w.length + 2), tot = poids.reduce((a, b) => a + b, 0); let x = g.deb; g.mots = mots.map((w, i) => { const r = { w, t: x }; x += d * poids[i] / tot; return r; }); }
-      const c = $("i-cle").value; g.cle = c === "" ? null : Math.min(+c, g.mots.length - 1); apresModif();
+      memoriser(); const c = $("i-cle").value;
+      if (!changerTexte(g, $("i-texte").value, c === "" ? null : +c)) { histo.pop(); supprimer(); return; }
+      apresModif();
     };
     $("i-ok").onclick = appliquer;
     $("i-cle").onchange = appliquer;          // le texte en cours de saisie est appliqué en même temps
@@ -716,7 +786,7 @@ async function exporter() {
 
 // ------------------------------------------------------------------ clavier + boutons
 document.addEventListener("keydown", (e) => {
-  if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)) return;
+  if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName) || document.activeElement.isContentEditable) return;
   const mod = e.metaKey || e.ctrlKey;
   if (e.code === "Space") { e.preventDefault(); lecture ? arreter() : jouer(); }
   else if (mod && e.key.toLowerCase() === "z") { e.preventDefault(); e.shiftKey ? retablir() : annuler(); }

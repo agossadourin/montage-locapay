@@ -49,6 +49,8 @@ Le **mode classique** (et les **⚙️ Paramètres** : identité, style, clés) 
 
 **✂️ Retoucher comme dans CapCut** : après le montage, cliquez sur **Retoucher dans l'éditeur (timeline)** (ou lien **l'éditeur** en haut de page pour rouvrir un projet). Aperçu en direct et pistes Vidéo / Sous-titres / Illustrations / Écrans / Musique : glisser pour déplacer, bords pour raccourcir, **S** couper, **Suppr** supprimer, **⌘Z** annuler, **Espace** lecture. Cliquez sur un élément pour le modifier dans le panneau de droite. **Exporter** refait la vidéo.
 
+**✏️ Sous-titres** : en pause, cliquez sur le texte **dans la vidéo** pour le modifier (Entrée pour valider, Échap pour annuler) ; ⌥ + clic sur un mot pour le mettre en GRAS.
+
 **🎵 Musique** : dans l'éditeur, **＋ Musique** → choisissez une ambiance, écoutez, **Utiliser** (musiques libres pour usage commercial, via Openverse). Si l'artiste doit être crédité, le texte à mettre en description est fourni et enregistré à côté de la vidéo.
 
 **Corriger un mot** : **✏️ Corrections de mots › ➕** — choisissez le **moment** (une phrase précise, ou partout), cliquez sur le ou les **mots**, tapez la **correction** (vide = supprimer), **✔ Ajouter**, puis **Monter la vidéo**. Les corrections « dans toutes mes vidéos » sont mémorisées (`Vidéos › Montages Locapay › .dictionnaire_corrections.json`).
