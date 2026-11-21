@@ -1,5 +1,13 @@
 # Historique des versions
 
+## 0.14.0 — 2026-11-21
+- **✨ Illustrations créées par Gemini** (facultatif, payant ≈ 0,03 $ l'image) : au lieu de chercher des photos existantes, Gemini crée pour chaque passage une **image verticale** adaptée à ce qui est dit et à votre contexte (Bénin, Cotonou, location…, modifiable).
+  - ⚙️ Paramètres › Clés API : clé Gemini, bouton « Tester », choix de la source des illustrations du montage automatique (banques gratuites ou Gemini), contexte donné à Gemini.
+  - Éditeur : bouton **✨ Image IA** (image pour le passage sous la tête de lecture) et, dans une illustration, consigne modifiable + **✨ Créer l'image**.
+  - Images mises en cache : régénérer la même consigne ne coûte rien. En cas de refus (clé, facturation), les banques d'images prennent le relais et le message s'affiche dans l'éditeur.
+- Correction : le choix de l'IA (Ollama / Claude) n'était pas conservé d'un lancement à l'autre.
+- Paramètres : les clés affichées sont relues à chaque ouverture de la page.
+
 ## 0.13.1 — 2026-11-21
 - Retour aux **coupes franches** entre les plans par défaut (aussi pour les projets déjà créés). Les transitions restent disponibles au besoin : petit rond entre deux plans dans l'éditeur, ou ⚙️ Paramètres › Style.
 - L'aperçu de l'éditeur garde ses deux lecteurs en relais (pas de saccade aux changements de plan).

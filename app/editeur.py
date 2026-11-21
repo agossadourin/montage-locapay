@@ -188,7 +188,7 @@ def ajouter_routes(api: FastAPI, racines):
     def config():
         cfg = C.charger_config()
         return {"style": cfg["style_actif"], "images": bool(cfg["cles"].get("pexels") or cfg["cles"].get("pixabay")),
-                "claude": bool(cfg["cles"].get("anthropic"))}
+                "claude": bool(cfg["cles"].get("anthropic")), "gemini": bool(cfg["cles"].get("gemini"))}
 
     @api.post("/editeur/api/chercher")
     async def chercher(req: Request):
@@ -197,6 +197,26 @@ def ajouter_routes(api: FastAPI, racines):
         if not (cles.get("pexels") or cles.get("pixabay")):
             raise HTTPException(400, "Ajoutez une clé Pexels ou Pixabay (gratuite) dans les Paramètres.")
         return I.rechercher(str(d.get("requete", "")).strip(), cles)
+
+    @api.post("/editeur/api/generer")
+    async def generer(req: Request):
+        d = await req.json()
+        cfg = C.charger_config()
+        cle = cfg["cles"].get("gemini")
+        if not cle:
+            raise HTTPException(400, "Ajoutez une clé Gemini dans ⚙️ Paramètres › Clés API.")
+        consigne = str(d.get("prompt") or "").strip() or I.prompt_illustration(d, (cfg.get("illustrations") or {}).get("contexte", ""))
+        try:
+            import asyncio
+            fichier = await asyncio.to_thread(I.generer_image, consigne, cle)
+        except Exception as e:
+            raise HTTPException(502, str(e))
+        return {"fichier": fichier, "type": "image", "prompt": consigne}
+
+    @api.post("/editeur/api/consigne")
+    async def consigne(req: Request):
+        d = await req.json()
+        return {"prompt": I.prompt_illustration(d, (C.charger_config().get("illustrations") or {}).get("contexte", ""))}
 
     @api.post("/editeur/api/prendre")
     async def prendre(req: Request):

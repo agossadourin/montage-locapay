@@ -166,6 +166,7 @@ progress{width:100%;height:10px}
       <button id="b-add-st">＋ Sous-titre</button>
       <button id="b-add-ecran">＋ Écran couleur</button>
       <button id="b-add-ill">＋ Illustration</button>
+      <button id="b-gen-ill" title="Créer une image sur mesure avec Gemini à la tête de lecture">✨ Image IA</button>
       <button id="b-add-mus">＋ Musique</button>
       <input type="file" id="f-envoi" style="display:none">
       <span style="margin-left:auto" class="aide">Zoom</span>
@@ -683,6 +684,20 @@ function ajouterSousTitre() {
   const g = { id: uid(), deb: p.s, fin: Math.min(p.s + 1.5, proj.duree_source), mots: [{ w: "Nouveau", t: p.s }, { w: "texte", t: p.s + 0.4 }], cle: 0 };
   proj.sous_titres.push(g); proj.sous_titres.sort((a, b) => a.deb - b.deb); sel = { type: "st", id: g.id }; apresModif();
 }
+async function ajouterImageIA() {           // image Gemini pour le passage sous la tête de lecture
+  const p = versSource(Math.min(t, corps() - 0.01)); if (!p) return;
+  const autour = proj.sous_titres.filter(g => g.fin > p.s - 2.5 && g.deb < p.s + 2.5).map(g => g.mots.map(m => m.w).join(" ")).join(" ");
+  const b = $("b-gen-ill"); b.disabled = true; $("statut").textContent = "✨ Création de l'image (Gemini)…";
+  try {
+    const rep = await fetch("/editeur/api/generer", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ phrase: autour, mot: "" }) });
+    const d = await rep.json();
+    if (!rep.ok) { $("statut").textContent = "⚠️ " + (d.detail || "Création impossible"); if (rep.status === 400 && confirm((d.detail || "") + "\n\nOuvrir les Paramètres ?")) location.href = "/?parametres=1"; return; }
+    memoriser();
+    const it = { id: uid(), deb: p.s, fin: Math.min(p.s + 2.2, proj.duree_source), fichier: d.fichier, type: "image", phrase: autour, prompt: d.prompt, generee: true };
+    proj.illustrations.push(it); sel = { type: "ill", id: it.id }; apresModif();
+  } catch (e) { $("statut").textContent = "⚠️ " + e; }
+  finally { b.disabled = false; }
+}
 function ajouterEcran() {
   const p = versSource(Math.min(t, corps() - 0.01)); if (!p) return; memoriser();
   const e = { id: uid(), deb: p.s, fin: Math.min(p.s + 1.0, proj.duree_source), couleur: ident.couleurs[0] };
@@ -721,6 +736,7 @@ function inspecter() {
       <p>3. Retouchez, puis <b>⬆️ Exporter</b>.</p>` + aide; return; }
   if (!sel) { ins.innerHTML = `<h3>Projet</h3><p class="aide">${proj.clips.length} plans · ${proj.sous_titres.length} sous-titres · ${proj.illustrations.length} illustrations · ${proj.ecrans.length} écrans</p>` +
       (proj.alertes.length ? `<p>⚠️ <b>${proj.alertes.length} passage(s) à vérifier</b> sur la piste rouge : cliquez dessus pour écouter, couper, traduire ou garder.</p>` : "") +
+      (proj.auto && proj.auto.erreur_gemini ? `<p class="aide">⚠️ Gemini : ${String(proj.auto.erreur_gemini).replace(/</g, "&lt;")}</p>` : "") +
       (proj.auto && proj.auto.sans_cle_images ? `<p class="aide">🖼 Aucune illustration cherchée : ajoutez une clé Pexels (gratuite) dans <a href="/?parametres=1">⚙️ Paramètres › Clés API</a>, puis relancez ✨.</p>` : "") +
       champ("Transitions entre les plans", `<div class="rangee"><select id="i-trans-tout">${Object.entries(TRANSITIONS).map(([k, [n, i]]) => `<option value="${k}" ${(R().transition || "coupe") === k ? "selected" : ""}>${i} ${n}</option>`).join("")}</select>
         <select id="i-trans-duree">${[[0.15, "Rapide"], [0.25, "Normale"], [0.4, "Lente"], [0.6, "Très lente"]].map(([d, n]) => `<option value="${d}" ${Math.abs(dureeTr() - d) < 0.04 ? "selected" : ""}>${n}</option>`).join("")}</select></div>
@@ -799,6 +815,9 @@ function inspecter() {
       <div class="rangee">${alt.length > 1 ? `<button id="i-autre">🔄 Autre proposition</button>` : ""}<button id="i-remp">📁 Mon fichier</button><button class="danger" id="i-suppr">🗑 Supprimer</button></div>` +
       champ("Cadrage", `<select id="i-cadrage">${[["auto", "Automatique"], ["remplir", "Plein écran (bords rognés)"], ["adapter", "Image entière sur fond flou"]].map(([k, n]) => `<option value="${k}" ${(it.cadrage || "auto") === k ? "selected" : ""}>${n}</option>`).join("")}</select>`) +
       `<p class="aide">Automatique : une image ou vidéo plus large que haute (paysage) est montrée en entière sur un fond flou, au lieu d'être fortement zoomée.</p>
+      <label>✨ Créer une image sur mesure avec Gemini</label>
+      <textarea id="i-prompt" rows="5" placeholder="Décrivez l'image voulue…">${(it.prompt || "").replace(/</g, "&lt;")}</textarea>
+      <div class="rangee"><button id="i-generer" class="primaire">✨ Créer l'image</button><span class="aide" id="i-gen-info">≈ 0,03 $ par image</span></div>
       <label>Chercher une autre image (en anglais de préférence)</label>
       <div class="rangee"><input id="i-req" value="${(it.requete || "").replace(/"/g, "&quot;")}" style="flex:1"><button id="i-cherche">🔍</button></div>
       <div class="grille" id="i-grille"></div>`;
@@ -825,6 +844,17 @@ function inspecter() {
     };
     $("i-remp").onclick = () => choisirFichier({ remplacer: it.id }, "image/*,video/*");
     $("i-suppr").onclick = supprimer;
+    if (!it.prompt) fetch("/editeur/api/consigne", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ phrase: it.phrase || "", mot: it.mot || it.requete || "" }) })
+      .then(r => r.json()).then(d => { if ($("i-prompt") && !$("i-prompt").value) $("i-prompt").value = d.prompt; }).catch(() => {});
+    $("i-generer").onclick = async () => {
+      const b = $("i-generer"); b.disabled = true; $("i-gen-info").textContent = "Création en cours (10 à 30 s)…"; $("statut").textContent = "Gemini…";
+      try {
+        const rep = await fetch("/editeur/api/generer", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: $("i-prompt").value }) });
+        const d = await rep.json();
+        if (!rep.ok) { $("i-gen-info").innerHTML = "⚠️ " + String(d.detail || "Création impossible").replace(/</g, "&lt;") + (rep.status === 400 ? ` — <a href="/?parametres=1">Paramètres</a>` : ""); $("statut").textContent = "Prêt"; b.disabled = false; return; }
+        memoriser(); it.fichier = d.fichier; it.type = "image"; it.prompt = d.prompt; it.generee = true; illCourante = null; apresModif();
+      } catch (e) { $("i-gen-info").textContent = "⚠️ " + e; b.disabled = false; }
+    };
     $("i-cadrage").onchange = () => { memoriser(); if ($("i-cadrage").value === "auto") delete it.cadrage; else it.cadrage = $("i-cadrage").value; apresModif(); };
   } else if (sel.type === "mus") {
     const m = proj.musique; if (!m) { sel = null; return inspecter(); }
@@ -948,6 +978,7 @@ $("b-couper").onclick = couper; $("b-suppr").onclick = supprimer;
 $("b-annuler").onclick = annuler; $("b-retablir").onclick = retablir;
 $("b-add-st").onclick = ajouterSousTitre; $("b-add-ecran").onclick = ajouterEcran;
 $("b-add-ill").onclick = () => choisirFichier("ill", "image/*,video/*");
+$("b-gen-ill").onclick = ajouterImageIA;
 $("b-add-mus").onclick = choisirMusique;
 $("b-exporter").onclick = exporter;
 $("b-auto").onclick = montageAuto;

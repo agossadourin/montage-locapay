@@ -543,3 +543,59 @@ def test_coupes_franches_par_defaut(tmp_path):
     chemin.write_text(json.dumps(ancien), encoding="utf-8")
     proj = P.charger(str(chemin))
     assert proj["reglages"]["transition"] == "coupe" and proj["clips"][0]["transition"] == "flash"
+
+
+def _png_b64():
+    import base64, io
+    from PIL import Image
+    buf = io.BytesIO(); Image.new("RGB", (576, 1024), (10, 200, 160)).save(buf, "PNG")
+    return base64.b64encode(buf.getvalue()).decode()
+
+
+def test_generation_gemini_simulee(tmp_path, monkeypatch):
+    """Image Gemini : consigne contextualisée, format 9:16, seconde écriture si la première est refusée, cache."""
+    import httpx
+    monkeypatch.setattr(I, "DOSSIER_CACHE", str(tmp_path / "cache"))
+    appels = []
+
+    def reponse(req):
+        corps = json.loads(req.content)
+        appels.append(corps)
+        assert req.headers["x-goog-api-key"] == "cle-g" and "generateContent" in str(req.url)
+        if "imageConfig" in corps["generationConfig"]:
+            return httpx.Response(400, json={"error": {"message": "Unknown name imageConfig"}})
+        assert corps["generationConfig"]["responseFormat"]["image"]["aspectRatio"] == "9:16"
+        return httpx.Response(200, json={"candidates": [{"content": {"parts": [
+            {"text": "voici"}, {"inlineData": {"mimeType": "image/png", "data": _png_b64()}}]}}]})
+    client = httpx.Client(transport=httpx.MockTransport(reponse))
+    consigne = I.prompt_illustration({"phrase": "vous payez votre loyer sur votre téléphone", "mot": "loyer"}, "Cotonou, Bénin")
+    assert "Cotonou" in consigne and "loyer" in consigne and "9:16" in consigne
+    f = I.generer_image(consigne, "cle-g", client=client)
+    from PIL import Image
+    assert os.path.exists(f) and Image.open(f).size == (576, 1024) and len(appels) == 2
+    assert I.generer_image(consigne, "cle-g", client=client) == f and len(appels) == 2       # cache : pas de 2e paiement
+    refus = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(403, json={"error": {"message": "billing"}})))
+    with pytest.raises(RuntimeError, match="billing"):
+        I.generer_image("autre", "cle-g", client=refus)
+
+
+def test_montage_auto_illustrations_gemini(tmp_path, monkeypatch):
+    monkeypatch.setattr(C, "FICHIER", str(tmp_path / "config.json"))
+    monkeypatch.setattr(C, "DOSSIER_STYLES", str(tmp_path / "styles"))
+    cfg = C.charger_config()
+    cfg["cles"]["gemini"] = "cle-g"; cfg["illustrations"]["source"] = "gemini"; cfg["ia"] = {"fournisseur": "ollama"}
+    C.sauver_config(cfg)
+    assert C.charger_config()["ia"]["fournisseur"] == "ollama"          # le choix de l'IA est bien conservé
+    img = tmp_path / "g.png"
+    from PIL import Image
+    Image.new("RGB", (576, 1024)).save(img)
+    consignes = []
+    mots = _mots("Avec Locapay vous payez votre loyer depuis votre téléphone sans vous déplacer", 0.5)
+    proj = {"version": 2, "video": "x.mp4", "duree_source": 8.0, "clips": [{"id": "c", "a": 0.0, "b": 8.0, "zoom": 1.0}],
+            "sous_titres": [], "ecrans": [], "illustrations": [], "alertes": [], "musique": None, "reglages": {}}
+    monkeypatch.setattr(I, "choisir_moments", lambda *a, **k: [{"deb": 1.0, "fin": 3.0, "mot": "loyer", "requete": "rent",
+                                                                 "phrase": "vous payez votre loyer"}])
+    auto = P.auto(proj, transcrire=lambda *a, **k: mots, rechercher=lambda *a, **k: 1 / 0,
+                  generer=lambda c, cle: (consignes.append(c), str(img))[1])
+    ill = auto["illustrations"]
+    assert len(ill) == 1 and ill[0]["generee"] and ill[0]["fichier"] == str(img) and "loyer" in consignes[0]

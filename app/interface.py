@@ -27,7 +27,9 @@ except OSError:
 
 STYLE_CLES = [f.name for f in fields(C.ProfilStyle) if f.name != "description"]
 IDENTITE_CLES = ["nom", "couleur_1", "couleur_2", "fichier_logo", "police_serif", "police_grasse"]
-CLES_API = ["anthropic", "pexels", "pixabay"]
+CLES_API = ["anthropic", "pexels", "pixabay", "gemini"]
+SOURCES_ILL = {"Banques d'images gratuites (Pexels / Pixabay)": "banques",
+               "Images créées sur mesure par Gemini (payant, ≈ 0,03 $ l'image)": "gemini"}
 CHOIX_IA = {"Aucune (règles automatiques, gratuit)": "aucune", "Ollama — sur ce Mac, gratuit": "ollama",
             "Claude — en ligne, payant": "claude"}
 
@@ -106,16 +108,25 @@ def sauver_identite(nom, c1, c2, logo, serif, grasse):
             i["police_grasse"])
 
 
-def sauver_cles(anthropic, pexels, pixabay, choix_ia=None):
+def sauver_cles(anthropic, pexels, pixabay, gemini="", choix_ia=None, source_ill=None, contexte=None):
     cfg = C.charger_config()
     if choix_ia:
         cfg.setdefault("ia", {})["fournisseur"] = CHOIX_IA.get(choix_ia, "aucune")
     cfg["cles"].update({"anthropic": (anthropic or "").strip(), "pexels": (pexels or "").strip(),
-                        "pixabay": (pixabay or "").strip()})
+                        "pixabay": (pixabay or "").strip(), "gemini": (gemini or "").strip()})
+    if source_ill:
+        cfg["illustrations"]["source"] = SOURCES_ILL.get(source_ill, "banques")
+    if contexte is not None:
+        cfg["illustrations"]["contexte"] = contexte.strip() or C.CONTEXTE_DEFAUT
     C.sauver_config(cfg)
-    actives = [n for n, v in (("Claude", anthropic), ("Pexels", pexels), ("Pixabay", pixabay)) if (v or "").strip()]
+    actives = [n for n, v in (("Claude", anthropic), ("Pexels", pexels), ("Pixabay", pixabay), ("Gemini", gemini))
+               if (v or "").strip()]
+    avert = ""
+    if cfg["illustrations"]["source"] == "gemini" and not cfg["cles"]["gemini"]:
+        avert = "\n\n⚠️ Illustrations par Gemini choisies, mais aucune clé Gemini : les banques d'images seront utilisées."
     return ("✅ Clés enregistrées : " + (", ".join(actives) if actives else "aucune")
-            + f" · IA : {ia.nom_ia(ia.config_ia(cfg))}")
+            + f" · IA : {ia.nom_ia(ia.config_ia(cfg))}"
+            + f" · Illustrations : {'Gemini' if cfg['illustrations']['source'] == 'gemini' else 'banques d’images'}" + avert)
 
 
 def tester_ollama_ui():
@@ -717,6 +728,21 @@ with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": 
                         cle_anthropic = gr.Textbox(value=CLES0.get("anthropic", ""), type="password", label="Clé Claude (Anthropic)")
                         cle_pexels = gr.Textbox(value=CLES0.get("pexels", ""), type="password", label="Clé Pexels")
                         cle_pixabay = gr.Textbox(value=CLES0.get("pixabay", ""), type="password", label="Clé Pixabay")
+                        gr.Markdown("**✨ Illustrations créées par Gemini** (facultatif, payant) : au lieu de chercher des photos "
+                                    "existantes, Gemini dessine pour chaque passage une image verticale adaptée à ce qui est dit "
+                                    "et à votre contexte (Bénin, location…). Clé sur [aistudio.google.com/apikey]"
+                                    "(https://aistudio.google.com/apikey) — la génération d'images demande d'activer la "
+                                    "facturation Google (≈ 0,03 $ l'image, soit ≈ 0,20 $ pour une vidéo d'une minute).")
+                        cle_gemini = gr.Textbox(value=CLES0.get("gemini", ""), type="password", label="Clé Gemini (Google AI Studio)")
+                        with gr.Row():
+                            test_gemini = gr.Button("🔌 Tester la clé Gemini", size="sm")
+                            info_gemini = gr.Markdown()
+                        source_ill = gr.Radio(list(SOURCES_ILL), label="Illustrations du montage automatique",
+                                              value=next((k for k, v in SOURCES_ILL.items()
+                                                          if v == (CFG.get("illustrations") or {}).get("source", "banques")),
+                                                         list(SOURCES_ILL)[0]))
+                        contexte_ill = gr.Textbox(value=(CFG.get("illustrations") or {}).get("contexte", C.CONTEXTE_DEFAUT),
+                                                  lines=3, label="Contexte donné à Gemini (lieu, personnes, thème de vos vidéos)")
                         bouton_cles = gr.Button("💾 Enregistrer les clés", size="sm")
                         info_cles = gr.Markdown()
                     with gr.Tab("🔧 Avancé"):
@@ -800,7 +826,7 @@ with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": 
     # ------------------------------------------------------------------ événements
     comps_style = [cs[k] for k in STYLE_CLES]
     comps_identite = [nom_marque, c1, c2, logo, police_serif_ch, police_grasse_ch]
-    comps_cles = [cle_anthropic, cle_pexels, cle_pixabay]
+    comps_cles = [cle_anthropic, cle_pexels, cle_pixabay, cle_gemini]
     comps_avance = [hesit, vol, vocabulaire, modele, auto_qt]
 
     bouton.click(monter, [video, musique, *comps_identite, *comps_style, *comps_cles, *comps_avance,
@@ -812,7 +838,16 @@ with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": 
 
     bouton_identite.click(sauver_identite, [nom_marque, c1, c2, logo, police_serif, police_grasse],
                           [info_identite, logo, police_serif_ch, police_grasse_ch])
-    bouton_cles.click(sauver_cles, comps_cles + [choix_ia], [info_cles])
+    bouton_cles.click(sauver_cles, comps_cles + [choix_ia, source_ill, contexte_ill], [info_cles])
+    def _cles_actuelles():           # relues à chaque ouverture de la page (sinon valeurs du démarrage de l'app)
+        cfg = C.charger_config(); k = cfg["cles"]; ill = cfg.get("illustrations") or {}
+        fourn = (cfg.get("ia") or {}).get("fournisseur") or ("claude" if k.get("anthropic") else "aucune")
+        return (k.get("anthropic", ""), k.get("pexels", ""), k.get("pixabay", ""), k.get("gemini", ""),
+                next((n for n, v in CHOIX_IA.items() if v == fourn), list(CHOIX_IA)[0]),
+                next((n for n, v in SOURCES_ILL.items() if v == ill.get("source", "banques")), list(SOURCES_ILL)[0]),
+                ill.get("contexte") or C.CONTEXTE_DEFAUT)
+    app.load(_cles_actuelles, None, comps_cles + [choix_ia, source_ill, contexte_ill])
+    test_gemini.click(lambda k: I.tester_gemini((k or "").strip())[1], [cle_gemini], [info_gemini])
     test_ollama.click(tester_ollama_ui, None, [info_ollama])
     style_choisi.change(charger_style_ui, [style_choisi], comps_style + [desc_style])
     bouton_style.click(sauver_style_ui, [nouveau_style, style_choisi, *comps_style], [style_choisi, info_style])

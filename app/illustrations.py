@@ -2,7 +2,9 @@
 
 - Choix des moments : Claude (si une clé est configurée) ou dictionnaire de mots « illustrables ».
 - Recherche : Pexels et/ou Pixabay (clés gratuites, usage commercial autorisé sans attribution obligatoire).
+- Génération : Gemini (« Nano Banana », clé Google AI Studio, payant) — images verticales adaptées au contexte.
 """
+import base64
 import hashlib
 import math
 import os
@@ -204,6 +206,88 @@ def orientation(w, h):
     except (TypeError, ValueError, ZeroDivisionError):
         return "portrait"
     return "paysage" if r > 1.15 else ("carre" if r > 0.8 else "portrait")
+
+
+# ------------------------------------------------------------------ génération d'images (Gemini)
+GEMINI_MODELE = "gemini-3.1-flash-lite-image"     # le moins cher (~0,03 $ l'image 1K) ; voir README
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{modele}:generateContent"
+
+
+def prompt_illustration(moment, contexte):
+    """Consigne pour Gemini à partir du moment à illustrer (phrase prononcée + mot) et du contexte de la marque."""
+    phrase = (moment.get("phrase") or "").strip()
+    mot = (moment.get("mot") or "").strip()
+    p = "Photographie réaliste, format vertical 9:16, pour illustrer ce passage d'une vidéo"
+    p += f" : « {phrase} »." if phrase else "."
+    if mot:
+        p += f" Sujet principal : {mot}."
+    if contexte:
+        p += f" Contexte : {contexte.strip()}"
+    return p + (" Style : photo authentique prise sur le vif, lumière naturelle, couleurs chaudes, sujet bien centré. "
+                "Aucun texte, aucune écriture, aucun logo, aucun filigrane.")
+
+
+def _image_de_reponse(donnees):
+    for cand in donnees.get("candidates") or []:
+        for part in ((cand.get("content") or {}).get("parts") or []):
+            d = part.get("inlineData") or part.get("inline_data")
+            if d and d.get("data"):
+                return base64.b64decode(d["data"]), d.get("mimeType") or d.get("mime_type") or "image/png"
+    raise RuntimeError("Gemini n'a pas renvoyé d'image" + (
+        f" ({donnees['candidates'][0].get('finishReason')})" if donnees.get("candidates") else
+        f" ({(donnees.get('promptFeedback') or {}).get('blockReason', 'réponse vide')})"))
+
+
+def generer_image(prompt, cle, client=None, modele=None):
+    """Génère une image verticale (9:16) avec Gemini et renvoie son chemin local (mise en cache par consigne)."""
+    os.makedirs(DOSSIER_CACHE, exist_ok=True)
+    modele = modele or GEMINI_MODELE
+    empreinte = hashlib.md5(f"{modele}|{prompt}".encode()).hexdigest()[:16]
+    deja = [f for f in os.listdir(DOSSIER_CACHE) if f.startswith(f"gemini-{empreinte}.")]
+    if deja:
+        return os.path.join(DOSSIER_CACHE, deja[0])
+    c = client or _client()
+    url = GEMINI_URL.format(modele=modele)
+    base = {"contents": [{"parts": [{"text": prompt}]}]}
+    # deux écritures du format d'image selon les versions de l'API : on essaie la plus courante d'abord
+    variantes = [{"responseModalities": ["IMAGE"], "imageConfig": {"aspectRatio": "9:16"}},
+                 {"responseModalities": ["TEXT", "IMAGE"], "responseFormat": {"image": {"aspectRatio": "9:16"}}}]
+    erreur = None
+    for gen in variantes:
+        r = c.post(url, headers={"x-goog-api-key": cle, "Content-Type": "application/json"},
+                   json={**base, "generationConfig": gen}, timeout=120)
+        if r.status_code == 200:
+            donnees, typ = _image_de_reponse(r.json())
+            ext = {"image/jpeg": ".jpg", "image/webp": ".webp"}.get(typ, ".png")
+            chemin = os.path.join(DOSSIER_CACHE, f"gemini-{empreinte}{ext}")
+            with open(chemin + ".part", "wb") as f:
+                f.write(donnees)
+            os.replace(chemin + ".part", chemin)
+            return chemin
+        try:
+            message = r.json().get("error", {}).get("message", "")
+        except ValueError:
+            message = r.text[:200]
+        erreur = f"Gemini a refusé la demande ({r.status_code}) : {message}"
+        if r.status_code != 400:          # clé invalide, quota, facturation… : inutile d'essayer l'autre écriture
+            break
+    raise RuntimeError(erreur)
+
+
+def tester_gemini(cle, client=None):
+    """(ok, message) — vérifie que la clé Gemini est acceptée (liste des modèles, sans rien générer)."""
+    if not cle:
+        return False, "Ajoutez d'abord une clé Gemini."
+    try:
+        c = client or _client()
+        r = c.get("https://generativelanguage.googleapis.com/v1beta/models", headers={"x-goog-api-key": cle})
+        if r.status_code == 200:
+            noms = [m.get("name", "") for m in r.json().get("models", [])]
+            image = any("image" in n for n in noms)
+            return True, "✅ Clé Gemini acceptée" + ("" if image else " (aucun modèle d'image listé pour ce compte)")
+        return False, f"❌ Clé refusée ({r.status_code}) : {r.json().get('error', {}).get('message', '')}"
+    except Exception as e:
+        return False, f"❌ Gemini injoignable : {e}"
 
 
 def telecharger(resultat, client=None):

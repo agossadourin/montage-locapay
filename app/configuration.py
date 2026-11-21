@@ -53,7 +53,11 @@ IDENTITE_DEFAUT = {
     "police_grasse": os.path.join(ICI, "polices", "gras.ttf"),
 }
 
-CONFIG_DEFAUT = {"identite": IDENTITE_DEFAUT, "cles": {"anthropic": "", "pexels": "", "pixabay": ""},
+CONTEXTE_DEFAUT = ("Bénin, Cotonou, Afrique de l'Ouest. Personnes béninoises, quartiers et maisons typiques de Cotonou. "
+                   "Thème : la location de logements (propriétaires, locataires, loyer payé par Mobile Money sur téléphone).")
+
+CONFIG_DEFAUT = {"identite": IDENTITE_DEFAUT, "cles": {"anthropic": "", "pexels": "", "pixabay": "", "gemini": ""},
+                 "illustrations": {"source": "banques", "contexte": CONTEXTE_DEFAUT},
                  "style_actif": "Locapay"}
 
 
@@ -79,6 +83,10 @@ def charger_config():
     for k in ("identite", "cles"):
         out[k].update({kk: vv for kk, vv in (c.get(k) or {}).items() if vv not in (None,)})
     out["style_actif"] = c.get("style_actif") or out["style_actif"]
+    out["illustrations"].update({k: v for k, v in (c.get("illustrations") or {}).items() if v not in (None, "")})
+    for k, v in c.items():                     # autres réglages (ex. choix de l'IA) : conservés tels quels
+        if k not in out:
+            out[k] = v
     # fichiers disparus (ex. dossier du projet déplacé) : retour aux valeurs par défaut
     for k in ("fichier_logo", "police_serif", "police_grasse"):
         if out["identite"].get(k) and not os.path.exists(out["identite"][k]):

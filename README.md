@@ -53,6 +53,8 @@ Le **mode classique** (et les **⚙️ Paramètres** : identité, style, clés) 
 
 **✏️ Sous-titres** : en pause, cliquez sur le texte **dans la vidéo** pour le modifier (Entrée pour valider, Échap pour annuler) ; ⌥ + clic sur un mot pour le mettre en GRAS.
 
+**✨ Illustrations créées par Gemini** (facultatif, payant) : clé sur [aistudio.google.com/apikey](https://aistudio.google.com/apikey) avec facturation activée (≈ 0,03 $ l'image, modèle `gemini-3.1-flash-lite-image`, réglable dans `illustrations.py` › `GEMINI_MODELE`). Dans **⚙️ Paramètres › Clés API**, choisissez « Images créées sur mesure par Gemini » et décrivez votre contexte. Dans l'éditeur : **✨ Image IA** à la tête de lecture, ou **✨ Créer l'image** dans une illustration (consigne modifiable).
+
 **🖼 Format des illustrations** : les recherches privilégient les médias verticaux. Une image ou vidéo en paysage est affichée en entier sur un fond flou (réglage **Cadrage** de l'illustration dans l'éditeur).
 
 **🎵 Musique** : dans l'éditeur, **＋ Musique** → choisissez une ambiance, écoutez, **Utiliser** (musiques libres pour usage commercial, via Openverse). Si l'artiste doit être crédité, le texte à mettre en description est fourni et enregistré à côté de la vidéo.

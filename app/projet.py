@@ -199,7 +199,7 @@ def _dico():
                 {"portee": "toujours", "avant": "Lokapay", "apres": "Locapay"}]
 
 
-def auto(proj, rappel=None, transcrire=None, rechercher=None, telecharger=None):
+def auto(proj, rappel=None, transcrire=None, rechercher=None, telecharger=None, generer=None):
     """Montage automatique sur ce qui est gardé dans la timeline.
 
     Coupe les blancs et hésitations à l'intérieur de chaque plan, crée sous-titres, écrans de couleur et
@@ -212,6 +212,7 @@ def auto(proj, rappel=None, transcrire=None, rechercher=None, telecharger=None):
     transcrire = transcrire or M.transcrire
     rechercher = rechercher or I.rechercher
     telecharger = telecharger or I.telecharger
+    generer = generer or I.generer_image
     proj = deepcopy(proj)
     R = vers_plan({**proj, "clips": proj["clips"] or [{"a": 0, "b": 1}]})[1]
     R.illustrations = []
@@ -281,10 +282,29 @@ def auto(proj, rappel=None, transcrire=None, rechercher=None, telecharger=None):
     par_minute = float(style.get("illustrations_par_minute", 6.0))
     gardes = [w for w in mots_v if w.get("st", True) and w.get("w") and sortie(w["s"]) is not None]
     duree_sortie = sum(c["b"] - c["a"] for c in proj["clips"])
-    if par_minute > 0 and (cles.get("pexels") or cles.get("pixabay")):
+    reg_ill = cfg.get("illustrations") or {}
+    par_gemini = reg_ill.get("source") == "gemini" and bool(cles.get("gemini"))
+    if isinstance(proj.get("auto"), dict):
+        proj["auto"].pop("erreur_gemini", None)
+    if par_minute > 0 and (par_gemini or cles.get("pexels") or cles.get("pixabay")):
         import ia
         props = I.choisir_moments(gardes, duree_sortie, par_minute=par_minute, cle_api=ia.config_ia(cfg))
         for k, pr in enumerate(props):
+            if par_gemini:                 # image créée sur mesure pour ce passage
+                etape(0.6 + 0.35 * k / max(1, len(props)), f"Création des illustrations (Gemini) {k + 1}/{len(props)}…")
+                consigne = I.prompt_illustration(pr, reg_ill.get("contexte") or "")
+                try:
+                    fichier = generer(consigne, cles["gemini"])
+                    proj["illustrations"].append({"id": _id(), "deb": round(pr["deb"], 3), "fin": round(pr["fin"], 3),
+                                                  "fichier": fichier, "type": "image", "requete": pr["requete"],
+                                                  "phrase": pr.get("phrase", ""), "mot": pr.get("mot", ""),
+                                                  "prompt": consigne, "generee": True})
+                    continue
+                except Exception as e:
+                    print("Illustration Gemini impossible :", e)
+                    proj.setdefault("auto", {})["erreur_gemini"] = str(e)[:300]
+                    if not (cles.get("pexels") or cles.get("pixabay")):
+                        continue
             etape(0.6 + 0.35 * k / max(1, len(props)), "Recherche d'illustrations…")
             res = rechercher(pr["requete"], cles)
             if not res:
@@ -299,8 +319,12 @@ def auto(proj, rappel=None, transcrire=None, rechercher=None, telecharger=None):
                 continue
             proj["illustrations"].append({"id": _id(), "deb": round(pr["deb"], 3), "fin": round(pr["fin"], 3),
                                           "fichier": fichier, "type": res[0]["type"], "requete": pr["requete"],
+                                          "phrase": pr.get("phrase", ""), "mot": pr.get("mot", ""),
                                           "alternatives": res[:8], "choix": 0})
+    erreur_gemini = (proj.get("auto") or {}).get("erreur_gemini")
     proj["auto"] = {"fait": True, "nb_alertes": len(proj["alertes"]),
-                    "sans_cle_images": not (cles.get("pexels") or cles.get("pixabay"))}
+                    "sans_cle_images": not (cles.get("pexels") or cles.get("pixabay") or par_gemini)}
+    if erreur_gemini:
+        proj["auto"]["erreur_gemini"] = erreur_gemini
     etape(1.0, "Terminé")
     return proj
