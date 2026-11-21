@@ -28,7 +28,9 @@ L'installateur met en place ffmpeg (Homebrew), Python (uv), les bibliothèques, 
 
 ## Utilisation
 
-Ouvrez **Montage Locapay** (Launchpad / Applications / Spotlight). Glissez la vidéo, cliquez sur **Monter la vidéo**. Le résultat est enregistré dans **Vidéos › Montages Locapay**.
+Ouvrez **Montage Locapay** (Launchpad / Applications / Spotlight). Glissez la vidéo, cliquez sur **Monter la vidéo**. Le résultat est enregistré dans **Vidéos › Montages Locapay** et s'ouvre dans QuickTime.
+
+**Plusieurs rushs ?** Onglet **Plusieurs vidéos (prémontage)** : déposez-les, réglez l'ordre, le début et la fin de chacun (en secondes), décochez ceux à ignorer, cliquez sur **Assembler**, puis sur **Monter la vidéo**. Les prémontages sont gardés dans **Vidéos › Montages Locapay › prémontages**.
 
 Sans l'app, `Lancer Montage.command` ouvre la même interface dans le navigateur.
 
@@ -60,6 +62,7 @@ Double-cliquez sur **`Mettre à jour.command`** (ou `git pull` dans le dossier).
 - **Rythme des coupes / zooms** : `Reglages.duree_plan_max`, `Reglages.zoom`, `cycle`.
 - **Écrans de couleur** : nombre et position dans `construire_plan` (bloc « écrans de couleur »).
 - **Effets sonores** : fonctions `sfx_*` et la liste `evts` dans `monter`.
+- **Prémontage** (assemblage de plusieurs rushs) : `premontage` dans `montage_auto.py`, onglet « Plusieurs vidéos » dans `interface.py`.
 - **Nouveaux réglages dans l'interface** : ajouter le champ dans `Reglages`, puis le composant dans `interface.py`.
 
 ### Développer

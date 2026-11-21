@@ -461,6 +461,57 @@ def duree_video(video):
                                  "-of", "csv=p=0", video], capture_output=True, text=True).stdout.strip())
 
 
+def a_du_son(video):
+    out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=index",
+                          "-of", "csv=p=0", video], capture_output=True, text=True).stdout.strip()
+    return bool(out)
+
+
+# ============================================================ prémontage (plusieurs vidéos)
+def premontage(morceaux, sortie, rappel=None):
+    """Assemble plusieurs vidéos en une seule, prête pour le montage automatique.
+
+    morceaux : liste de (chemin, debut_s, fin_s) dans l'ordre voulu ; fin_s=None = jusqu'à la fin.
+    Chaque morceau est recadré en vertical 1080x1920, 30 i/s, son stéréo 48 kHz (silence ajouté
+    s'il n'y a pas de son), puis les morceaux sont mis bout à bout.
+    """
+    if not morceaux:
+        raise ValueError("Aucune vidéo à assembler.")
+    dossier = sortie + ".morceaux"
+    os.makedirs(dossier, exist_ok=True)
+    parties = []
+    for i, (chemin, deb, fin) in enumerate(morceaux):
+        total = duree_video(chemin)
+        deb = max(0.0, float(deb or 0))
+        fin = total if fin in (None, "") else min(float(fin), total)
+        if fin - deb < 0.2:
+            raise ValueError(f"Morceau {i + 1} ({os.path.basename(chemin)}) : la fin doit être après le début.")
+        part = os.path.join(dossier, f"{i:03d}.mp4")
+        cmd = ["ffmpeg", "-loglevel", "error", "-y", "-ss", f"{deb:.3f}", "-t", f"{fin - deb:.3f}", "-i", chemin]
+        son = a_du_son(chemin)
+        if not son:
+            cmd += ["-f", "lavfi", "-t", f"{fin - deb:.3f}", "-i", f"anullsrc=r={SR}:cl=stereo"]
+        cmd += ["-vf", f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},fps={FPS},setsar=1,format=yuv420p",
+                "-af", f"aresample={SR},aformat=channel_layouts=stereo",
+                "-map", "0:v:0", "-map", "0:a:0" if son else "1:a:0",
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", "16",
+                "-c:a", "aac", "-b:a", "192k", "-ar", str(SR), "-shortest", part]
+        subprocess.run(cmd, check=True)
+        parties.append(part)
+        if rappel:
+            rappel((i + 1) / (len(morceaux) + 1))
+    liste = os.path.join(dossier, "liste.txt")
+    with open(liste, "w", encoding="utf-8") as f:
+        for p in parties:
+            f.write("file '" + p.replace("'", "'\\''") + "'\n")
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", liste,
+                    "-c", "copy", "-movflags", "+faststart", sortie], check=True)
+    shutil.rmtree(dossier, ignore_errors=True)
+    if rappel:
+        rappel(1.0)
+    return sortie
+
+
 def _srt_temps(t):
     ms = int(round(t * 1000)); h, ms = divmod(ms, 3600000); m, ms = divmod(ms, 60000); s, ms = divmod(ms, 1000)
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"

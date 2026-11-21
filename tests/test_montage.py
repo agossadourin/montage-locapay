@@ -85,3 +85,20 @@ def test_notebook_colab_a_jour():
     integre = gzip.decompress(base64.b64decode(blob))
     attendu = open(os.path.join(RACINE, "app", "montage_auto.py"), "rb").read()
     assert integre == attendu, "Notebook Colab pas à jour : lancez  python colab/build_nb.py"
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg absent")
+def test_premontage(tmp_path):
+    """Deux clips (paysage sans son, portrait avec son) coupés puis assemblés en 1080x1920."""
+    a, b = tmp_path / "a.mp4", tmp_path / "b.mov"
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=25:d=5",
+                    "-c:v", "libx264", "-preset", "ultrafast", str(a)], check=True)
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=720x1280:rate=30:d=4",
+                    "-f", "lavfi", "-i", "sine=frequency=330:duration=4", "-c:v", "libx264", "-preset", "ultrafast",
+                    "-c:a", "aac", "-shortest", str(b)], check=True)
+    out = tmp_path / "pre.mp4"
+    M.premontage([(str(b), 0.5, 3.0), (str(a), 1.0, None)], str(out))
+    assert abs(M.duree_video(str(out)) - (2.5 + 4.0)) < 0.25
+    assert M.a_du_son(str(out))
+    w, h = M._taille_affichee(str(out))
+    assert (w, h) == (1080, 1920)

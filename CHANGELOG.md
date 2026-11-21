@@ -1,5 +1,9 @@
 # Historique des versions
 
+## 0.3.0 — 2026-11-21
+- **Prémontage** : onglet « Plusieurs vidéos » — on dépose plusieurs rushs, on règle l'ordre, le début et la fin de chacun, on décoche ceux à ignorer, puis « Assembler » les met bout à bout (recadrage vertical, son harmonisé) avant le montage automatique.
+- **Lecture fiable** : bouton « ▶️ Lire dans QuickTime » et ouverture automatique de la vidéo montée dans QuickTime à la fin (désactivable).
+
 ## 0.2.0 — 2026-11-21
 - App Mac **Montage Locapay** : fenêtre native (pywebview), icône, rangée dans Applications.
 - `Mettre à jour.command` : `git pull` + dépendances + reconstruction de l'app.
