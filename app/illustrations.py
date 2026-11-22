@@ -176,17 +176,51 @@ def _pixabay(requete, cle, client):
     return out
 
 
+OPENVERSE_IMAGES = "https://api.openverse.org/v1/images/"
+
+
+def credit_image(x):
+    """Texte de crédit à mettre en description (licence CC BY) ; vide si aucune attribution n'est exigée."""
+    lic = (x.get("licence") or "").lower()
+    if lic in ("cc0", "pdm", ""):
+        return ""
+    return (f"Image : « {x.get('titre') or 'Sans titre'} » par {x.get('credit') or 'auteur inconnu'} — "
+            f"licence CC {lic.upper()} {x.get('version', '')}".strip() + (f" — {x['page']}" if x.get("page") else ""))
+
+
+def _openverse(requete, c):
+    """Images Openverse sous licence libre, usage commercial, sans clé (CC0, domaine public, CC BY)."""
+    r = c.get(OPENVERSE_IMAGES, params={"q": requete, "license": "cc0,pdm,by", "aspect_ratio": "tall",
+                                        "page_size": 12, "mature": "false"})
+    out = []
+    if r.status_code == 200:
+        for x in r.json().get("results", []):
+            if not x.get("url"):
+                continue
+            res = {"type": "image", "apercu": x.get("thumbnail") or x["url"], "url": x["url"],
+                   "id": f"openverse-{x.get('id')}", "w": x.get("width"), "h": x.get("height"),
+                   "credit": x.get("creator") or "Openverse", "licence": (x.get("license") or "").lower(),
+                   "version": x.get("license_version") or "", "titre": x.get("title") or "",
+                   "page": x.get("foreign_landing_url") or "", "source": "openverse"}
+            res["credit_licence"] = credit_image(res)
+            out.append(res)
+    return out
+
+
 def rechercher(requete, cles, client=None):
-    """Résultats (vidéos d'abord, puis photos) : [{type, apercu, url, id, credit}]."""
+    """Résultats (vidéos d'abord, puis photos) : [{type, apercu, url, id, credit}].
+    Pexels / Pixabay si une clé est fournie ; Openverse (sans clé) en complément."""
     c = client or _client()
     res = []
-    try:
-        if cles.get("pexels"):
-            res += _pexels(requete, cles["pexels"], c)
-        if cles.get("pixabay"):
-            res += _pixabay(requete, cles["pixabay"], c)
-    except Exception as e:
-        print("Recherche d'illustrations impossible →", e)
+    for nom, f in (("pexels", lambda: _pexels(requete, cles["pexels"], c)),
+                   ("pixabay", lambda: _pixabay(requete, cles["pixabay"], c)),
+                   ("openverse", lambda: _openverse(requete, c))):
+        if nom != "openverse" and not cles.get(nom):
+            continue
+        try:
+            res += f()
+        except Exception as e:
+            print(f"Recherche d'illustrations ({nom}) impossible →", e)
     for r in res:
         r["orientation"] = orientation(r.get("w"), r.get("h"))
     verticaux = [r for r in res if r["orientation"] != "paysage"]

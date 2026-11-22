@@ -42,6 +42,7 @@ header .statut{color:var(--doux);margin-left:auto}
   color:#fff;font-size:10px;line-height:16px;text-align:center;cursor:pointer;z-index:4;user-select:none}
 .trans:hover,.trans.choisie{background:var(--accent);border-color:#fff}
 .trans.coupe{opacity:.55}
+.temps-fort{position:absolute;bottom:3px;width:2px;height:9px;margin-left:-1px;background:#fff9;border-radius:1px;pointer-events:none}
 #scene .couche{position:absolute;inset:0;display:none}
 #scene .couche img,#scene .couche video{width:100%;height:100%;object-fit:cover}
 #c-ill .fond{display:none}
@@ -53,6 +54,8 @@ header .statut{color:var(--doux);margin-left:auto}
 #st-zone .ligne{display:flex;gap:.28em;justify-content:center;white-space:nowrap;line-height:1.05}
 #st-zone span{color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.55);transition:none;display:inline-block}
 #st-zone.editable{pointer-events:auto;cursor:text}
+#st-zone .doodle{position:relative}
+#st-zone .doodle svg{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;pointer-events:none}
 #st-zone.editable:hover .ligne{outline:1px dashed rgba(255,255,255,.7);outline-offset:4px;border-radius:4px}
 #st-zone .edit-st{pointer-events:auto;cursor:text;min-width:55%;max-width:92%;text-align:center;color:#fff;font-family:"PoliceTexte",Georgia,serif;
   font-style:italic;line-height:1.15;background:rgba(0,0,0,.45);border:1px dashed #fff;border-radius:8px;padding:.15em .45em;outline:none;
@@ -130,6 +133,7 @@ progress{width:100%;height:10px}
     <span class="titre" id="nom-projet">Projet</span>
     <a href="/?parametres=1" title="Identité visuelle, style, clés API">⚙️ Paramètres</a>
     <span class="statut" id="statut">Chargement…</span>
+    <button id="b-style" title="Charger une vidéo dont vous aimez le montage : son style est copié sur votre vidéo">🎨 Copier un style</button>
     <button id="b-auto">✨ Montage automatique</button>
     <button id="b-exporter" class="primaire">⬆️ Exporter la vidéo</button>
   </header>
@@ -218,6 +222,28 @@ function total() { return corps() + dureeFin(); }
 function versSource(x) { for (const c of clips()) if (x >= c.o && x < c.o + c.d) return { c, s: c.a + (x - c.o) }; return null; }
 function versSortie(s) { for (const c of clips()) if (s >= c.a && s < c.b) return c.o + (s - c.a); return null; }
 const lisse = (p) => { p = clamp(p, 0, 1); return p * p * (3 - 2 * p); };
+async function calerRythme(avecMessage) {     // musique sur un temps fort, recadrages et écrans sur les temps
+  if (!proj.musique) return;
+  $("statut").textContent = "🥁 Analyse du rythme…";
+  try {
+    const rep = await fetch("/editeur/api/rythme", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(proj) });
+    const d = await rep.json();
+    if (!rep.ok) { $("statut").textContent = "⚠️ " + (d.detail || "Rythme introuvable"); return; }
+    memoriser();
+    proj.clips = d.projet.clips; proj.ecrans = d.projet.ecrans; proj.musique = d.projet.musique;
+    apresModif(); chargerMusique();
+    $("statut").textContent = `🥁 ${d.tempo ? Math.round(d.tempo) + " BPM · " : ""}${d.deplaces} élément(s) calé(s) sur le rythme`;
+    if (avecMessage && $("i-rythme-info")) $("i-rythme-info").textContent = `≈ ${Math.round(d.tempo || 0)} BPM · ${d.deplaces} élément(s) calé(s). ⌘Z pour annuler.`;
+  } catch (e) { $("statut").textContent = "⚠️ " + e; }
+}
+function choisirDoodles(mode) {              // même choix que le moteur : les mots clés les plus longs, ~1 sur 4
+  proj.sous_titres.forEach(g => delete g.doodle);
+  if (!["souligne", "cercle", "melange"].includes(mode)) return;
+  const surEcran = (g) => proj.ecrans.some(e => e.deb <= (g.deb + g.fin) / 2 && (g.deb + g.fin) / 2 < e.fin);
+  const cles = proj.sous_titres.filter(g => g.cle !== null && g.cle !== undefined && g.mots[g.cle] && !surEcran(g));
+  const choisis = [...cles].sort((a, b) => b.mots[b.cle].w.length - a.mots[a.cle].w.length).slice(0, Math.max(1, Math.floor(cles.length / 4))).slice(0, 6);
+  choisis.sort((a, b) => a.deb - b.deb).forEach((g, i) => { g.doodle = mode === "melange" ? ["souligne", "cercle"][i % 2] : mode; });
+}
 function typeTransition(c) { return (c && c.transition) || R().transition || "coupe"; }
 function dureeTr() { return clamp(+(R().duree_transition ?? 0.25) || 0.25, 0.08, 1); }
 function contigu(c, n) { return !!n && Math.abs(n.a - c.b) < 2 / FPS; }
@@ -312,9 +338,21 @@ function rendreSousTitres(s, surEcran) {
       if (p <= 0 && lecture) sp.style.visibility = "hidden";
       else if (p <= 0) sp.style.opacity = 0.35;        // en pause : les mots à venir restent visibles (estompés)
       else if (p < 1 && anim !== "aucune") {
-        const e = 1 - Math.pow(1 - p, 3);
+        const e = 1 - Math.pow(1 - p, 3), x = p - 1, rebond = 1 + 2.1 * x * x * x + 1.1 * x * x;   // léger dépassement
         sp.style.opacity = Math.min(1, p * 1.6);
-        if (anim === "pop") sp.style.transform = `translateY(${14 * k * (1 - e)}px) scale(${0.82 + 0.18 * e})`;
+        if (anim === "pop") sp.style.transform = `translateY(${14 * k * (1 - e)}px) scale(${0.82 + 0.18 * rebond})`;
+      }
+      if (m.cls === "gras" && g.doodle && !surEcran) {   // trait dessiné à la main sous / autour du mot clé
+        sp.classList.add("doodle");
+        const pd = lecture ? clamp((s - m.t - 0.10) / 0.35, 0, 1) : (s >= m.t ? 1 : 0.999);
+        const avance = 1 - Math.pow(1 - pd, 3);
+        const chemin = g.doodle === "cercle"
+          ? "M 20 -28 C -40 -30, -30 120, 50 128 C 130 130, 140 -30, 50 -30 C 35 -30, 25 -27, 15 -22"
+          : "M -6 112 C 25 120, 60 112, 106 104";
+        const couleur = (R().couleur_2 || "#0AC2A4");
+        sp.insertAdjacentHTML("beforeend", `<svg viewBox="0 0 100 100" preserveAspectRatio="none"><path d="${chemin}" pathLength="100"
+          fill="none" stroke="${couleur}" stroke-width="${(g.doodle === "cercle" ? 9 : 11) * k}" stroke-linecap="round" vector-effect="non-scaling-stroke"
+          stroke-dasharray="100" stroke-dashoffset="${100 * (1 - avance)}" opacity="${pd >= 0.999 && !lecture && s < m.t ? 0.35 : 1}"/></svg>`);
       }
       d.appendChild(sp);
     }
@@ -583,7 +621,14 @@ function dessinerTimeline() {
   poser("p-alerte", proj.alertes, "alerte", it => (it.type === "incompris" ? "⚠️ Incompris (fon ?) · " : "⚠️ Reprise · ") + it.phrase);
   $("b-auto").classList.toggle("attention", !(proj.auto && proj.auto.fait));
   const pm = $("p-mus"); pm.innerHTML = "";
-  if (proj.musique) { const d = el("mus", 0, tot, "🎵 " + (proj.musique.titre || proj.musique.fichier.split("/").pop()) + ` · volume ${Math.round((proj.musique.volume ?? .18) * 100)} %`, { type: "mus", id: "mus" }); pm.appendChild(d); }
+  if (proj.musique) {
+    const d = el("mus", 0, tot, "🎵 " + (proj.musique.titre || proj.musique.fichier.split("/").pop()) + ` · volume ${Math.round((proj.musique.volume ?? .18) * 100)} %` + (proj.musique.tempo ? ` · ${Math.round(proj.musique.tempo)} BPM` : ""), { type: "mus", id: "mus" }); pm.appendChild(d);
+    const dec = +(proj.musique.decalage || 0);           // temps forts de la musique (repères)
+    for (const b of proj.musique.temps_forts || []) {
+      const x = b - dec; if (x < 0 || x > tot) continue;
+      const r = document.createElement("div"); r.className = "temps-fort"; r.style.left = (x * pxs) + "px"; pm.appendChild(r);
+    }
+  }
   const nb = masques.st + masques.ill + masques.ecran;
   $("statut").dataset.masques = nb;
   rendreScene(false);
@@ -712,13 +757,14 @@ $("f-envoi").addEventListener("change", async () => {
   const r = await (await fetch("/editeur/api/envoyer", { method: "POST", body: fd })).json();
   memoriser();
   if (envoiPour === "mus") proj.musique = { fichier: r.chemin, volume: proj.musique?.volume ?? 0.18, decalage: 0, titre: f.name, credit: "" };
+  if (envoiPour === "mus" && R().caler_sur_rythme !== false) setTimeout(() => calerRythme(false), 50);
   else if (envoiPour === "ill") {
     const p = versSource(Math.min(t, corps() - 0.01)); if (!p) return;
     const d = r.type === "video" && r.duree ? Math.min(3, r.duree) : 2;
     const it = { id: uid(), deb: p.s, fin: Math.min(p.s + d, proj.duree_source), fichier: r.chemin, type: r.type === "video" ? "video" : "image" };
     proj.illustrations.push(it); sel = { type: "ill", id: it.id };
   } else if (envoiPour && envoiPour.remplacer) {
-    const it = proj.illustrations.find(i => i.id === envoiPour.remplacer); if (it) { it.fichier = r.chemin; it.type = r.type === "video" ? "video" : "image"; illCourante = null; }
+    const it = proj.illustrations.find(i => i.id === envoiPour.remplacer); if (it) { it.fichier = r.chemin; it.type = r.type === "video" ? "video" : "image"; it.credit_licence = ""; illCourante = null; }
   }
   chargerMusique(); apresModif();
 });
@@ -737,11 +783,14 @@ function inspecter() {
   if (!sel) { ins.innerHTML = `<h3>Projet</h3><p class="aide">${proj.clips.length} plans · ${proj.sous_titres.length} sous-titres · ${proj.illustrations.length} illustrations · ${proj.ecrans.length} écrans</p>` +
       (proj.alertes.length ? `<p>⚠️ <b>${proj.alertes.length} passage(s) à vérifier</b> sur la piste rouge : cliquez dessus pour écouter, couper, traduire ou garder.</p>` : "") +
       (proj.auto && proj.auto.erreur_gemini ? `<p class="aide">⚠️ ${String(proj.auto.erreur_gemini).replace(/</g, "&lt;")}</p>` : "") +
-      (proj.auto && proj.auto.sans_cle_images ? `<p class="aide">🖼 Aucune illustration cherchée : ajoutez une clé Pexels (gratuite) dans <a href="/?parametres=1">⚙️ Paramètres › Clés API</a>, puis relancez ✨.</p>` : "") +
+      (proj.auto && proj.auto.sans_cle_images ? `<p class="aide">🖼 Illustrations trouvées sur Openverse (images libres). Pour avoir aussi des vidéos, ajoutez une clé Pexels (gratuite) dans <a href="/?parametres=1">⚙️ Paramètres › Clés API</a>.</p>` : "") +
+      champ("Doodles sur les mots clés", `<select id="i-doodles-tout">${[["aucun", "Aucun"], ["souligne", "〰️ Soulignés"], ["cercle", "⭕ Entourés"], ["melange", "〰️⭕ Mélange"]].map(([v, n]) => `<option value="${v}" ${(R().doodles || "aucun") === v ? "selected" : ""}>${n}</option>`).join("")}</select>
+        <p class="aide">Un trait se dessine sur les mots clés les plus forts (environ 1 sur 4). Pour un seul sous-titre : cliquez dessus.</p>`) +
       champ("Transitions entre les plans", `<div class="rangee"><select id="i-trans-tout">${Object.entries(TRANSITIONS).map(([k, [n, i]]) => `<option value="${k}" ${(R().transition || "coupe") === k ? "selected" : ""}>${i} ${n}</option>`).join("")}</select>
         <select id="i-trans-duree">${[[0.15, "Rapide"], [0.25, "Normale"], [0.4, "Lente"], [0.6, "Très lente"]].map(([d, n]) => `<option value="${d}" ${Math.abs(dureeTr() - d) < 0.04 ? "selected" : ""}>${n}</option>`).join("")}</select></div>
         <p class="aide">Pour un seul plan : cliquez sur le petit rond entre deux plans de la piste 🎬.</p>`) +
       ($("statut").dataset.masques > 0 ? `<p class="aide">ℹ️ ${$("statut").dataset.masques} élément(s) tombent dans des passages coupés et ne s'affichent pas.</p>` : "") + aide;
+    $("i-doodles-tout").onchange = () => { memoriser(); proj.reglages = { ...R(), doodles: $("i-doodles-tout").value }; choisirDoodles($("i-doodles-tout").value); apresModif(); };
     $("i-trans-tout").onchange = () => { memoriser(); proj.reglages = { ...R(), transition: $("i-trans-tout").value }; apresModif(); };
     $("i-trans-duree").onchange = () => { memoriser(); proj.reglages = { ...R(), duree_transition: +$("i-trans-duree").value }; apresModif(); };
     return; }
@@ -767,6 +816,7 @@ function inspecter() {
     const g = proj.sous_titres.find(g => g.id === sel.id); if (!g) { sel = null; return inspecter(); }
     ins.innerHTML = `<h3>💬 Sous-titre</h3>` + champ("Texte", `<textarea id="i-texte">${g.mots.map(m => m.w).join(" ").replace(/</g, "&lt;")}</textarea>`) +
       champ("Mot clé (en GRAS CAPITALES)", `<select id="i-cle"><option value="">— aucun —</option>${g.mots.map((m, i) => `<option value="${i}" ${i === g.cle ? "selected" : ""}>${m.w.replace(/</g, "&lt;")}</option>`).join("")}</select>`) +
+      champ("Doodle sur le mot clé", `<select id="i-doodle">${[["", "Aucun"], ["souligne", "〰️ Souligné"], ["cercle", "⭕ Entouré"]].map(([v, n]) => `<option value="${v}" ${(g.doodle || "") === v ? "selected" : ""}>${n}</option>`).join("")}</select>`) +
       `<p class="aide">${tc(g.deb)} → ${tc(g.fin)} (temps de la vidéo brute)</p><div class="rangee"><button class="primaire" id="i-ok">Appliquer</button><button class="danger" id="i-suppr">🗑 Supprimer</button></div>
       <p class="aide">💡 Vous pouvez aussi cliquer directement sur le texte dans la vidéo (en pause) pour le modifier, et faire ⌥ + clic sur un mot pour le mettre en GRAS.</p>`;
     const appliquer = () => {
@@ -776,6 +826,7 @@ function inspecter() {
     };
     $("i-ok").onclick = appliquer;
     $("i-cle").onchange = appliquer;          // le texte en cours de saisie est appliqué en même temps
+    $("i-doodle").onchange = () => { memoriser(); if ($("i-doodle").value) g.doodle = $("i-doodle").value; else delete g.doodle; apresModif(); };
     $("i-suppr").onclick = supprimer;
   } else if (sel.type === "ecran") {
     const e = proj.ecrans.find(e => e.id === sel.id); if (!e) { sel = null; return inspecter(); }
@@ -825,7 +876,7 @@ function inspecter() {
       $("statut").textContent = "Téléchargement…";
       const rep = await fetch("/editeur/api/prendre", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(r) });
       if (!rep.ok) { $("statut").textContent = "⚠️ Téléchargement impossible"; return; }
-      const d = await rep.json(); memoriser(); it.fichier = d.fichier; it.type = d.type; illCourante = null; apresModif();
+      const d = await rep.json(); memoriser(); it.fichier = d.fichier; it.type = d.type; it.credit_licence = r.credit_licence || ""; illCourante = null; apresModif();
     };
     if ($("i-autre")) $("i-autre").onclick = () => { it.choix = ((it.choix || 0) + 1) % alt.length; prendre(alt[it.choix]); };
     $("i-cherche").onclick = async () => {
@@ -852,7 +903,7 @@ function inspecter() {
         const rep = await fetch("/editeur/api/generer", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ prompt: $("i-prompt").value }) });
         const d = await rep.json();
         if (!rep.ok) { $("i-gen-info").innerHTML = "⚠️ " + String(d.detail || "Création impossible").replace(/</g, "&lt;") + (rep.status === 400 ? ` — <a href="/?parametres=1">Paramètres</a>` : ""); $("statut").textContent = "Prêt"; b.disabled = false; return; }
-        memoriser(); it.fichier = d.fichier; it.type = "image"; it.prompt = d.prompt; it.generee = true; illCourante = null; apresModif();
+        memoriser(); it.fichier = d.fichier; it.type = "image"; it.prompt = d.prompt; it.generee = true; it.credit_licence = ""; illCourante = null; apresModif();
       } catch (e) { $("i-gen-info").textContent = "⚠️ " + e; b.disabled = false; }
     };
     $("i-cadrage").onchange = () => { memoriser(); if ($("i-cadrage").value === "auto") delete it.cadrage; else it.cadrage = $("i-cadrage").value; apresModif(); };
@@ -862,16 +913,82 @@ function inspecter() {
       (m.credit ? `<label>Crédit à mettre dans la description de la publication</label><textarea readonly id="i-credit">${m.credit.replace(/</g, "&lt;")}</textarea><button id="i-copier">📋 Copier le crédit</button>` : "") +
       champ("Volume (sous la voix)", `<input type="range" id="i-vol" min="0" max="0.6" step="0.01" value="${m.volume ?? 0.18}" style="width:100%">`) +
       champ("Démarrer le morceau à (secondes)", `<input type="number" id="i-dec" min="0" step="0.5" value="${m.decalage || 0}" style="width:100px">`) +
-      `<p class="aide">À l'export, la musique baisse automatiquement quand on parle.</p><div class="rangee"><button id="i-remp">📁 Changer de musique</button><button class="danger" id="i-suppr">🗑 Retirer</button></div>`;
+      `<p class="aide">À l'export, la musique baisse automatiquement quand on parle.</p>` +
+      champ("Rythme", `<div class="rangee"><button id="i-rythme">🥁 Caler le montage sur le rythme</button></div>
+        <p class="aide" id="i-rythme-info">${m.tempo ? `≈ ${Math.round(m.tempo)} BPM — les petits traits sur la piste 🎵 marquent les temps.` : "La musique démarre sur un temps fort, les recadrages et écrans de couleur tombent sur les temps."}</p>`) +
+      `<div class="rangee"><button id="i-remp">📁 Changer de musique</button><button class="danger" id="i-suppr">🗑 Retirer</button></div>`;
     $("i-vol").onchange = () => { memoriser(); m.volume = +$("i-vol").value; apresModif(); };
     $("i-dec").onchange = () => { memoriser(); m.decalage = Math.max(0, +$("i-dec").value); apresModif(); };
     $("i-remp").onclick = choisirMusique; $("i-suppr").onclick = supprimer;
+    $("i-rythme").onclick = () => calerRythme(true);
     if ($("i-copier")) $("i-copier").onclick = () => { navigator.clipboard.writeText(m.credit); $("i-copier").textContent = "✓ Copié"; };
   }
 }
 
 // ------------------------------------------------------------------ musique libre (Openverse)
 let ecouteMusique = null;
+// ------------------------------------------------------------------ copier le style d'une vidéo modèle
+async function copierStyle() {
+  arreter();
+  const boite = $("modal-boite"); $("modal").style.display = "flex"; boite.style.width = "560px";
+  const fermer = () => { $("modal").style.display = "none"; boite.style.width = ""; };
+  boite.innerHTML = `<h3>🎨 Copier le style d'une vidéo</h3>
+    <p class="aide">Déposez une vidéo dont vous aimez le montage (Reel, TikTok…). L'outil mesure son rythme de coupes, ses zooms, la place et la taille des sous-titres, le mot mis en valeur, ses écrans de couleur, son étalonnage, ses transitions, son calage sur la musique et ses couleurs, puis refait <b>votre</b> vidéo dans ce style.</p>
+    <div id="m-depot" class="depot" style="border:2px dashed var(--ligne);border-radius:10px;padding:28px;text-align:center;cursor:pointer">📥 Glissez la vidéo modèle ici, ou cliquez pour la choisir</div>
+    <input type="file" id="m-fic" accept="video/*" style="display:none">
+    <div class="rangee" style="margin-top:12px"><button id="m-fermer" style="margin-left:auto">Fermer</button></div>`;
+  $("m-fermer").onclick = fermer;
+  const depot = $("m-depot");
+  depot.onclick = () => $("m-fic").click();
+  depot.ondragover = (e) => { e.preventDefault(); depot.style.borderColor = "var(--accent)"; };
+  depot.ondrop = (e) => { e.preventDefault(); if (e.dataTransfer.files[0]) analyser(e.dataTransfer.files[0]); };
+  $("m-fic").onchange = () => { if ($("m-fic").files[0]) analyser($("m-fic").files[0]); };
+
+  async function analyser(f) {
+    boite.innerHTML = `<h3>🎨 Analyse de « ${f.name.replace(/</g, "&lt;")} »</h3><progress id="m-prog" max="1" value="0"></progress><p class="aide" id="m-txt">Envoi de la vidéo…</p>`;
+    const fd = new FormData(); fd.append("fichier", f);
+    const rep = await fetch("/editeur/api/style/analyser", { method: "POST", body: fd });
+    if (!rep.ok) { boite.innerHTML = `<h3>⚠️ Envoi impossible</h3><button id="m-fermer">Fermer</button>`; $("m-fermer").onclick = fermer; return; }
+    const e = await suivreTravail((await rep.json()).job, "Analyse…", $("m-prog"), $("m-txt"));
+    if (e.erreur) { boite.innerHTML = `<h3>⚠️ Analyse impossible</h3><p class="aide">${String(e.erreur).replace(/</g, "&lt;")}</p><button id="m-fermer">Fermer</button>`; $("m-fermer").onclick = fermer; return; }
+    resultat(e.resultat);
+  }
+
+  function resultat(r) {
+    const p = r.profil, mes = ident.couleurs, leurs = r.couleurs || [];
+    const pastilles = (cs) => cs.map(c => `<span class="pastille" style="background:${c};display:inline-block;width:22px;height:22px;border-radius:6px;vertical-align:middle;margin-right:4px"></span>`).join("");
+    const lignes = [
+      ["Rythme", `un plan toutes les ≈ ${p.duree_plan_max} s, zoom ×${p.zoom}`],
+      ["Sous-titres", `à ${Math.round(p.position_sous_titres * 100)} % de la hauteur, taille ×${p.taille_texte}, ${p.mots_par_groupe} mot(s) à la fois, ${p.casse}${p.mot_cle ? ", mot clé en valeur" : ""}`],
+      ["Écrans de couleur", `${p.nb_ecrans_couleur}${p.ecran_fin ? " + écran de fin" : ""}`],
+      ["Étalonnage", p.style_etalonnage],
+      ["Transitions", (TRANSITIONS[p.transition] || [p.transition])[0]],
+      ["Doodles", { aucun: "aucun", souligne: "soulignés", cercle: "entourés", melange: "mélange" }[p.doodles] || "aucun"],
+      ["Musique", p.caler_sur_rythme ? "recadrages calés sur le rythme (si vous ajoutez une musique)" : "sans calage sur le rythme"],
+    ];
+    boite.innerHTML = `<h3>🎨 Style repéré</h3>
+      <table style="width:100%;font-size:13px;border-collapse:collapse">${lignes.map(([a, b]) => `<tr><td style="opacity:.7;padding:3px 8px 3px 0;white-space:nowrap">${a}</td><td>${String(b).replace(/</g, "&lt;")}</td></tr>`).join("")}</table>
+      <details style="margin-top:8px"><summary class="aide">Détail de l'analyse${r.ia && !/aucune/i.test(r.ia) ? " (avec " + r.ia + ")" : ""}</summary><pre class="aide" style="white-space:pre-wrap">${String(r.rapport).replace(/</g, "&lt;")}</pre></details>
+      <label style="margin-top:10px">Couleurs</label>
+      <label class="aide" style="display:block"><input type="radio" name="m-coul" value="miennes" checked> Mes couleurs ${pastilles(mes)}</label>
+      ${leurs.length ? `<label class="aide" style="display:block"><input type="radio" name="m-coul" value="leurs"> Celles de la vidéo modèle ${pastilles(leurs)}</label>` : ""}
+      <label class="aide" style="display:block;margin-top:8px"><input type="checkbox" id="m-garder"> Garder ce style pour mes prochaines vidéos, sous le nom <input id="m-nom" value="${String(r.nom).replace(/"/g, "&quot;")}" style="width:180px"></label>
+      <div class="rangee" style="margin-top:14px"><button class="primaire" id="m-appliquer">✨ Refaire ma vidéo dans ce style</button><button id="m-fermer" style="margin-left:auto">Annuler</button></div>`;
+    $("m-fermer").onclick = fermer;
+    $("m-appliquer").onclick = async () => {
+      $("m-appliquer").disabled = true; $("m-appliquer").textContent = "Application…";
+      const leur = boite.querySelector('input[name="m-coul"]:checked')?.value === "leurs";
+      const corps = { projet: proj, profil: p, couleurs: leur ? leurs : null, enregistrer: $("m-garder").checked, nom: $("m-nom").value };
+      const rep = await fetch("/editeur/api/style/appliquer?p=" + encodeURIComponent(CHEMIN), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(corps) });
+      if (!rep.ok) { $("m-appliquer").textContent = "⚠️ Impossible"; return; }
+      memoriser(); proj = (await rep.json()).projet;
+      if (leur) ident.couleurs = [proj.reglages.couleur_1, proj.reglages.couleur_2];
+      boite.style.width = "";
+      await montageAuto(true);
+    };
+  }
+}
+
 async function choisirMusique() {
   arreter();
   const boite = $("modal-boite"); $("modal").style.display = "flex"; boite.style.width = "560px";
@@ -906,6 +1023,7 @@ async function choisirMusique() {
         const p = await rep.json(); memoriser();
         proj.musique = { fichier: p.fichier, volume: proj.musique?.volume ?? 0.18, decalage: 0, titre: `${m.titre} — ${m.artiste}`, credit: p.credit };
         fermer(); chargerMusique(); sel = { type: "mus", id: "mus" }; apresModif();
+        if (R().caler_sur_rythme !== false) calerRythme(false);
       };
       d.appendChild(ec); d.appendChild(ok); $("m-res").appendChild(d);
     });
@@ -924,8 +1042,8 @@ async function suivreTravail(job, titre, barre, texte) {
     await new Promise(r => setTimeout(r, 800));
   }
 }
-async function montageAuto() {
-  if (proj.auto && proj.auto.fait && !confirm("Relancer le montage automatique ? Les sous-titres, écrans, illustrations et alertes seront recalculés (⌘Z pour revenir en arrière).")) return;
+async function montageAuto(sansConfirmer) {
+  if (proj.auto && proj.auto.fait && sansConfirmer !== true && !confirm("Relancer le montage automatique ? Les sous-titres, écrans, illustrations et alertes seront recalculés (⌘Z pour revenir en arrière).")) return;
   arreter(); clearTimeout(minuteurSauve);
   const boite = $("modal-boite"); $("modal").style.display = "flex";
   boite.innerHTML = `<h3>✨ Montage automatique</h3><progress id="m-prog" max="1" value="0"></progress><p class="aide" id="m-txt">Préparation…</p>`;
@@ -979,6 +1097,7 @@ $("b-annuler").onclick = annuler; $("b-retablir").onclick = retablir;
 $("b-add-st").onclick = ajouterSousTitre; $("b-add-ecran").onclick = ajouterEcran;
 $("b-add-ill").onclick = () => choisirFichier("ill", "image/*,video/*");
 $("b-gen-ill").onclick = ajouterImageIA;
+$("b-style").onclick = copierStyle;
 $("b-add-mus").onclick = choisirMusique;
 $("b-exporter").onclick = exporter;
 $("b-auto").onclick = montageAuto;

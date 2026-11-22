@@ -1,5 +1,13 @@
 # Historique des versions
 
+## 0.16.0 — 2026-11-23
+- **🎨 Copier un style, directement dans l'éditeur** : bouton en haut. On dépose une vidéo modèle → l'outil montre ce qu'il a repéré (rythme des plans, zooms, sous-titres, écrans de couleur, étalonnage, transitions, doodles, calage sur la musique, couleurs) → « Refaire ma vidéo dans ce style », avec **mes couleurs** ou **celles de la vidéo modèle**. Possibilité de garder le style pour les prochaines vidéos.
+- Analyse de style enrichie : détection des **transitions** (coupes franches, fondus, flashs), des **couleurs de marque** du modèle, du **calage des coupes sur la musique** ; l'IA (Ollama / Claude) repère aussi les doodles.
+- **🥁 Montage sur le rythme** : quand on ajoute une musique, elle démarre sur un temps fort, et les changements de cadrage et écrans de couleur tombent sur les temps (repères sur la piste 🎵, tempo affiché). Bouton « Caler le montage sur le rythme » dans la musique. Détecteur de temps intégré (librosa utilisé s'il est installé).
+- **〰️ Doodles animés** : un trait façon feutre se dessine sous (ou autour) des mots clés les plus forts. Réglage pour tout le projet (Aucun / Soulignés / Entourés / Mélange) ou sous-titre par sous-titre ; aussi dans ⚙️ Paramètres › Style. Désactivé par défaut.
+- Sous-titres « pop » : arrivée avec un léger rebond (plus vivant).
+- **🖼 Images Openverse** (licence libre, usage commercial, sans clé) : toujours proposées en complément de Pexels/Pixabay ; le montage automatique trouve donc des illustrations même sans clé. Les crédits à mentionner (CC BY) sont ajoutés au fichier `_credits.txt` à l'export.
+
 ## 0.15.1 — 2026-11-21
 - Cloudflare : correction de l'erreur « Additional or unevaluated properties '/seed' » (champ refusé par le modèle) ; si un autre paramètre est refusé, la demande est refaite avec la consigne seule.
 

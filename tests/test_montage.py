@@ -640,3 +640,113 @@ def test_generation_cloudflare_gratuite_simulee(tmp_path, monkeypatch):
         429, json={"success": False, "errors": [{"message": "you have used up your daily free allocation of 10,000 neurons"}]})))
     with pytest.raises(RuntimeError, match="Quota gratuit Cloudflare"):
         I.generer("autre", cfg, client=quota)
+
+
+# ------------------------------------------------------------------ v0.16 : doodles, rythme, copie de style, Openverse
+def test_doodles_choix_et_rendu():
+    from PIL import Image
+    gs = [{"mots": [{"w": w, "s": i}], "cle": 0, "ecran": None, "deb": i, "fin": i + 1}
+          for i, w in enumerate(["loyer", "propriétaire", "a", "téléphone", "maison", "b", "c", "d"])]
+    M.choisir_doodles(gs, "melange")
+    marques = [g for g in gs if g["doodle"]]
+    assert [g["mots"][0]["w"] for g in marques] == ["propriétaire", "téléphone"]          # les plus longs, ~1 sur 4
+    assert [g["doodle"] for g in marques] == ["souligne", "cercle"]
+    M.choisir_doodles(gs, "aucun")
+    assert not any(g["doodle"] for g in gs)
+    toile = Image.new("RGBA", (M.W, M.H), (0, 0, 0, 255))
+    M.dessiner_doodle(toile, (300, 900, 400, 100, 0), "souligne", 1.0, (10, 194, 164))
+    vert = [toile.getpixel((x, y)) for x in range(320, 680, 40) for y in range(1000, 1040)]
+    assert any(p[1] > 150 and p[0] < 80 for p in vert)
+    assert M._ease_rebond(0.7) > 1.0 and abs(M._ease_rebond(1.0) - 1) < 1e-9                # léger dépassement
+
+
+def test_doodle_dans_le_rendu(tmp_path):
+    src = tmp_path / "brut.mp4"
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "color=gray:size=360x640:rate=30:d=2",
+                    "-f", "lavfi", "-i", "sine=frequency=220:duration=2", "-c:v", "libx264", "-preset", "ultrafast",
+                    "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(src)], check=True)
+    proj = {"version": 2, "video": str(src), "duree_source": 2.0, "clips": [{"id": "1", "a": 0.0, "b": 2.0, "zoom": 1.0}],
+            "sous_titres": [{"id": "s", "deb": 0.1, "fin": 1.9, "mots": [{"w": "payez", "t": 0.1}, {"w": "loyer", "t": 0.3},
+                                                                         {"w": "facilement", "t": 0.6}], "cle": 1,
+                             "doodle": "souligne"}],
+            "ecrans": [], "illustrations": [], "musique": None,
+            "reglages": {"duree_fin": 0.3, "ecran_fin": False, "logo_en_coin": False, "couleur_2": "#00FF00",
+                         "style_etalonnage": "naturel"}}
+    plan, R = P.vers_plan(proj)
+    assert plan["groupes"][0]["doodle"] == "souligne"
+    out = tmp_path / "d.mp4"
+    P.rendre(proj, str(out))
+    r = subprocess.run(["ffmpeg", "-loglevel", "error", "-ss", "1.2", "-i", str(out), "-frames:v", "1", "-f", "rawvideo",
+                        "-pix_fmt", "rgb24", "-"], capture_output=True).stdout
+    import numpy as np
+    im = np.frombuffer(r, np.uint8).reshape(M.H, M.W, 3).astype(int)
+    vert = (im[..., 1] > 180) & (im[..., 0] < 90) & (im[..., 2] < 90)
+    assert vert.sum() > 500                                   # le trait vert est bien dessiné sous le mot clé
+
+
+def test_rythme_detection_et_calage(tmp_path):
+    import rythme
+    wav = tmp_path / "beat.wav"
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
+                    "aevalsrc='0.8*sin(2*PI*90*t)*exp(-30*mod(t-0.2,60/112))':s=22050:d=20", str(wav)], check=True)
+    bpm, temps = rythme.temps_forts(str(wav))
+    assert abs(bpm - 112) < 3 and len(temps) > 30
+    ecart = np.diff(temps) if (np := __import__("numpy")) else None
+    assert abs(float(np.median(ecart)) - 60 / 112) < 0.02
+    proj = {"clips": [{"id": "1", "a": 0.0, "b": 2.3}, {"id": "2", "a": 2.3, "b": 5.0}, {"id": "3", "a": 9.0, "b": 11.0}],
+            "ecrans": [{"id": "e", "deb": 9.33, "fin": 10.5, "couleur": "#000000"}],
+            "musique": {"fichier": str(wav), "decalage": 0.3}}
+    battements = [0.5 * k + 0.1 for k in range(40)]
+    n = rythme.caler(proj, temps_musique=battements)
+    assert proj["musique"]["decalage"] == 0.1                       # départ sur un temps
+    assert proj["clips"][0]["b"] == proj["clips"][1]["a"] == 2.5    # recadrage de la même prise : temps le plus proche
+    assert proj["clips"][2] == {"id": "3", "a": 9.0, "b": 11.0}     # coupe entre deux prises : intouchée
+    assert proj["ecrans"][0]["deb"] == 9.5 and n == 2               # écran : sortie 5.33 → 5.5
+
+
+def test_analyse_transitions_et_couleurs(tmp_path):
+    import analyse_style as A
+    fondus = tmp_path / "f.mp4"
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=180x320:rate=30:d=3",
+                    "-f", "lavfi", "-i", "color=0x2E2C51:size=180x320:rate=30:d=3", "-f", "lavfi",
+                    "-i", "smptebars=size=180x320:rate=30:d=3", "-filter_complex",
+                    "[0][1]xfade=transition=fade:duration=0.5:offset=2.5[a];[a][2]xfade=transition=fade:duration=0.5:offset=5,format=yuv420p",
+                    "-c:v", "libx264", "-preset", "ultrafast", str(fondus)], check=True)
+    t = A.transitions_detectees(str(fondus))
+    assert t["fondu"] >= 2 and A.transition_dominante(t) == "fondu"
+    coupes = tmp_path / "c.mp4"
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=180x320:rate=30:d=2",
+                    "-f", "lavfi", "-i", "color=0x2E2C51:size=180x320:rate=30:d=2", "-f", "lavfi",
+                    "-i", "smptebars=size=180x320:rate=30:d=2", "-filter_complex", "[0][1][2]concat=n=3:v=1,format=yuv420p",
+                    "-c:v", "libx264", "-preset", "ultrafast", str(coupes)], check=True)
+    assert A.transition_dominante(A.transitions_detectees(str(coupes))) == "coupe"
+    from PIL import Image
+    unis = [(0, (True, (46, 44, 81)))] * 5 + [(1, (True, (10, 194, 164)))] * 3 + [(2, (True, (255, 255, 255)))] * 9
+    assert A.couleurs_modele(unis, [(0, Image.new("RGB", (90, 160), (120, 110, 100)))]) == ["#2E2C51", "#0AC2A4"]
+
+
+def test_appliquer_style_au_projet(tmp_path, monkeypatch):
+    monkeypatch.setattr(C, "FICHIER", str(tmp_path / "config.json"))
+    monkeypatch.setattr(C, "DOSSIER_STYLES", str(tmp_path / "styles"))
+    proj = {"clips": [{"a": 0, "b": 1, "transition": "flash"}], "reglages": {"volume_musique": 0.3, "couleur_1": "#111111"}}
+    profil = C.ProfilStyle(duree_plan_max=1.2, transition="fondu", doodles="cercle", taille_texte=1.3)
+    P.appliquer_style(proj, C.asdict(profil) if hasattr(C, "asdict") else profil.__dict__, ["#AA0000", "#00BB00"])
+    r = proj["reglages"]
+    assert r["duree_plan_max"] == 1.2 and r["transition"] == "fondu" and r["doodles"] == "cercle"
+    assert r["couleur_1"] == "#AA0000" and r["couleur_2"] == "#00BB00" and r["volume_musique"] == 0.3
+    assert "transition" not in proj["clips"][0] and proj["style"]["taille_texte"] == 1.3
+
+
+def test_openverse_images_sans_cle():
+    import httpx
+
+    def reponse(req):
+        assert "api.openverse.org/v1/images" in str(req.url) and "cc0" in str(req.url)
+        return httpx.Response(200, json={"results": [
+            {"id": "a", "url": "https://x/a.jpg", "thumbnail": "https://x/a_t.jpg", "width": 800, "height": 1200,
+             "creator": "Awa", "license": "by", "license_version": "4.0", "title": "Maison", "foreign_landing_url": "https://f/a"},
+            {"id": "b", "url": "https://x/b.jpg", "width": 1200, "height": 800, "creator": "Kofi", "license": "cc0"}]})
+    res = I.rechercher("house", {}, client=httpx.Client(transport=httpx.MockTransport(reponse)))
+    assert [r["id"] for r in res] == ["openverse-a", "openverse-b"]                       # portrait d'abord
+    assert "Awa" in res[0]["credit_licence"] and "CC BY 4.0" in res[0]["credit_licence"]
+    assert res[1]["credit_licence"] == ""                                                  # CC0 : rien à créditer

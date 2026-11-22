@@ -50,6 +50,8 @@ class Reglages:
     illustrations: list = field(default_factory=list)
     decalage_musique: float = 0.0         # la musique démarre à cette seconde du morceau
     transition: str = "coupe"             # entre deux plans : coupe / fondu / zoom / flash / glissement
+    doodles: str = "aucun"                # trait dessiné sur certains mots clés : aucun / souligne / cercle / melange
+    caler_sur_rythme: bool = True         # avec une musique : recadrages et écrans calés sur les temps forts
     duree_transition: float = 0.25
 
 
@@ -541,10 +543,13 @@ def mise_en_page(G, R, polices):
             ecart = 24
             th = sum(r[2] for r in rangs) + ecart * (len(rangs) - 1)
             y = int(H * R.position_sous_titres) - th // 2
+            g["cle_box"] = None
             for ims, lw, lh, esp in rangs:
                 x = (W - lw) // 2
                 for (im, pad, ww, hh), ts in ims:
                     items.append((im, x - pad, y + (lh - hh) - pad, ts))
+                    if k is not None and len(ims) == 1 and ts == ws[k]["s"]:
+                        g["cle_box"] = (x, y + (lh - hh), ww, hh, ts)     # position du mot clé (pour les doodles)
                     x += ww + esp
                 y += lh + ecart
         else:
@@ -569,12 +574,89 @@ def _ease(x):
     return 1 - (1 - x) ** 3
 
 
+def _ease_rebond(x, force=1.1):
+    """Arrivée avec un léger dépassement puis retour (principe « overshoot » de l'animation)."""
+    x = min(max(x, 0.0), 1.0) - 1
+    return 1 + (force + 1) * x ** 3 + force * x ** 2
+
+
+TYPES_DOODLE = ["aucun", "souligne", "cercle", "melange"]
+
+
+def choisir_doodles(groupes, mode):
+    """Met un doodle sur les mots clés les plus marquants (les mêmes que l'effet sonore « pop »)."""
+    for g in groupes:
+        g["doodle"] = None
+    if mode not in ("souligne", "cercle", "melange"):
+        return groupes
+    cles = [g for g in groupes if g.get("cle") is not None and g.get("ecran") is None]
+    choisis = sorted(cles, key=lambda g: -len(g["mots"][g["cle"]]["w"]))[:max(1, len(cles) // 4)][:6] if cles else []
+    for i, g in enumerate(sorted(choisis, key=lambda g: g["deb"])):
+        g["doodle"] = mode if mode != "melange" else ("souligne", "cercle")[i % 2]
+    return groupes
+
+
+def _trace_main_levee(points, p):
+    """Partie [0, p] d'une polyligne (le trait se dessine progressivement)."""
+    if p >= 1:
+        return points
+    long = [0.0]
+    for (x0, y0), (x1, y1) in zip(points, points[1:]):
+        long.append(long[-1] + math.hypot(x1 - x0, y1 - y0))
+    cible, out = long[-1] * max(0.0, p), [points[0]]
+    for i in range(1, len(points)):
+        if long[i] <= cible:
+            out.append(points[i])
+        else:
+            (x0, y0), (x1, y1) = points[i - 1], points[i]
+            f = (cible - long[i - 1]) / max(1e-6, long[i] - long[i - 1])
+            out.append((x0 + (x1 - x0) * f, y0 + (y1 - y0) * f))
+            break
+    return out
+
+
+def dessiner_doodle(canvas, box, typ, p, couleur):
+    """Trait façon feutre sous (souligne) ou autour (cercle) du mot clé ; p = avancement du tracé."""
+    if p <= 0 or not box or typ not in ("souligne", "cercle"):
+        return
+    x, y, w, h = box[:4]
+    graine = (x * 7 + w * 13) % 97
+    if typ == "souligne":
+        n = 24
+        pts = [(x - 14 + (w + 28) * i / n,
+                y + h + 16 + 5 * math.sin(i / n * math.pi * 1.6 + graine) - 6 * i / n) for i in range(n + 1)]
+        epaisseur = 11
+    else:
+        n, cx, cy, rx, ry = 60, x + w / 2, y + h / 2, w / 2 + 50, h / 2 + 38
+        pts = []
+        for i in range(n + 1):
+            a = math.radians(-115 + 385 * i / n)                  # un peu plus d'un tour, comme à la main
+            r = 1 + 0.06 * math.sin(3 * a + graine) + 0.05 * i / n
+            pts.append((cx + rx * r * math.cos(a), cy + ry * r * math.sin(a)))
+        epaisseur = 9
+    pts = _trace_main_levee(pts, _ease(p))
+    if len(pts) < 2:
+        return
+    k = 2                                                           # tracé sur-échantillonné (bords lisses)
+    x0 = int(min(q[0] for q in pts)) - 20; y0 = int(min(q[1] for q in pts)) - 20
+    x1 = int(max(q[0] for q in pts)) + 20; y1 = int(max(q[1] for q in pts)) + 20
+    calque = Image.new("RGBA", ((x1 - x0) * k, (y1 - y0) * k), (0, 0, 0, 0))
+    d = ImageDraw.Draw(calque)
+    pk = [((px - x0) * k, (py - y0) * k) for px, py in pts]
+    d.line(pk, fill=tuple(couleur) + (255,), width=epaisseur * k, joint="curve")
+    for px, py in (pk[0], pk[-1]):
+        r = epaisseur * k / 2
+        d.ellipse((px - r, py - r, px + r, py + r), fill=tuple(couleur) + (255,))
+    calque = calque.resize((x1 - x0, y1 - y0), Image.LANCZOS)
+    canvas.alpha_composite(calque, (max(0, x0), max(0, y0)), (max(0, -x0), max(0, -y0)))
+
+
 def coller_anime(canvas, im, x, y, p, animation="pop"):
     if p <= 0:
         return
     if animation == "aucune":
         canvas.alpha_composite(im, (int(x), int(y))); return
-    e = _ease(p); sc = 0.82 + 0.18 * e if animation == "pop" else 1.0; a = min(1.0, p * 1.6)
+    e = _ease(p); sc = 0.82 + 0.18 * _ease_rebond(p) if animation == "pop" else 1.0; a = min(1.0, p * 1.6)
     if sc < 0.999:
         nw, nh = max(1, int(im.width * sc)), max(1, int(im.height * sc))
         im2 = im.resize((nw, nh), Image.BILINEAR)
@@ -909,7 +991,9 @@ class Illustration:
 def monter(video, plan, R: Reglages, sortie, musique=None, progression=True, rappel=None):
     polices = Polices(R)
     mise_en_page(plan["groupes"], R, polices)
-    c1 = hex2rgb(R.couleur_1)
+    if not any("doodle" in g for g in plan["groupes"]):          # (montage direct, sans projet)
+        choisir_doodles(plan["groupes"], getattr(R, "doodles", "aucun"))
+    c1 = hex2rgb(R.couleur_1); c2 = hex2rgb(R.couleur_2)
     total, corps = plan["total"], plan["corps"]
     plans = plan["plans"]
 
@@ -1011,6 +1095,8 @@ def monter(video, plan, R: Reglages, sortie, musique=None, progression=True, rap
                 if g["deb"] - 0.001 <= st < g["fin"]:
                     for im, x, y, ts in g["items"]:
                         coller_anime(canvas, im, x, y, (st - ts) / 0.14, R.animation)
+                    if g.get("doodle") and g.get("cle_box"):
+                        dessiner_doodle(canvas, g["cle_box"], g["doodle"], (st - g["cle_box"][4] - 0.10) / 0.35, c2)
             if logo_petit is not None and R.logo_en_coin and st >= logo_des and ecran is None and ill is None:
                 coller_anime(canvas, logo_petit, 70, H - 230, (st - logo_des) / 0.35)
         else:

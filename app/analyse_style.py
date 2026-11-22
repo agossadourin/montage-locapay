@@ -73,6 +73,87 @@ def choisir_etalonnage(sat, con, chaud):
     return "naturel"
 
 
+# ------------------------------------------------------------------ transitions entre plans
+def _niveaux_gris(video, fps=10, w=48, h=86):
+    brut = subprocess.run(["ffmpeg", "-loglevel", "error", "-i", video, "-vf", f"fps={fps},scale={w}:{h}",
+                           "-f", "rawvideo", "-pix_fmt", "gray", "-"], capture_output=True).stdout
+    n = len(brut) // (w * h)
+    return np.frombuffer(brut[: n * w * h], np.uint8).reshape(n, h, w).astype(np.float32)
+
+
+def transitions_detectees(video, fps=10):
+    """Compte les coupes franches, fondus enchaînés et flashs blancs ({"coupe": n, "fondu": n, "flash": n})."""
+    f = _niveaux_gris(video, fps)
+    res = {"coupe": 0, "fondu": 0, "flash": 0}
+    if len(f) < 4:
+        return res
+    d = np.abs(np.diff(f, axis=0)).mean(axis=(1, 2))           # changement d'une image à la suivante
+    luma = f.mean(axis=(1, 2))
+    i, n = 1, len(d)
+    while i < n - 1:
+        # flash : image très claire entre deux images normales
+        if luma[i] > 215 and luma[max(0, i - 3)] < 185 and luma[min(len(luma) - 1, i + 3)] < 185:
+            res["flash"] += 1; i += 4; continue
+        # coupe franche : un seul grand saut
+        if d[i] > 22 and d[i - 1] < 0.4 * d[i] and d[i + 1] < 0.4 * d[i]:
+            res["coupe"] += 1; i += 2; continue
+        # fondu : plusieurs changements moyens d'affilée, et l'image du milieu est le mélange des deux bouts
+        j = i
+        while j < n and 4 < d[j] < 22:
+            j += 1
+        if 3 <= j - i <= 9:
+            a, b, m = f[i - 1], f[min(len(f) - 1, j + 1)], f[(i + j) // 2]
+            ecart = np.abs(a - b).mean()
+            if ecart > 18 and np.abs(m - (a + b) / 2).mean() < 0.45 * ecart:
+                res["fondu"] += 1; i = j + 1; continue
+        i += 1
+    return res
+
+
+def transition_dominante(t):
+    total = sum(t.values())
+    if total and t["fondu"] >= max(2, 0.35 * total):
+        return "fondu"
+    if total and t["flash"] >= max(2, 0.35 * total):
+        return "flash"
+    return "coupe"
+
+
+# ------------------------------------------------------------------ couleurs de la vidéo modèle
+def _hex(rgb):
+    return "#%02X%02X%02X" % tuple(int(v) for v in rgb)
+
+
+def couleurs_modele(unis, ims):
+    """Couleurs de marque de la vidéo modèle : celles des écrans de couleur, puis la couleur vive dominante."""
+    cartes = []
+    for (_, (uni, rgb)) in unis:
+        if not uni or max(rgb) - min(rgb) < 25 and max(rgb) > 225:        # on ignore le blanc
+            continue
+        for c in cartes:
+            if sum(abs(a - b) for a, b in zip(c[0], rgb)) < 60:
+                c[1] += 1; break
+        else:
+            cartes.append([rgb, 1])
+    couleurs = [_hex(c) for c, _ in sorted(cartes, key=lambda c: -c[1])][:2]
+    if len(couleurs) < 2:
+        vifs = []
+        for _, im in ims[:: max(1, len(ims) // 20)]:
+            a = np.asarray(im.resize((90, 160)).convert("HSV")).reshape(-1, 3).astype(int)
+            rgb = np.asarray(im.resize((90, 160))).reshape(-1, 3)
+            masque = (a[:, 1] > 150) & (a[:, 2] > 110)
+            if masque.mean() > 0.01:
+                vifs.append(rgb[masque])
+        if vifs:
+            px = np.concatenate(vifs)
+            teinte = np.asarray(Image.fromarray(px.reshape(1, -1, 3).astype(np.uint8)).convert("HSV"))[0, :, 0] // 16
+            dominante = np.bincount(teinte, minlength=16).argmax()
+            c = _hex(np.median(px[teinte == dominante], axis=0))
+            if c not in couleurs:
+                couleurs.append(c)
+    return couleurs[:2]
+
+
 # ------------------------------------------------------------------ OCR
 def _ocr_mac(im):
     from ocrmac import ocrmac  # Apple Vision (macOS)
@@ -161,11 +242,13 @@ Réponds UNIQUEMENT avec un objet JSON contenant ces clés (garde la valeur mesu
 - "style_etalonnage": "naturel", "chaud", "contrasté", "froid" ou "désaturé"
 - "illustrations_par_minute": nombre d'images/vidéos d'illustration (B-roll) insérées par minute
 - "ecran_fin": true si la vidéo finit sur un écran avec logo
+- "doodles": "aucun", "souligne" (trait dessiné sous des mots), "cercle" (mots entourés) ou "melange"
+- "transition": "coupe", "fondu", "zoom", "flash" ou "glissement" (passage d'un plan à l'autre le plus fréquent)
 """
 
 
-def analyser(video, cle_api="", ocr=True, rappel=None):
-    """Renvoie (ProfilStyle, rapport lisible)."""
+def analyser(video, cle_api="", ocr=True, rappel=None, details=None):
+    """Renvoie (ProfilStyle, rapport lisible). `details` (dict) reçoit en plus les couleurs de la vidéo modèle."""
     def etape(f, txt):
         if rappel:
             rappel(f, txt)
@@ -197,9 +280,36 @@ def analyser(video, cle_api="", ocr=True, rappel=None):
     p.style_etalonnage = choisir_etalonnage(sat, con, chaud)
     p.effets_sonores = "léger"
 
+    etape(0.35, "Transitions et rythme…")
+    try:
+        tr = transitions_detectees(video)
+        p.transition = transition_dominante(tr)
+    except Exception as e:
+        print("Transitions :", e); tr = None
+    cale = None
+    try:                                     # les coupes tombent-elles sur les temps de la musique ?
+        import rythme
+        _, temps = rythme.temps_forts(video)
+        if len(ts) >= 4 and temps:
+            cale = float(np.mean([min(abs(np.asarray(temps) - c)) < 0.09 for c in ts]))
+            p.caler_sur_rythme = True if cale >= 0.6 else p.caler_sur_rythme
+    except Exception as e:
+        print("Rythme :", e)
+    couleurs = couleurs_modele(unis, ims)
+    if details is not None:
+        details["couleurs"] = couleurs
+
     rapport = [f"Durée : {duree:.1f} s — {nb_plans} plans (≈ {plan_moyen:.1f} s par plan)",
                f"Écrans de couleur détectés : {cartes}" + (" (dont l'écran de fin)" if ecran_fin else ""),
                f"Étalonnage : {p.style_etalonnage} (saturation {sat:.2f}, contraste {con:.0f}, chaleur {chaud:+.0f})"]
+    if tr is not None:
+        rapport.append(f"Transitions : {tr['coupe']} coupe(s) franche(s), {tr['fondu']} fondu(s), {tr['flash']} flash(s) "
+                       f"→ {p.transition}")
+    if cale is not None:
+        rapport.append(f"Coupes sur le rythme de la musique : {round(100 * cale)} %"
+                       + (" → montage calé sur le rythme" if cale >= 0.6 else ""))
+    if couleurs:
+        rapport.append("Couleurs de la vidéo modèle : " + ", ".join(couleurs))
 
     if ocr:
         moteur = moteur_ocr()
@@ -223,16 +333,16 @@ def analyser(video, cle_api="", ocr=True, rappel=None):
         etape(0.75, "Lecture visuelle par Claude…")
         choix = [im for _, im in ims[:: max(1, len(ims) // 10)]][:10]
         mesures = {k: getattr(p, k) for k in ("position_sous_titres", "taille_texte", "mots_par_groupe",
-                                                 "casse", "style_etalonnage", "ecran_fin")}
+                                                 "casse", "style_etalonnage", "ecran_fin", "transition")}
         mesures.update({"plans": nb_plans, "duree_s": round(duree, 1), "ecrans_couleur": cartes})
         try:
             d = ia.demander_json(cle_api, CONSIGNE_IA.format(n=len(choix), mesures=mesures), choix)
             for k in ("description", "position_sous_titres", "taille_texte", "mots_par_groupe", "mot_cle", "casse",
-                      "animation", "style_etalonnage", "illustrations_par_minute", "ecran_fin"):
+                      "animation", "style_etalonnage", "illustrations_par_minute", "ecran_fin", "doodles", "transition"):
                 if k in d:
                     setattr(p, k, d[k])
             p = C.ProfilStyle.depuis(_bornes(p.__dict__))
-            rapport.append("Analyse visuelle Claude : " + (p.description or "ok"))
+            rapport.append("Analyse visuelle (IA) : " + (p.description or "ok"))
         except Exception as e:
             rapport.append(f"Analyse Claude impossible ({e}) — mesures locales utilisées")
     if not p.description:
@@ -258,4 +368,8 @@ def _bornes(d):
         d["style_etalonnage"] = "naturel"
     for k in ("mot_cle", "ecran_fin"):
         d[k] = bool(d.get(k, True))
+    if d.get("doodles") not in ("aucun", "souligne", "cercle", "melange"):
+        d["doodles"] = "aucun"
+    if d.get("transition") not in ("coupe", "fondu", "zoom", "flash", "glissement"):
+        d["transition"] = "coupe"
     return d

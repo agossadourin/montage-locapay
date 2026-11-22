@@ -51,6 +51,12 @@ Le **mode classique** (et les **⚙️ Paramètres** : identité, style, clés) 
 
 **🎞 Transitions** : coupe franche (par défaut), fondu, zoom, flash ou glissement — dans **⚙️ Paramètres › Style**, pour tout le projet dans l'éditeur (panneau de droite, rien de sélectionné), ou pour un seul enchaînement en cliquant sur le petit rond entre deux plans de la piste 🎬.
 
+**🎨 Copier un style** : bouton en haut de l'éditeur → déposez une vidéo dont vous aimez le montage → l'outil affiche ce qu'il a repéré → **Refaire ma vidéo dans ce style** (vos couleurs ou celles du modèle).
+
+**🥁 Rythme** : en ajoutant une musique, elle démarre sur un temps fort et les recadrages / écrans de couleur tombent sur les temps (bouton « Caler le montage sur le rythme » dans la musique ; code : `rythme.py`).
+
+**〰️ Doodles** : trait dessiné sous ou autour des mots clés forts — panneau de droite (rien de sélectionné) pour tout le projet, ou dans un sous-titre (code : `dessiner_doodle` / `choisir_doodles` dans `montage_auto.py`).
+
 **✏️ Sous-titres** : en pause, cliquez sur le texte **dans la vidéo** pour le modifier (Entrée pour valider, Échap pour annuler) ; ⌥ + clic sur un mot pour le mettre en GRAS.
 
 **✨ Illustrations créées par IA, gratuit (Cloudflare)** : compte gratuit sur [dash.cloudflare.com](https://dash.cloudflare.com/sign-up) → copiez l'**Account ID**, créez un **jeton d'API** avec le modèle « Workers AI » → collez-les dans **⚙️ Paramètres › Clés API** et choisissez « Images créées par IA — Cloudflare ». Environ 170 images par jour gratuites (FLUX.1 schnell, `illustrations.py` › `generer_image_cloudflare`).
@@ -82,6 +88,7 @@ Double-cliquez sur **`Mettre à jour.command`** (ou `git pull` dans le dossier).
 | `app/configuration.py` | Paramètres persistants (identité, clés, profils de style) dans `Vidéos › Montages Locapay › .parametres`. |
 | `app/analyse_style.py` | Analyse d'une vidéo de référence → profil de style. |
 | `app/illustrations.py` | Choix des moments à illustrer, recherche Pexels/Pixabay, téléchargement. |
+| `app/rythme.py` | Temps forts d'une musique et calage du montage sur le rythme. |
 | `app/musique.py` | Recherche de musique libre (Openverse, usage commercial) et crédits. |
 | `app/ia.py` | Appels facultatifs à Claude (API Anthropic). |
 | `app/fenetre.py` | Ouvre l'app dans une fenêtre Chrome dédiée (ou WebKit/pywebview à défaut). |

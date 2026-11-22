@@ -109,7 +109,8 @@ def vers_plan(proj):
         couleur = next((c for a, b, c in ecrans if a <= milieu < b), None)
         cle = st.get("cle")
         groupes.append({"mots": mots, "deb": float(st["deb"]), "fin": float(st["fin"]),
-                        "cle": cle if isinstance(cle, int) and 0 <= cle < len(mots) else None, "ecran": couleur})
+                        "cle": cle if isinstance(cle, int) and 0 <= cle < len(mots) else None, "ecran": couleur,
+                        "doodle": st.get("doodle") or None})
     corps = o
     plan = {"plans": plans, "zones": zones, "groupes": groupes, "ecrans": ecrans, "corps": corps,
             "mots": [m for g in groupes for m in g["mots"]],
@@ -159,6 +160,29 @@ def _config_courante():
     profil = C.charger_style(cfg["style_actif"])
     R = C.reglages(M, cfg["identite"], profil)
     return cfg, profil, R
+
+
+def appliquer_style(proj, profil, couleurs=None):
+    """Applique un style (ProfilStyle ou dict) au projet ; couleurs = [c1, c2] pour remplacer celles de l'identité.
+    Le montage automatique doit ensuite être relancé pour recalculer coupes, sous-titres et écrans."""
+    import configuration as C
+    cfg = C.charger_config()
+    profil = profil if isinstance(profil, C.ProfilStyle) else C.ProfilStyle.depuis(profil)
+    identite = dict(cfg["identite"])
+    if couleurs and len(couleurs) >= 1 and couleurs[0]:
+        identite["couleur_1"] = couleurs[0]
+    if couleurs and len(couleurs) >= 2 and couleurs[1]:
+        identite["couleur_2"] = couleurs[1]
+    R = C.reglages(M, identite, profil)
+    ancien = proj.get("reglages") or {}
+    proj["reglages"] = {k: v for k, v in asdict(R).items() if k != "illustrations"}
+    for k in ("volume_musique",):                     # réglages propres au projet : conservés
+        if k in ancien:
+            proj["reglages"][k] = ancien[k]
+    proj["style"] = asdict(profil)
+    for c in proj.get("clips", []):                   # les transitions viennent désormais du style
+        c.pop("transition", None)
+    return proj
 
 
 def nouveau(fichiers, nom=None, rappel=None):
@@ -270,8 +294,10 @@ def auto(proj, rappel=None, transcrire=None, rechercher=None, telecharger=None, 
     groupes = [g for g in groupes if sortie(g["deb"]) is not None]
     groupes.sort(key=lambda g: sortie(g["deb"]))
     M.choisir_ecrans(groupes, R, temps=lambda g: sortie(g["deb"]))
+    M.choisir_doodles(groupes, getattr(R, "doodles", "aucun"))
     proj["sous_titres"] = [{"id": _id(), "deb": round(g["deb"], 3), "fin": round(g["fin"], 3),
-                            "mots": [{"w": w["w"], "t": round(w["s"], 3)} for w in g["mots"]], "cle": g["cle"]}
+                            "mots": [{"w": w["w"], "t": round(w["s"], 3)} for w in g["mots"]], "cle": g["cle"],
+                            **({"doodle": g["doodle"]} if g.get("doodle") else {})}
                            for g in groupes]
     proj["ecrans"] = [{"id": _id(), "deb": round(g["deb"] - 0.04, 3), "fin": round(g["fin"], 3), "couleur": _hex(g["ecran"])}
                       for g in groupes if g["ecran"] is not None]
@@ -287,7 +313,7 @@ def auto(proj, rappel=None, transcrire=None, rechercher=None, telecharger=None, 
     par_gemini = fourn is not None          # (nom historique : toute génération d'images sur mesure)
     if isinstance(proj.get("auto"), dict):
         proj["auto"].pop("erreur_gemini", None)
-    if par_minute > 0 and (par_gemini or cles.get("pexels") or cles.get("pixabay")):
+    if par_minute > 0:                       # Openverse ne demande pas de clé : toujours au moins une source
         import ia
         props = I.choisir_moments(gardes, duree_sortie, par_minute=par_minute, cle_api=ia.config_ia(cfg))
         for k, pr in enumerate(props):
@@ -323,7 +349,17 @@ def auto(proj, rappel=None, transcrire=None, rechercher=None, telecharger=None, 
             proj["illustrations"].append({"id": _id(), "deb": round(pr["deb"], 3), "fin": round(pr["fin"], 3),
                                           "fichier": fichier, "type": res[0]["type"], "requete": pr["requete"],
                                           "phrase": pr.get("phrase", ""), "mot": pr.get("mot", ""),
+                                          "credit_licence": res[0].get("credit_licence", ""),
                                           "alternatives": res[:8], "choix": 0})
+    # 5) musique déjà choisie : recadrages et écrans calés sur les temps forts
+    mus = proj.get("musique") or {}
+    if mus.get("fichier") and os.path.exists(mus["fichier"]) and getattr(R, "caler_sur_rythme", True):
+        try:
+            import rythme
+            etape(0.97, "Calage sur le rythme de la musique…")
+            rythme.caler(proj)
+        except Exception as e:
+            print("Calage sur le rythme impossible :", e)
     erreur_gemini = (proj.get("auto") or {}).get("erreur_gemini")
     proj["auto"] = {"fait": True, "nb_alertes": len(proj["alertes"]),
                     "sans_cle_images": not (cles.get("pexels") or cles.get("pixabay") or par_gemini)}

@@ -34,6 +34,8 @@ class ProfilStyle:
     illustrations_par_minute: float = 6.0     # densité d'images d'illustration proposées
     transition: str = "coupe"                  # entre deux plans : coupe / fondu / zoom / flash / glissement
     duree_transition: float = 0.25
+    doodles: str = "aucun"                     # trait dessiné sur certains mots clés : aucun / souligne / cercle / melange
+    caler_sur_rythme: bool = True              # avec une musique : recadrages et écrans calés sur les temps forts
 
     @classmethod
     def depuis(cls, d):

@@ -144,11 +144,13 @@ def ajouter_routes(api: FastAPI, racines):
         sortie = os.path.join(SORTIES, f"{base}_edit_{time.strftime('%Y%m%d-%H%M%S')}.mp4")
         def rendu(rappel):
             P.rendre(proj, sortie, rappel=lambda x: rappel(x, "Montage…"))
-            credit = (proj.get("musique") or {}).get("credit")
-            if credit:        # licence « BY » : crédit à mettre dans la description de la publication
+            credits = [(proj.get("musique") or {}).get("credit")]
+            credits += [it.get("credit_licence") for it in proj.get("illustrations", []) if it.get("fichier")]
+            credit = "\n".join(dict.fromkeys(c for c in credits if c))       # sans doublons, dans l'ordre
+            if credit:        # licences « BY » : crédits à mettre dans la description de la publication
                 with open(os.path.splitext(sortie)[0] + "_credits.txt", "w", encoding="utf-8") as f:
                     f.write(credit + "\n")
-            return {"credit": credit or ""}
+            return {"credit": credit}
         job = lancer_travail(rendu)
         _travaux[job]["sortie"] = sortie
         return {"job": job}
@@ -195,8 +197,6 @@ def ajouter_routes(api: FastAPI, racines):
     async def chercher(req: Request):
         d = await req.json()
         cles = C.charger_config()["cles"]
-        if not (cles.get("pexels") or cles.get("pixabay")):
-            raise HTTPException(400, "Ajoutez une clé Pexels ou Pixabay (gratuite) dans les Paramètres.")
         return I.rechercher(str(d.get("requete", "")).strip(), cles)
 
     @api.post("/editeur/api/generer")
@@ -214,6 +214,51 @@ def ajouter_routes(api: FastAPI, racines):
         except Exception as e:
             raise HTTPException(502, str(e))
         return {"fichier": fichier, "type": "image", "prompt": consigne}
+
+    @api.post("/editeur/api/style/analyser")
+    async def analyser_style(fichier: UploadFile = File(...)):
+        """Analyse d'une vidéo modèle (en tâche de fond) → style + couleurs."""
+        os.makedirs(ENVOIS, exist_ok=True)
+        dest = os.path.join(ENVOIS, f"{int(time.time())}_modele_{os.path.basename(fichier.filename or 'video.mp4')}")
+        with open(dest, "wb") as out:
+            shutil.copyfileobj(fichier.file, out)
+        nom = os.path.splitext(os.path.basename(fichier.filename or "Modèle"))[0][:30]
+
+        def travail(rappel):
+            import analyse_style as A
+            import ia
+            from dataclasses import asdict
+            details = {}
+            p, rapport = A.analyser(dest, cle_api=ia.config_ia(C.charger_config()), details=details,
+                                    rappel=lambda f, t: rappel(0.05 + 0.9 * f, t))
+            return {"profil": asdict(p), "rapport": rapport, "couleurs": details.get("couleurs", []),
+                    "nom": f"Style {nom}", "ia": ia.nom_ia(ia.config_ia(C.charger_config()))}
+        return {"job": lancer_travail(travail)}
+
+    @api.post("/editeur/api/style/appliquer")
+    async def appliquer_style(p: str, req: Request):
+        chemin = _projet_path(p, racines)
+        d = await req.json()
+        proj = P.appliquer_style(d["projet"], d["profil"], d.get("couleurs"))
+        if d.get("enregistrer"):
+            nom = (str(d.get("nom") or "").strip() or "Style copié")[:40]
+            C.sauver_style(nom, C.ProfilStyle.depuis(d["profil"]))
+        P.sauver(proj, chemin)
+        return {"projet": proj}
+
+    @api.post("/editeur/api/rythme")
+    async def rythme(req: Request):
+        """Cale le projet (envoyé) sur les temps forts de sa musique et le renvoie modifié."""
+        import asyncio
+        import rythme as RY
+        proj = await req.json()
+        if not ((proj.get("musique") or {}).get("fichier") and _autorise(proj["musique"]["fichier"], racines)):
+            raise HTTPException(400, "Ajoutez d'abord une musique.")
+        try:
+            n = await asyncio.to_thread(RY.caler, proj)
+        except Exception as e:
+            raise HTTPException(502, f"Analyse du rythme impossible : {e}")
+        return {"projet": proj, "deplaces": n, "tempo": (proj.get("musique") or {}).get("tempo")}
 
     @api.post("/editeur/api/consigne")
     async def consigne(req: Request):
