@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Raccord — Visuels</title>
+<link rel="icon" href="/editeur/icone.png">
+<style>
+@font-face{font-family:"Marque Serif";src:url(/editeur/polices/serif.ttf);font-style:italic;font-display:swap}
+:root{
+  --fond:#202029; --panneau:#272731; --panneau2:#30303b; --survol:#383845; --ligne:rgba(255,255,255,.075); --ligne-forte:rgba(255,255,255,.14);
+  --texte:#f1f0f6; --doux:#a6a5b7; --discret:#74738a; --accent:#FFA41B; --accent-encre:#2a1800; --danger:#f06b7c;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--fond);color:var(--texte);
+  font:13px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+button,select,input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ico{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+button,.btn{display:inline-flex;align-items:center;gap:7px;background:var(--panneau2);border:1px solid transparent;border-radius:7px;
+  padding:7px 12px;cursor:pointer;color:var(--texte);font-weight:500;text-decoration:none;white-space:nowrap}
+button:hover,.btn:hover{background:var(--survol)}
+button.primaire{background:var(--accent);color:var(--accent-encre);font-weight:650}
+button.primaire:hover{background:#ffb648}
+button.fantome,.btn.fantome{background:transparent;color:var(--doux)}
+button.fantome:hover,.btn.fantome:hover{background:var(--panneau2);color:var(--texte)}
+button.danger{color:var(--danger)}
+button:disabled{opacity:.4;cursor:default}
+input,select,textarea{background:#1b1b23;border:1px solid var(--ligne-forte);border-radius:7px;padding:8px 10px}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);outline:none}
+input[type=checkbox]{accent-color:var(--accent)}
+input[type=range]{accent-color:var(--accent);padding:0;border:0;background:none}
+a{color:var(--accent);text-decoration:none}
+.aide{color:var(--doux);line-height:1.5}
+progress{width:100%;height:6px;-webkit-appearance:none;appearance:none;border:0;border-radius:3px;overflow:hidden;background:var(--panneau2)}
+progress::-webkit-progress-bar{background:var(--panneau2)} progress::-webkit-progress-value{background:var(--accent)}
+
+header{display:flex;align-items:center;gap:10px;height:52px;padding:0 12px 0 8px;background:var(--panneau);border-bottom:1px solid var(--ligne);position:sticky;top:0;z-index:5}
+header .retour{display:inline-flex;width:32px;height:32px;align-items:center;justify-content:center;border-radius:7px;color:var(--doux)}
+header .retour:hover{background:var(--panneau2);color:var(--texte)}
+header .titre{font-weight:650;font-size:14px}
+header .onglets{display:flex;gap:2px;margin-left:18px}
+header .onglets button{background:transparent;color:var(--doux)}
+header .onglets button.actif{background:var(--panneau2);color:var(--texte)}
+header .droite{margin-left:auto;display:flex;gap:6px;align-items:center}
+#statut{color:var(--discret);font-size:12px;margin-right:6px}
+
+main{max-width:1180px;margin:0 auto;padding:28px 24px 60px}
+h1{font-family:"Marque Serif",Georgia,serif;font-style:italic;font-weight:600;font-size:30px;margin:0 0 4px}
+h2{font-size:13px;font-weight:600;color:var(--doux);margin:28px 0 10px}
+.sous{color:var(--doux);margin:0 0 20px}
+.carte{background:var(--panneau);border:1px solid var(--ligne);border-radius:14px;padding:18px}
+#creer{display:grid;grid-template-columns:1fr 280px;gap:18px;align-items:start}
+#contexte{width:100%;min-height:118px;resize:vertical;line-height:1.5;font-size:14px}
+.segment{display:flex;background:#1b1b23;border:1px solid var(--ligne-forte);border-radius:8px;padding:3px;gap:3px}
+.segment button{flex:1;background:transparent;color:var(--doux);padding:6px 8px;justify-content:center}
+.segment button.actif{background:var(--panneau2);color:var(--texte)}
+.pile{display:flex;flex-direction:column;gap:12px}
+.pile label.case{display:flex;gap:8px;align-items:center;color:var(--doux)}
+#grille{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px}
+.variante{background:var(--panneau);border:1px solid var(--ligne);border-radius:12px;padding:10px;cursor:pointer}
+.variante:hover{border-color:var(--accent)}
+.variante canvas{width:100%;height:auto;display:block;border-radius:6px;background:#111}
+.variante .leg{display:flex;justify-content:space-between;color:var(--discret);font-size:11.5px;margin-top:8px}
+.vide{border:1.5px dashed rgba(255,255,255,.18);border-radius:12px;padding:28px;text-align:center;color:var(--doux)}
+
+/* charte */
+#exemples{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px}
+#exemples .ex{position:relative;border-radius:8px;overflow:hidden;background:#111;aspect-ratio:4/5}
+#exemples .ex img{width:100%;height:100%;object-fit:cover}
+#exemples .ex button{position:absolute;top:5px;right:5px;padding:3px;width:24px;height:24px;justify-content:center;background:rgba(0,0,0,.6)}
+#depot-ex{display:flex;align-items:center;justify-content:center;aspect-ratio:4/5;border:1.5px dashed rgba(255,255,255,.22);border-radius:8px;color:var(--doux);cursor:pointer;text-align:center;padding:8px}
+#depot-ex:hover,#depot-ex.survol{border-color:var(--accent);color:var(--texte)}
+.couleurs{display:flex;flex-wrap:wrap;gap:12px}
+.couleurs label{display:flex;flex-direction:column;align-items:center;gap:5px;color:var(--doux);font-size:11.5px}
+.couleurs input[type=color]{width:46px;height:46px;padding:0;border-radius:10px;border:1px solid var(--ligne-forte);cursor:pointer;background:none}
+.ligne-btn{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.etapes{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+
+/* éditeur */
+#vue-editeur{display:none;height:calc(100vh - 52px);grid-template-columns:1fr 320px}
+#plan{display:flex;align-items:center;justify-content:center;padding-top:56px;background:radial-gradient(120% 90% at 50% 40%,#363641 0%,#2b2b34 45%,#222229 100%);min-width:0;position:relative}
+#toile{box-shadow:0 24px 60px -18px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.06);border-radius:4px;cursor:default;touch-action:none}
+#insp{background:var(--panneau);border-left:1px solid var(--ligne);padding:18px;overflow:auto}
+#insp h3{margin:0 0 12px;font-size:15px}
+#insp label{display:block;color:var(--doux);font-size:12px;font-weight:500;margin:14px 0 6px}
+#insp textarea{width:100%;min-height:80px;resize:vertical}
+#insp .pastilles{display:flex;gap:7px;flex-wrap:wrap}
+#insp .pastille{width:26px;height:26px;border-radius:50%;cursor:pointer;box-shadow:0 0 0 1px var(--ligne-forte) inset;border:2px solid transparent}
+#insp .pastille.actif{border-color:#fff}
+.mini-grille{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+.mini-grille img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:6px;cursor:pointer;border:2px solid transparent}
+.mini-grille img:hover{border-color:var(--accent)}
+#barre-ed{position:absolute;top:14px;left:50%;transform:translateX(-50%);display:flex;gap:4px;background:rgba(39,39,49,.92);backdrop-filter:blur(8px);border:1px solid var(--ligne-forte);border-radius:10px;padding:4px}
+#barre-ed button{background:transparent}
+#barre-ed button.primaire{background:var(--accent);color:var(--accent-encre)}
+#barre-ed button:hover{background:var(--panneau2)}
+
+#modal{position:fixed;inset:0;background:rgba(14,14,20,.55);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;z-index:20}
+#modal .boite{background:var(--panneau);border:1px solid var(--ligne-forte);border-radius:14px;padding:24px;width:460px;max-height:88vh;overflow:auto;box-shadow:0 30px 80px -20px rgba(0,0,0,.7)}
+#modal h3{margin:0 0 12px;font-size:16px}
+@media (max-width:900px){#creer{grid-template-columns:1fr}.etapes{grid-template-columns:1fr}#vue-editeur{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <a class="retour" href="/editeur" title="Retour aux vidéos"><i data-i="retour"></i></a>
+  <span class="titre">Raccord</span>
+  <nav class="onglets">
+    <button id="o-creer" class="actif"><i data-i="magie"></i>Créer</button>
+    <button id="o-charte"><i data-i="style"></i>Charte</button>
+  </nav>
+  <div class="droite"><span id="statut"></span>
+    <a class="btn fantome" href="/editeur"><i data-i="film"></i>Vidéos</a>
+    <a class="btn fantome" href="/?parametres=1"><i data-i="reglages"></i>Paramètres</a></div>
+</header>
+
+<main id="vue-creer">
+  <h1>Visuels</h1>
+  <p class="sous">Décrivez ce que vous voulez dire : Raccord écrit les textes, trouve les images et propose des visuels dans votre charte.</p>
+  <section id="creer">
+    <div class="carte">
+      <textarea id="contexte" placeholder="Ex. : Annoncer que les loyers peuvent maintenant être payés par Mobile Money depuis l'application, sans se déplacer. Public : locataires à Cotonou."></textarea>
+    </div>
+    <div class="carte pile">
+      <div class="segment" id="formats"></div>
+      <label class="case"><input type="checkbox" id="image-ia"> Ajouter une image créée par IA</label>
+      <button class="primaire" id="b-generer"><i data-i="magie"></i>Proposer 6 visuels</button>
+      <p class="aide" id="info-ia" style="margin:0;font-size:12px"></p>
+    </div>
+  </section>
+  <div id="prog" style="display:none;margin-top:16px"><progress id="prog-barre" max="1" value="0"></progress><p class="aide" id="prog-txt"></p></div>
+  <h2 id="t-props" style="display:none">Propositions</h2>
+  <div id="grille"></div>
+  <h2>Visuels récents</h2>
+  <div id="recents"></div>
+</main>
+
+<main id="vue-charte" style="display:none">
+  <h1>Charte</h1>
+  <p class="sous" id="charte-sous"></p>
+  <div class="etapes">
+    <div class="carte">
+      <b>1. Vos exemples</b>
+      <p class="aide">Ajoutez une dizaine de visuels déjà publiés par la marque (PNG, JPG). Plus ils sont variés, mieux le style est compris.</p>
+      <div id="exemples"></div>
+      <input type="file" id="f-ex" accept="image/*" multiple style="display:none">
+    </div>
+    <div class="carte pile">
+      <b>2. Faire comprendre le style à Claude</b>
+      <p class="aide" style="margin:0">Raccord prépare un paquet avec vos exemples. Glissez-le dans votre conversation avec Claude : il vous rend une charte (couleurs, polices, ton, mises en page) à importer ici.</p>
+      <div class="ligne-btn"><button id="b-paquet"><i data-i="exporter"></i>Préparer le paquet pour Claude</button>
+        <button id="b-importer"><i data-i="style"></i>Importer la charte de Claude</button></div>
+      <input type="file" id="f-charte" accept=".json,application/json" style="display:none">
+      <b style="margin-top:8px">3. Ajuster</b>
+      <div class="couleurs" id="couleurs"></div>
+      <div class="ligne-btn"><label class="aide">Titres <select id="pol-titre"></select></label><label class="aide">Textes <select id="pol-corps"></select></label></div>
+      <p class="aide" id="charte-ton" style="margin:0"></p>
+      <div class="ligne-btn"><button class="fantome danger" id="b-raz">Revenir à la charte de l'identité</button></div>
+    </div>
+  </div>
+  <h2>Mises en page de la charte</h2>
+  <div id="gabarits" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px"></div>
+</main>
+
+<section id="vue-editeur">
+  <div id="plan">
+    <div id="barre-ed">
+      <button id="e-retour" title="Retour aux propositions"><i data-i="retour"></i>Propositions</button>
+      <button id="e-annuler" title="Annuler (⌘Z)"><i data-i="annuler"></i></button>
+      <button id="e-format" title="Changer de format"><i data-i="format"></i><span id="e-format-txt"></span></button>
+      <button id="e-export" class="primaire"><i data-i="exporter"></i>Exporter en PNG</button>
+    </div>
+    <canvas id="toile"></canvas>
+  </div>
+  <aside id="insp"></aside>
+</section>
+
+<div id="modal"><div class="boite" id="modal-boite"></div></div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const media = (f) => "/editeur/media?f=" + encodeURIComponent(f);
+const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+const ICONES = {
+  retour: '<path d="M15 18l-6-6 6-6"/>',
+  magie: '<path d="M11 3l1.7 4.3L17 9l-4.3 1.7L11 15l-1.7-4.3L5 9l4.3-1.7z"/><path d="M18.5 14.5l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8z"/>',
+  style: '<path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.7-1 1.2-1.9-.6-1.1 0-2.4 1.3-2.4H17a4 4 0 0 0 4-4C21 7.4 17 3 12 3z"/><circle cx="7.5" cy="11.5" r="1.1"/><circle cx="10.5" cy="7.5" r="1.1"/><circle cx="15.5" cy="8" r="1.1"/>',
+  film: '<rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M7.5 4v16M16.5 4v16M3 9h4.5M3 15h4.5M16.5 9H21M16.5 15H21"/>',
+  reglages: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
+  exporter: '<path d="M12 15V4M7.5 8.5L12 4l4.5 4.5"/><path d="M5 14v4.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V14"/>',
+  annuler: '<path d="M9 14L4.5 9.5 9 5"/><path d="M4.5 9.5H15a4.5 4.5 0 0 1 0 9h-3"/>',
+  suppr: '<path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l.9 12.2a1 1 0 0 0 1 .8h7.2a1 1 0 0 0 1-.8L17.5 7"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  format: '<rect x="6" y="3" width="12" height="18" rx="2"/><rect x="3" y="7" width="18" height="10" rx="2"/>',
+  image: '<rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M21 15.5l-5-5L6.5 20"/>',
+  avant: '<path d="M12 19V5M5 12l7-7 7 7"/>', arriere: '<path d="M12 5v14M5 12l7 7 7-7"/>',
+};
+const icone = (n) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${ICONES[n] || ""}</svg>`;
+const poserIcones = (r = document) => r.querySelectorAll("i[data-i]").forEach(i => { i.outerHTML = icone(i.dataset.i); });
+poserIcones();
+
+let E = null, charte = null, format = "carre", propositions = [], v = null, sel = null, histo = [];
+
+// ------------------------------------------------------------------ rendu (aperçu = export)
+const imgs = {};
+function chargerImage(f) {
+  if (!f) return Promise.resolve(null);
+  if (imgs[f]) return imgs[f];
+  imgs[f] = new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = media(f); });
+  return imgs[f];
+}
+const polices = {};
+async function famille(role) {
+  const p = (charte.polices || {})[role] || {};
+  const f = p.fichier || "gras";
+  const nom = "R-" + role + "-" + f.replace(/[^\w]/g, "").slice(-24);
+  if (!polices[nom]) {
+    const url = (f === "gras" || f === "serif") ? `/editeur/polices/${f}.ttf` : media(f);
+    const ff = new FontFace(nom, `url(${url})`, f === "serif" ? { style: "italic" } : { weight: "100 900" });
+    polices[nom] = ff.load().then(x => { document.fonts.add(x); return nom; }).catch(() => "Helvetica");
+  }
+  return polices[nom];
+}
+function couleur(c) {
+  if (!c) return null;
+  if (c === "transparent") return "rgba(0,0,0,0)";
+  return (charte.couleurs || {})[c] || c;
+}
+function avecAlpha(hex, a) {
+  if (!/^#[0-9a-f]{6}$/i.test(hex)) return hex;
+  const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
+}
+function chemin(ctx, x, y, w, h, r) { r = Math.min(r, w / 2, h / 2); ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
+function filtreImage() {
+  return { sombre: "brightness(.8) contrast(1.05)", chaud: "saturate(1.1) sepia(.12)", "noir-blanc": "grayscale(1) contrast(1.1)",
+           duotone: "grayscale(1) contrast(1.15) brightness(.95)" }[charte.traitement_image] || "none";
+}
+function lignesTexte(ctx, texte, largeur) {
+  const out = [];
+  for (const para of String(texte).split("\n")) {
+    let l = "";
+    for (const m of para.split(/\s+/)) {
+      const essai = l ? l + " " + m : m;
+      if (ctx.measureText(essai).width > largeur && l) { out.push(l); l = m; } else l = essai;
+    }
+    out.push(l);
+  }
+  return out;
+}
+async function dessiner(cv, vis, echelle = 1) {
+  const [W, H] = vis.taille; cv.width = Math.round(W * echelle); cv.height = Math.round(H * echelle);
+  const ctx = cv.getContext("2d"); ctx.setTransform(echelle, 0, 0, echelle, 0, 0);
+  ctx.fillStyle = couleur("clair") || "#fff"; ctx.fillRect(0, 0, W, H);
+  const boites = [];
+  for (const b of vis.blocs) {
+    const x = b.x / 100 * W, y = b.y / 100 * H, w = b.w / 100 * W, h = b.h / 100 * H, r = (b.rayon || 0) / 100 * W;
+    ctx.save(); ctx.globalAlpha = b.opacite ?? 1;
+    if (b.type === "forme") {
+      if (b.degrade) { const g = ctx.createLinearGradient(0, y, 0, y + h); g.addColorStop(0, couleur(b.degrade[0]) || "rgba(0,0,0,0)"); g.addColorStop(1, couleur(b.degrade[1]) || "#000"); ctx.fillStyle = g; }
+      else ctx.fillStyle = couleur(b.couleur) || "#000";
+      chemin(ctx, x, y, w, h, r); ctx.fill();
+    } else if (b.type === "image") {
+      const im = await chargerImage(b.fichier);
+      chemin(ctx, x, y, w, h, r); ctx.clip();
+      if (im) {
+        const s = Math.max(w / im.width, h / im.height), iw = im.width * s, ih = im.height * s;
+        const fx = (b.cadrage_x ?? 50) / 100, fy = (b.cadrage_y ?? 40) / 100;
+        ctx.filter = filtreImage(); ctx.drawImage(im, x + (w - iw) * fx, y + (h - ih) * fy, iw, ih); ctx.filter = "none";
+        if (charte.traitement_image === "duotone") { ctx.globalCompositeOperation = "multiply"; ctx.fillStyle = couleur("fond"); ctx.fillRect(x, y, w, h); }
+      } else { ctx.fillStyle = "#3a3a46"; ctx.fillRect(x, y, w, h); }
+    } else if (b.type === "logo") {
+      const im = await chargerImage(E.identite.fichier_logo);
+      if (im) { const s = Math.min(w / im.width, h / im.height); ctx.drawImage(im, x, y + (h - im.height * s) / 2, im.width * s, im.height * s); }
+    } else if (b.type === "texte") {
+      const role = b.police || "corps", p = (charte.polices || {})[role] || {};
+      const fam = await famille(role), graisse = b.graisse || p.graisse || 600, it = p.italique || p.fichier === "serif";
+      const casse = b.casse || p.casse;
+      let t = b.texte || ""; if (casse === "majuscules") t = t.toUpperCase(); if (casse === "minuscules") t = t.toLowerCase();
+      const pad = b.fond ? h * 0.18 : 0;
+      let taille = (b.taille || 4) / 100 * W, lignes, lh;
+      for (let k = 0; k < 30; k++) {                 // le texte rétrécit jusqu'à tenir dans sa boîte
+        ctx.font = `${it ? "italic " : ""}${graisse} ${taille}px "${fam}"`;
+        lh = taille * (p.interligne || 1.15); lignes = lignesTexte(ctx, t, w - 2 * pad);
+        if (lignes.length * lh <= h - pad * 0.5 || taille < 10) break;
+        taille *= 0.93;
+      }
+      ctx.textBaseline = "alphabetic";
+      const larg = Math.max(...lignes.map(l => ctx.measureText(l).width));
+      let bx = x, bw = w;
+      if (b.fond) {
+        bw = Math.min(w, larg + 2.4 * pad); const bh = Math.min(h, lignes.length * lh + pad);
+        bx = b.align === "center" ? x + (w - bw) / 2 : b.align === "right" ? x + w - bw : x;
+        ctx.fillStyle = couleur(b.fond); chemin(ctx, bx, y + (h - bh) / 2, bw, bh, (b.rayon || 6) / 100 * W); ctx.fill();
+      }
+      ctx.fillStyle = couleur(b.couleur) || "#fff";
+      const hauteur = lignes.length * lh, y0 = b.fond ? y + (h - hauteur) / 2 : y;
+      lignes.forEach((l, i) => {
+        const lw = ctx.measureText(l).width;
+        const lx = b.fond ? bx + (bw - lw) / 2                         // texte centré dans sa pastille
+          : b.align === "center" ? x + (w - lw) / 2 : b.align === "right" ? x + w - lw : x;
+        ctx.fillText(l, lx, y0 + i * lh + taille * 0.88);
+      });
+    }
+    ctx.restore();
+    boites.push({ b, x, y, w, h });
+  }
+  return boites;
+}
+
+// ------------------------------------------------------------------ chargement
+async function charger() {
+  E = await (await fetch("/visuels/api/etat")).json();
+  charte = E.charte;
+  $("formats").innerHTML = Object.entries(E.formats).map(([k, n]) => `<button data-f="${k}" class="${k === format ? "actif" : ""}">${{ carre: "Carré", portrait: "Portrait", story: "Story" }[k] || n}</button>`).join("");
+  $("formats").querySelectorAll("button").forEach(b => b.onclick = () => { format = b.dataset.f; $("formats").querySelectorAll("button").forEach(x => x.classList.toggle("actif", x === b)); });
+  $("info-ia").textContent = (/aucune/i.test(E.ia_textes) ? "Textes : règles simples (installez Ollama pour des textes rédigés)." : `Textes rédigés par ${E.ia_textes}.`)
+    + (E.generateur ? "" : " Image IA : configurez Cloudflare (gratuit) dans les Paramètres.");
+  $("image-ia").disabled = !E.generateur;
+  afficherRecents(); afficherCharte();
+}
+function vignette(vis, legende, clic) {
+  const d = document.createElement("div"); d.className = "variante";
+  const cv = document.createElement("canvas"); d.appendChild(cv);
+  d.insertAdjacentHTML("beforeend", `<div class="leg"><span>${esc(legende)}</span></div>`);
+  d.onclick = clic; dessiner(cv, vis, 0.25);
+  return d;
+}
+function afficherRecents() {
+  const r = $("recents"); r.innerHTML = "";
+  if (!E.visuels.length) { r.innerHTML = `<div class="vide">Vos visuels enregistrés apparaîtront ici.</div>`; return; }
+  const g = document.createElement("div"); g.style.cssText = "display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px";
+  E.visuels.slice(0, 24).forEach(vis => g.appendChild(vignette(vis, vis.modifie || vis.cree, () => ouvrir(vis))));
+  r.appendChild(g);
+}
+
+// ------------------------------------------------------------------ créer
+async function suivre(job) {
+  for (;;) {
+    const e = await (await fetch("/editeur/api/etat?job=" + job)).json();
+    $("prog-barre").value = e.progression; $("prog-txt").textContent = e.texte || "…";
+    if (e.fini) return e;
+    await new Promise(r => setTimeout(r, 700));
+  }
+}
+$("b-generer").onclick = async () => {
+  const ctxt = $("contexte").value.trim();
+  if (!ctxt) { $("contexte").focus(); $("contexte").placeholder = "Écrivez d'abord ce que le visuel doit dire."; return; }
+  $("b-generer").disabled = true; $("prog").style.display = "block";
+  const r = await (await fetch("/visuels/api/generer", { method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ contexte: ctxt, format, n: 6, image_ia: $("image-ia").checked }) })).json();
+  const e = await suivre(r.job);
+  $("b-generer").disabled = false; $("prog").style.display = "none";
+  if (e.erreur) { $("grille").innerHTML = `<div class="vide">La génération a échoué : ${esc(e.erreur)}</div>`; return; }
+  propositions = e.resultat.visuels;
+  $("t-props").style.display = "block";
+  const g = $("grille"); g.innerHTML = "";
+  propositions.forEach(vis => g.appendChild(vignette(vis, vis.nom_gabarit, () => ouvrir(vis))));
+};
+
+// ------------------------------------------------------------------ éditeur de calques
+let boites = [], echelle = 0.5, glisse = null;
+function vue(nom) {
+  $("vue-creer").style.display = nom === "creer" ? "block" : "none";
+  $("vue-charte").style.display = nom === "charte" ? "block" : "none";
+  $("vue-editeur").style.display = nom === "editeur" ? "grid" : "none";
+  $("o-creer").classList.toggle("actif", nom === "creer"); $("o-charte").classList.toggle("actif", nom === "charte");
+}
+function ouvrir(vis) {
+  v = JSON.parse(JSON.stringify(vis)); sel = null; histo = [];
+  vue("editeur"); rendre(); inspecter();
+}
+function memoriser() { histo.push(JSON.stringify(v)); if (histo.length > 60) histo.shift(); }
+async function rendre() {
+  const zone = $("plan"), [W, H] = v.taille;
+  echelle = Math.min((zone.clientWidth - 60) / W, (zone.clientHeight - 56 - 50) / H);
+  const cv = $("toile");
+  boites = await dessiner(cv, v, echelle * (window.devicePixelRatio || 1));
+  cv.style.width = W * echelle + "px"; cv.style.height = H * echelle + "px";
+  if (sel) {                                     // cadre de sélection
+    const bx = boites.find(x => x.b.id === sel); const ctx = cv.getContext("2d");
+    if (bx) { ctx.save(); ctx.strokeStyle = "#FFA41B"; ctx.lineWidth = 3 / echelle; ctx.setLineDash([10 / echelle, 6 / echelle]);
+      ctx.strokeRect(bx.x, bx.y, bx.w, bx.h); ctx.setLineDash([]); ctx.fillStyle = "#FFA41B";
+      ctx.fillRect(bx.x + bx.w - 9 / echelle, bx.y + bx.h - 9 / echelle, 18 / echelle, 18 / echelle); ctx.restore(); }
+  }
+  $("e-format-txt").textContent = E.formats[v.format];
+  sauverBientot();
+}
+let minuteur = null;
+function sauverBientot() {
+  clearTimeout(minuteur);
+  minuteur = setTimeout(async () => { await fetch("/visuels/api/visuel", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(v) }); $("statut").textContent = "Enregistré"; }, 700);
+}
+function point(e) { const r = $("toile").getBoundingClientRect(); return [(e.clientX - r.left) / echelle, (e.clientY - r.top) / echelle]; }
+$("toile").addEventListener("pointerdown", (e) => {
+  const [px, py] = point(e);
+  const cur = sel && boites.find(x => x.b.id === sel);
+  if (cur && px > cur.x + cur.w - 14 / echelle && py > cur.y + cur.h - 14 / echelle && px < cur.x + cur.w + 10 && py < cur.y + cur.h + 10) {
+    memoriser(); glisse = { mode: "taille", b: cur.b, px, py, w0: cur.b.w, h0: cur.b.h };
+  } else {
+    const hit = [...boites].reverse().find(x => px >= x.x && px <= x.x + x.w && py >= x.y && py <= x.y + x.h && !(x.b.type === "forme" && x.b.w >= 99 && x.b.h >= 99));
+    sel = hit ? hit.b.id : null; inspecter();
+    if (hit) { memoriser(); glisse = { mode: "deplacer", b: hit.b, px, py, x0: hit.b.x, y0: hit.b.y }; }
+  }
+  try { $("toile").setPointerCapture(e.pointerId); } catch (_) {}
+  rendre();
+});
+$("toile").addEventListener("pointermove", (e) => {
+  if (!glisse) return;
+  const [px, py] = point(e), [W, H] = v.taille, b = glisse.b;
+  if (glisse.mode === "deplacer") { b.x = Math.round((glisse.x0 + (px - glisse.px) / W * 100) * 10) / 10; b.y = Math.round((glisse.y0 + (py - glisse.py) / H * 100) * 10) / 10; }
+  else { b.w = Math.max(3, Math.round((glisse.w0 + (px - glisse.px) / W * 100) * 10) / 10); b.h = Math.max(2, Math.round((glisse.h0 + (py - glisse.py) / H * 100) * 10) / 10); }
+  rendre();
+});
+$("toile").addEventListener("pointerup", () => { if (glisse) { glisse = null; inspecter(); } });
+document.addEventListener("keydown", (e) => {
+  if ($("vue-editeur").style.display !== "grid" || /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+  if ((e.metaKey || e.ctrlKey) && e.key === "z") { e.preventDefault(); annuler(); return; }
+  const b = v.blocs.find(x => x.id === sel); if (!b) return;
+  const pas = e.shiftKey ? 2 : 0.5;
+  const d = { ArrowLeft: [-pas, 0], ArrowRight: [pas, 0], ArrowUp: [0, -pas], ArrowDown: [0, pas] }[e.key];
+  if (d) { e.preventDefault(); memoriser(); b.x += d[0]; b.y += d[1]; rendre(); }
+  if (e.key === "Backspace" || e.key === "Delete") { e.preventDefault(); supprimerBloc(); }
+});
+function annuler() { if (!histo.length) return; v = JSON.parse(histo.pop()); rendre(); inspecter(); }
+function supprimerBloc() { memoriser(); v.blocs = v.blocs.filter(x => x.id !== sel); sel = null; rendre(); inspecter(); }
+function pastilles(id, actuelle) {
+  const noms = { fond: "Fond", texte: "Texte", accent: "Accent", accent2: "Accent 2", clair: "Clair", sombre: "Sombre" };
+  return `<div class="pastilles" id="${id}">${Object.entries(charte.couleurs).map(([k, c]) => `<span class="pastille ${actuelle === k ? "actif" : ""}" data-c="${k}" title="${noms[k] || k}" style="background:${c}"></span>`).join("")}</div>`;
+}
+function brancherPastilles(id, cle, b) {
+  $(id).querySelectorAll(".pastille").forEach(p => p.onclick = () => { memoriser(); b[cle] = p.dataset.c; rendre(); inspecter(); });
+}
+function inspecter() {
+  const ins = $("insp");
+  const b = v && v.blocs.find(x => x.id === sel);
+  if (!b) {
+    ins.innerHTML = `<h3>Visuel</h3><p class="aide">${esc(v.nom_gabarit || "")} · ${esc(E.formats[v.format])}</p>
+      <label>Contexte</label><p class="aide" style="margin:0">${esc(v.contexte || "—")}</p>
+      <p class="aide" style="margin-top:16px">Cliquez sur un élément pour le modifier. Glissez pour le déplacer, tirez le petit carré pour le redimensionner. Flèches : déplacement fin, ⌫ : supprimer, ⌘Z : annuler.</p>
+      <label>Ajouter</label><div class="ligne-btn"><button id="a-texte">${icone("plus")}Texte</button><button id="a-forme">${icone("plus")}Forme</button><button id="a-image">${icone("image")}Image</button></div>`;
+    const ajout = (bloc) => { memoriser(); bloc.id = Math.random().toString(36).slice(2, 10); v.blocs.push(bloc); sel = bloc.id; rendre(); inspecter(); };
+    $("a-texte").onclick = () => ajout({ type: "texte", role: "sous_titre", texte: "Votre texte", x: 10, y: 45, w: 80, h: 10, police: "corps", taille: 4.5, couleur: "texte", align: "center" });
+    $("a-forme").onclick = () => ajout({ type: "forme", x: 10, y: 40, w: 80, h: 20, couleur: "accent", rayon: 3 });
+    $("a-image").onclick = () => ajout({ type: "image", role: "photo", x: 20, y: 20, w: 60, h: 40, rayon: 3, fichier: (v.blocs.find(x => x.type === "image") || {}).fichier });
+    return;
+  }
+  const commun = `<div class="ligne-btn" style="margin-top:18px"><button id="i-avant" title="Premier plan">${icone("avant")}</button><button id="i-arriere" title="Arrière-plan">${icone("arriere")}</button><button class="danger" id="i-suppr">${icone("suppr")}Supprimer</button></div>`;
+  if (b.type === "texte") {
+    ins.innerHTML = `<h3>Texte</h3><textarea id="i-texte">${esc(b.texte)}</textarea>
+      <label>Taille</label><input type="range" id="i-taille" min="1.5" max="16" step="0.1" value="${b.taille || 4}" style="width:100%">
+      <label>Couleur</label>${pastilles("i-coul", b.couleur)}
+      <label>Pastille derrière le texte</label><div class="ligne-btn">${pastilles("i-fond", b.fond)}<button class="fantome" id="i-sansfond">Aucune</button></div>
+      <label>Alignement</label><div class="segment" id="i-align">${["left", "center", "right"].map(a => `<button data-a="${a}" class="${(b.align || "left") === a ? "actif" : ""}">${{ left: "Gauche", center: "Centre", right: "Droite" }[a]}</button>`).join("")}</div>
+      <label>Police</label><div class="segment" id="i-pol">${["titre", "corps"].map(p => `<button data-p="${p}" class="${(b.police || "corps") === p ? "actif" : ""}">${p === "titre" ? "Titre" : "Texte"}</button>`).join("")}</div>` + commun;
+    $("i-texte").oninput = () => { b.texte = $("i-texte").value; if (v.textes && b.role) v.textes[b.role] = b.texte; rendre(); };
+    $("i-texte").onfocus = memoriser;
+    $("i-taille").onpointerdown = memoriser; $("i-taille").oninput = () => { b.taille = +$("i-taille").value; rendre(); };
+    brancherPastilles("i-coul", "couleur", b); brancherPastilles("i-fond", "fond", b);
+    $("i-sansfond").onclick = () => { memoriser(); delete b.fond; rendre(); };
+    $("i-align").querySelectorAll("button").forEach(x => x.onclick = () => { memoriser(); b.align = x.dataset.a; rendre(); inspecter(); });
+    $("i-pol").querySelectorAll("button").forEach(x => x.onclick = () => { memoriser(); b.police = x.dataset.p; rendre(); inspecter(); });
+  } else if (b.type === "image") {
+    ins.innerHTML = `<h3>Image</h3>
+      <label>Cadrage</label><input type="range" id="i-cx" min="0" max="100" value="${b.cadrage_x ?? 50}" style="width:100%" title="gauche ↔ droite"><input type="range" id="i-cy" min="0" max="100" value="${b.cadrage_y ?? 40}" style="width:100%" title="haut ↕ bas">
+      <label>Arrondi</label><input type="range" id="i-rayon" min="0" max="50" value="${b.rayon || 0}" style="width:100%">
+      <label>Changer d'image</label><div class="ligne-btn"><input id="i-q" value="${esc((v.textes || {}).requete_image || "")}" style="flex:1;min-width:0"><button id="i-chercher">Chercher</button></div>
+      <div class="mini-grille" id="i-grille"></div>
+      <div class="ligne-btn" style="margin-top:10px"><button id="i-fichier">${icone("exporter")}Mon image</button>${E.generateur ? `<button id="i-ia">${icone("magie")}Image IA</button>` : ""}</div>
+      <input type="file" id="i-f" accept="image/*" style="display:none">` + commun;
+    for (const [id, k] of [["i-cx", "cadrage_x"], ["i-cy", "cadrage_y"], ["i-rayon", "rayon"]]) { $(id).onpointerdown = memoriser; $(id).oninput = () => { b[k] = +$(id).value; rendre(); }; }
+    const prendre = async (r) => { $("statut").textContent = "Téléchargement…"; const d = await (await fetch("/editeur/api/prendre", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(r) })).json(); memoriser(); b.fichier = d.fichier; b.credit = r.credit_licence || ""; $("statut").textContent = ""; rendre(); };
+    $("i-chercher").onclick = async () => {
+      $("i-grille").innerHTML = `<p class="aide">Recherche…</p>`;
+      const rep = await fetch("/editeur/api/chercher", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requete: $("i-q").value }) });
+      const res = rep.ok ? (await rep.json()).filter(r => r.type === "image") : [];
+      $("i-grille").innerHTML = res.length ? "" : `<p class="aide">Aucune image trouvée.</p>`;
+      res.slice(0, 12).forEach(r => { const im = document.createElement("img"); im.src = r.apercu; im.onclick = () => prendre(r); $("i-grille").appendChild(im); });
+    };
+    $("i-fichier").onclick = () => $("i-f").click();
+    $("i-f").onchange = async () => { const f = $("i-f").files[0]; if (!f) return; const fd = new FormData(); fd.append("fichier", f); const d = await (await fetch("/editeur/api/envoyer", { method: "POST", body: fd })).json(); memoriser(); b.fichier = d.chemin; b.credit = ""; rendre(); };
+    if ($("i-ia")) $("i-ia").onclick = async () => {
+      $("i-ia").disabled = true; $("statut").textContent = "Création de l'image…";
+      const rep = await fetch("/editeur/api/generer", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ phrase: v.contexte || "", mot: $("i-q").value }) });
+      const d = await rep.json(); $("i-ia").disabled = false; $("statut").textContent = rep.ok ? "" : (d.detail || "Création impossible");
+      if (rep.ok) { memoriser(); b.fichier = d.fichier; b.credit = ""; rendre(); }
+    };
+  } else if (b.type === "forme") {
+    ins.innerHTML = `<h3>Forme</h3><label>Couleur</label>${pastilles("i-coul", b.couleur)}
+      <label>Opacité</label><input type="range" id="i-op" min="0.1" max="1" step="0.05" value="${b.opacite ?? 1}" style="width:100%">
+      <label>Arrondi</label><input type="range" id="i-rayon" min="0" max="50" value="${b.rayon || 0}" style="width:100%">` + commun;
+    $(`i-coul`).querySelectorAll(".pastille").forEach(p => p.onclick = () => { memoriser(); b.couleur = p.dataset.c; delete b.degrade; rendre(); inspecter(); });
+    for (const [id, k] of [["i-op", "opacite"], ["i-rayon", "rayon"]]) { $(id).onpointerdown = memoriser; $(id).oninput = () => { b[k] = +$(id).value; rendre(); }; }
+  } else {
+    ins.innerHTML = `<h3>Logo</h3><p class="aide">Le logo de votre identité (⚙️ Paramètres › Identité). Glissez pour le placer, tirez le coin pour le redimensionner.</p>` + commun;
+  }
+  $("i-suppr").onclick = supprimerBloc;
+  $("i-avant").onclick = () => { memoriser(); v.blocs = v.blocs.filter(x => x !== b).concat([b]); rendre(); };
+  $("i-arriere").onclick = () => { memoriser(); v.blocs = [b].concat(v.blocs.filter(x => x !== b)); rendre(); };
+}
+$("e-retour").onclick = () => { vue("creer"); fetch("/visuels/api/etat").then(r => r.json()).then(d => { E = d; afficherRecents(); }); };
+$("e-annuler").onclick = annuler;
+$("e-format").onclick = async () => {                // même message, autre format : nouvelle mise en page
+  const ordre = ["carre", "portrait", "story"], f = ordre[(ordre.indexOf(v.format) + 1) % 3];
+  const g = charte.gabarits.find(x => x.id === v.gabarit) || charte.gabarits[0];
+  const ib = v.blocs.find(x => x.type === "image") || {}, img = ib.fichier, credit = ib.credit || "";
+  const textes = { ...(v.textes || {}) }; v.blocs.filter(x => x.type === "texte" && x.role).forEach(x => { textes[x.role] = x.texte; });
+  memoriser();
+  const blocs = g.blocs.map(b => { const n = { ...b, ...(f === "story" && b.story ? b.story : {}) }; delete n.story; n.id = Math.random().toString(36).slice(2, 10);
+    if (n.type === "texte") n.texte = n.texte || textes[n.role] || ""; if (n.type === "image") { n.fichier = img; n.credit = credit; } return n; }).filter(b => b.type !== "texte" || b.texte);
+  v = { ...v, id: Math.random().toString(36).slice(2, 12), format: f, taille: E.tailles[f], blocs, textes };
+  sel = null; rendre(); inspecter();
+};
+$("e-export").onclick = async () => {
+  sel = null; const cv = document.createElement("canvas");
+  await dessiner(cv, v, 1);
+  $("statut").textContent = "Export…";
+  const d = await (await fetch("/visuels/api/exporter", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ visuel: v, png: cv.toDataURL("image/png") }) })).json();
+  const boite = $("modal-boite"); $("modal").style.display = "flex";
+  boite.innerHTML = `<h3>Visuel exporté</h3><p class="aide">${esc(d.nom)}<br>dans Vidéos › Raccord › Visuels</p>
+    <div class="ligne-btn" style="margin-top:14px"><button class="primaire" id="m-finder">Afficher dans le Finder</button><button class="fantome" id="m-fermer">Fermer</button></div>`;
+  $("m-finder").onclick = () => fetch("/editeur/api/ouvrir?mode=finder&f=" + encodeURIComponent(d.fichier), { method: "POST" });
+  $("m-fermer").onclick = () => { $("modal").style.display = "none"; };
+  $("statut").textContent = "Exporté"; rendre();
+};
+window.addEventListener("resize", () => { if ($("vue-editeur").style.display === "grid") rendre(); });
+
+// ------------------------------------------------------------------ charte
+function afficherCharte() {
+  $("charte-sous").textContent = `${charte.nom} — ${charte.source === "claude" ? "comprise par Claude à partir de vos exemples" : "construite depuis votre identité visuelle (ajoutez des exemples pour l'affiner)"}.`;
+  const ex = $("exemples"); ex.innerHTML = "";
+  E.exemples.forEach(f => { const d = document.createElement("div"); d.className = "ex"; d.innerHTML = `<img src="${media(f)}" alt=""><button title="Retirer">${icone("suppr")}</button>`;
+    d.querySelector("button").onclick = async () => { const r = await (await fetch("/visuels/api/exemples/retirer", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ fichier: f }) })).json(); E.exemples = r.exemples; afficherCharte(); };
+    ex.appendChild(d); });
+  const dep = document.createElement("div"); dep.id = "depot-ex"; dep.innerHTML = `${icone("plus")}&nbsp;Ajouter`; ex.appendChild(dep);
+  dep.onclick = () => $("f-ex").click();
+  dep.ondragover = (e) => { e.preventDefault(); dep.classList.add("survol"); };
+  dep.ondragleave = () => dep.classList.remove("survol");
+  dep.ondrop = (e) => { e.preventDefault(); envoyerExemples(e.dataTransfer.files); };
+  const noms = { fond: "Fond", texte: "Texte", accent: "Accent", accent2: "Accent 2", clair: "Clair", sombre: "Sombre" };
+  $("couleurs").innerHTML = Object.entries(charte.couleurs).map(([k, c]) => `<label><input type="color" data-c="${k}" value="${c}">${noms[k] || k}</label>`).join("");
+  $("couleurs").querySelectorAll("input").forEach(i => i.onchange = () => { charte.couleurs[i.dataset.c] = i.value; sauverCharte(); });
+  const opts = (sel) => [["gras", "Montserrat (sans-serif)"], ["serif", "Playfair (serif italique)"]].concat(
+    [E.identite.police_grasse, E.identite.police_serif].filter(Boolean).filter(f => !/polices\/(gras|serif)\.ttf$/.test(f)).map(f => [f, "Identité : " + f.split("/").pop()]))
+    .map(([v_, n]) => `<option value="${esc(v_)}" ${sel === v_ ? "selected" : ""}>${esc(n)}</option>`).join("");
+  $("pol-titre").innerHTML = opts(charte.polices.titre.fichier); $("pol-corps").innerHTML = opts(charte.polices.corps.fichier);
+  $("pol-titre").onchange = () => { charte.polices.titre.fichier = $("pol-titre").value; sauverCharte(); };
+  $("pol-corps").onchange = () => { charte.polices.corps.fichier = $("pol-corps").value; sauverCharte(); };
+  $("charte-ton").textContent = charte.ton ? "Ton : " + charte.ton : "";
+  const g = $("gabarits"); g.innerHTML = "";
+  charte.gabarits.forEach(gab => {
+    const vis = { format: "carre", taille: [1080, 1080], blocs: gab.blocs.map(b => ({ ...b, texte: { titre: "Votre titre ici", sous_titre: "Une phrase qui précise le message.", cta: (charte.cta || ["En savoir plus"])[0] }[b.role] || b.texte })) };
+    g.appendChild(vignette(vis, gab.nom, () => {}));
+  });
+}
+async function sauverCharte() {
+  for (const k in polices) delete polices[k];
+  charte = await (await fetch("/visuels/api/charte", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(charte) })).json();
+  $("statut").textContent = "Charte enregistrée"; afficherCharte();
+}
+async function envoyerExemples(fichiers) {
+  if (!fichiers || !fichiers.length) return;
+  const fd = new FormData(); [...fichiers].forEach(f => fd.append("fichiers", f));
+  $("statut").textContent = "Ajout des exemples…";
+  const r = await (await fetch("/visuels/api/exemples", { method: "POST", body: fd })).json();
+  E.exemples = r.exemples; $("statut").textContent = `${r.ajoutes} exemple(s) ajouté(s)`; afficherCharte();
+}
+$("f-ex").onchange = () => envoyerExemples($("f-ex").files);
+$("b-paquet").onclick = async () => {
+  const rep = await fetch("/visuels/api/paquet", { method: "POST" }); const d = await rep.json();
+  const boite = $("modal-boite"); $("modal").style.display = "flex";
+  boite.innerHTML = rep.ok ? `<h3>Paquet prêt</h3><p class="aide"><b>${esc(d.nom)}</b><br>dans Vidéos › Raccord › Pour Claude</p>
+      <ol class="aide" style="padding-left:18px"><li>Glissez ce fichier dans votre conversation avec Claude (« fais la charte »).</li><li>Téléchargez le fichier <b>.raccord-charte.json</b> qu'il vous rend.</li><li>Revenez ici : <b>Importer la charte de Claude</b>.</li></ol>
+      <div class="ligne-btn"><button class="primaire" id="m-finder">Afficher dans le Finder</button><button class="fantome" id="m-fermer">Fermer</button></div>`
+    : `<h3>Paquet impossible</h3><p class="aide">${esc(d.detail)}</p><button class="fantome" id="m-fermer">Fermer</button>`;
+  if (rep.ok) $("m-finder").onclick = () => fetch("/editeur/api/ouvrir?mode=finder&f=" + encodeURIComponent(d.paquet), { method: "POST" });
+  $("m-fermer").onclick = () => { $("modal").style.display = "none"; };
+};
+$("b-importer").onclick = () => $("f-charte").click();
+$("f-charte").onchange = async () => {
+  const f = $("f-charte").files[0]; if (!f) return;
+  const fd = new FormData(); fd.append("fichier", f);
+  const rep = await fetch("/visuels/api/charte/importer", { method: "POST", body: fd }); const d = await rep.json();
+  if (!rep.ok) { $("statut").textContent = d.detail || "Charte illisible"; return; }
+  for (const k in polices) delete polices[k];
+  charte = d; $("statut").textContent = "Charte importée"; afficherCharte();
+};
+$("b-raz").onclick = async () => { for (const k in polices) delete polices[k]; charte = await (await fetch("/visuels/api/charte/reinitialiser", { method: "POST" })).json(); afficherCharte(); };
+$("o-creer").onclick = () => vue("creer");
+$("o-charte").onclick = () => vue("charte");
+charger();
+</script>
+</body>
+</html>

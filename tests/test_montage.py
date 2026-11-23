@@ -801,3 +801,52 @@ def test_paquet_pour_claude_et_import(tmp_path):
     assert r["couleurs"] == ["#112233"] and r["nom"] == "Punchy" and "inconnu" not in r["profil"]
     with pytest.raises(ValueError):
         A.lire_style_claude({"rien": 1})
+
+
+# ------------------------------------------------------------------ visuels (posts et stories)
+def test_visuels_generation_charte_et_paquet(tmp_path, monkeypatch):
+    import zipfile
+    from PIL import Image
+    import visuels as V
+    monkeypatch.setattr(V, "DOSSIER", str(tmp_path / "Visuels"))
+    monkeypatch.setattr(V, "DOSSIER_EXEMPLES", str(tmp_path / "Visuels" / ".exemples"))
+    monkeypatch.setattr(V, "FICHIER_CHARTE", str(tmp_path / "charte.json"))
+    photo = tmp_path / "p.jpg"; Image.new("RGB", (900, 1200), (200, 120, 60)).save(photo)
+    cfg = {"identite": {"nom": "Marque", "couleur_1": "#2E2C51", "couleur_2": "#0AC2A4"}, "cles": {}, "illustrations": {}}
+    charte = V.charte_defaut(cfg)
+    assert charte["couleurs"]["fond"] == "#2E2C51" and len(charte["gabarits"]) >= 5
+    vs = V.generer("Payez votre loyer par Mobile Money, sans vous déplacer. Simple et sûr.", "story", n=6, cfg=cfg, charte=charte,
+                   rechercher=lambda q, c: [{"type": "image", "url": "x", "credit_licence": "Image : par Awa — CC BY 4.0"}],
+                   telecharger=lambda r: str(photo))
+    assert len(vs) == 6 and len({v["gabarit"] for v in vs}) >= 5 and vs[0]["taille"] == [1080, 1920]
+    titres = [b["texte"] for b in vs[0]["blocs"] if b.get("role") == "titre"]
+    assert titres == ["Payez votre loyer par Mobile Money"]
+    assert any(b["type"] == "image" and b["fichier"] == str(photo) for b in vs[0]["blocs"])
+    story = next(b for b in vs[0]["blocs"] if b.get("role") == "titre")
+    assert story["y"] == 64                                                     # valeurs propres au format vertical
+    # textes rédigés par l'IA (Ollama) quand elle répond
+    t = V.ecrire_textes("x", charte, cfg, demander=lambda conf, consigne: {"titre": "Loyer payé en 1 clic", "cta": "Essayer"})
+    assert t["titre"] == "Loyer payé en 1 clic" and t["cta"] == "Essayer" and t["sous_titre"] == ""
+    # charte rendue par Claude : vérifiée et bornée
+    ch = V.valider_charte({"nom": "Charte X", "couleurs": {"fond": "#111111", "accent": "rouge"},
+                           "polices": {"titre": {"fichier": "serif", "graisse": 2000}},
+                           "gabarits": [{"id": "a b", "blocs": [{"type": "texte", "role": "titre", "x": 500, "y": 10, "w": 80, "h": 20},
+                                                                 {"type": "virus"}]}]})
+    assert ch["couleurs"]["fond"] == "#111111" and ch["couleurs"]["accent"] == charte["couleurs"]["accent"]
+    assert ch["polices"]["titre"] == {**ch["polices"]["titre"], "fichier": "serif", "graisse": 900}
+    assert len(ch["gabarits"]) == 1 and ch["gabarits"][0]["blocs"][0]["x"] == 100 and ch["source"] == "claude"
+    with pytest.raises(ValueError):
+        V.valider_charte({"rien": 1})
+    # exemples → paquet pour Claude
+    for i, c in enumerate([(46, 44, 81), (10, 194, 164), (250, 250, 250)]):
+        Image.new("RGB", (1080, 1350), c).save(tmp_path / f"ex{i}.png")
+    V.ajouter_exemples([str(tmp_path / f"ex{i}.png") for i in range(3)])
+    assert len(V.lister_exemples()) == 3 and "#2E2C51" in V.palette([Image.open(f) for f in V.lister_exemples()])
+    z = V.preparer_paquet_charte(str(tmp_path / "Pour Claude"))
+    with zipfile.ZipFile(z) as f:
+        assert {"planche-1.jpg", "mesures.json", "LISEZMOI.txt"} <= set(f.namelist())
+        assert "raccord-charte" in f.read("LISEZMOI.txt").decode()
+    # export : PNG + crédits
+    vs[0]["textes"]["titre"] = "Loyer / payé"
+    png = V.exporter_png(vs[0], b"\x89PNG fake")
+    assert os.path.exists(png) and os.path.exists(os.path.splitext(png)[0] + "_credits.txt")

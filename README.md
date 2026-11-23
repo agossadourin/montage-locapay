@@ -63,6 +63,8 @@ Le **mode classique** (et les **⚙️ Paramètres** : identité, style, clés) 
 
 **〰️ Doodles** : trait dessiné sous ou autour des mots clés forts — panneau de droite (rien de sélectionné) pour tout le projet, ou dans un sous-titre (code : `dessiner_doodle` / `choisir_doodles` dans `montage_auto.py`).
 
+**🖼 Visuels (posts et stories)** : bouton **Visuels** en haut. *Charte* : ajoutez des exemples de visuels de la marque, préparez le paquet pour Claude, importez la charte qu'il rend. *Créer* : décrivez le message, choisissez le format, **Proposer 6 visuels**, retouchez (calques), **Exporter en PNG** (dans Vidéos › Raccord › Visuels). Code : `visuels.py` (charte, gabarits, génération) et `visuels.html` (rendu, éditeur).
+
 **✏️ Sous-titres** : en pause, cliquez sur le texte **dans la vidéo** pour le modifier (Entrée pour valider, Échap pour annuler) ; ⌥ + clic sur un mot pour le mettre en GRAS.
 
 **✨ Illustrations créées par IA, gratuit (Cloudflare)** : compte gratuit sur [dash.cloudflare.com](https://dash.cloudflare.com/sign-up) → copiez l'**Account ID**, créez un **jeton d'API** avec le modèle « Workers AI » → collez-les dans **⚙️ Paramètres › Clés API** et choisissez « Images créées par IA — Cloudflare ». Environ 170 images par jour gratuites (FLUX.1 schnell, `illustrations.py` › `generer_image_cloudflare`).
@@ -94,6 +96,7 @@ Double-cliquez sur **`Mettre à jour.command`** (ou `git pull` dans le dossier).
 | `app/configuration.py` | Paramètres persistants (identité, clés, profils de style) dans `Vidéos › Raccord › .parametres`. |
 | `app/analyse_style.py` | Analyse d'une vidéo de référence → profil de style. |
 | `app/illustrations.py` | Choix des moments à illustrer, recherche Pexels/Pixabay, téléchargement. |
+| `app/visuels.py`, `app/visuels.html` | Visuels de marque : charte, gabarits, génération, éditeur de calques et export PNG. |
 | `app/rythme.py` | Temps forts d'une musique et calage du montage sur le rythme. |
 | `app/musique.py` | Recherche de musique libre (Openverse, usage commercial) et crédits. |
 | `app/ia.py` | Appels facultatifs à Claude (API Anthropic). |

@@ -1,5 +1,12 @@
 # Historique des versions
 
+## 1.2.0 — 2026-11-23
+- **Visuels** (nouveau) : posts carrés et portrait, stories, dans la charte de la marque.
+  - **Créer** : on décrit le message → Raccord écrit les textes (Ollama si installé, sinon règles simples), trouve des photos (Pexels, Pixabay, Openverse, ou image créée par IA) et propose 6 mises en page.
+  - **Éditeur de calques** : cliquer pour sélectionner, glisser pour déplacer, coin pour redimensionner ; texte, taille, couleurs de la charte, pastille, alignement, police ; changer d'image (recherche, fichier, IA), cadrage, arrondi ; ajouter texte/forme/image ; premier/arrière-plan ; ⌘Z ; passer d'un format à l'autre ; **export PNG** (avec crédits si nécessaire).
+  - **Charte** : exemples de visuels de la marque → paquet pour Claude (dans la conversation, sans clé API) → import de la charte (couleurs par rôle, polices, ton, appels à l'action, mises en page). Couleurs et polices ajustables ; charte par défaut construite depuis l'identité.
+- Liens « Visuels » dans l'éditeur vidéo et l'accueil.
+
 ## 1.1.0 — 2026-11-23
 - **Copie de style analysée par Claude, sans clé API** : « Copier un style › Préparer le paquet pour Claude » crée un petit .zip (planche de 12 images + mesures + consignes) dans Vidéos › Raccord › Pour Claude. On le dépose dans une conversation avec Claude, qui rend un fichier `.raccord-style.json` ; « Importer la réponse de Claude » l'applique à la vidéo (avec vos couleurs ou celles du modèle) et peut l'enregistrer comme style.
 - Les valeurs importées sont vérifiées et bornées ; un fichier qui n'est pas un style est refusé avec un message clair.

@@ -89,6 +89,98 @@ def ajouter_routes(api: FastAPI, racines):
         with open(os.path.join(ICI, "editeur.html"), encoding="utf-8") as f:
             return f.read()
 
+    # ------------------------------------------------------------ visuels (posts et stories)
+    import visuels as V
+    racines.append(V.DOSSIER)
+
+    @api.get("/visuels", response_class=HTMLResponse)
+    def page_visuels():
+        with open(os.path.join(ICI, "visuels.html"), encoding="utf-8") as f:
+            return f.read()
+
+    @api.get("/visuels/api/etat")
+    def visuels_etat():
+        cfg = C.charger_config()
+        import ia
+        return {"charte": V.charger_charte(), "exemples": V.lister_exemples(), "visuels": V.lister_visuels(),
+                "identite": cfg["identite"], "formats": V.NOMS_FORMATS, "tailles": V.FORMATS,
+                "ia_textes": ia.nom_ia(ia.config_ia(cfg)), "generateur": I.fournisseur_images(cfg)}
+
+    @api.post("/visuels/api/exemples")
+    async def visuels_exemples(fichiers: List[UploadFile] = File(...)):
+        os.makedirs(V.DOSSIER_EXEMPLES, exist_ok=True)
+        gardes = []
+        for f in fichiers:
+            nom = os.path.basename(f.filename or "exemple.png")
+            if not nom.lower().endswith(V.EXT_IMAGES):
+                continue
+            dest = os.path.join(V.DOSSIER_EXEMPLES, f"{int(time.time() * 1000)}_{nom}")
+            with open(dest, "wb") as out:
+                shutil.copyfileobj(f.file, out)
+            gardes.append(dest)
+        return {"ajoutes": len(gardes), "exemples": V.lister_exemples()}
+
+    @api.post("/visuels/api/exemples/retirer")
+    async def visuels_retirer(req: Request):
+        d = await req.json()
+        f = str(d.get("fichier") or "")
+        if os.path.dirname(os.path.realpath(f)) != os.path.realpath(V.DOSSIER_EXEMPLES):
+            raise HTTPException(403)
+        os.makedirs(os.path.join(V.DOSSIER, ".retires"), exist_ok=True)
+        shutil.move(f, os.path.join(V.DOSSIER, ".retires", os.path.basename(f)))
+        return {"exemples": V.lister_exemples()}
+
+    @api.post("/visuels/api/paquet")
+    def visuels_paquet():
+        try:
+            z = V.preparer_paquet_charte()
+        except Exception as e:
+            raise HTTPException(400, str(e))
+        return {"paquet": z, "nom": os.path.basename(z)}
+
+    @api.post("/visuels/api/charte/importer")
+    async def visuels_charte(fichier: UploadFile = File(...)):
+        import json
+        try:
+            charte = V.valider_charte(json.loads((await fichier.read()).decode("utf-8-sig")))
+        except Exception as e:
+            raise HTTPException(400, f"Charte illisible : {e}")
+        return V.sauver_charte(charte)
+
+    @api.put("/visuels/api/charte")
+    async def visuels_charte_maj(req: Request):
+        return V.sauver_charte(V.valider_charte(await req.json()))
+
+    @api.post("/visuels/api/charte/reinitialiser")
+    def visuels_charte_raz():
+        if os.path.exists(V.FICHIER_CHARTE):
+            os.replace(V.FICHIER_CHARTE, V.FICHIER_CHARTE + ".ancienne")
+        return V.charger_charte()
+
+    @api.post("/visuels/api/generer")
+    async def visuels_generer(req: Request):
+        d = await req.json()
+        def travail(rappel):
+            vs = V.generer(str(d.get("contexte") or ""), d.get("format") or "carre", n=int(d.get("n") or 6),
+                           image_ia=bool(d.get("image_ia")), rappel=rappel)
+            return {"visuels": vs}
+        return {"job": lancer_travail(travail)}
+
+    @api.put("/visuels/api/visuel")
+    async def visuels_sauver(req: Request):
+        return V.sauver_visuel(await req.json())
+
+    @api.post("/visuels/api/exporter")
+    async def visuels_exporter(req: Request):
+        import base64
+        d = await req.json()
+        png = base64.b64decode(str(d.get("png") or "").split(",")[-1])
+        if not png.startswith(b"\x89PNG"):
+            raise HTTPException(400, "Image invalide")
+        chemin = V.exporter_png(d.get("visuel") or {}, png)
+        V.sauver_visuel(d.get("visuel") or {}) if (d.get("visuel") or {}).get("id") else None
+        return {"fichier": chemin, "nom": os.path.basename(chemin)}
+
     @api.get("/editeur/icone.png")
     def icone_app():
         return FileResponse(os.path.join(os.path.dirname(ICI), "macos", "AppIcon.png"), headers={"Cache-Control": "max-age=86400"})
