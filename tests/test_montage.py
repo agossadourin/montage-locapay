@@ -832,7 +832,7 @@ def test_visuels_generation_charte_et_paquet(tmp_path, monkeypatch):
                            "polices": {"titre": {"fichier": "serif", "graisse": 2000}},
                            "gabarits": [{"id": "a b", "blocs": [{"type": "texte", "role": "titre", "x": 500, "y": 10, "w": 80, "h": 20},
                                                                  {"type": "virus"}]}]})
-    assert ch["couleurs"]["fond"] == "#111111" and ch["couleurs"]["accent"] == charte["couleurs"]["accent"]
+    assert ch["couleurs"]["fond"] == "#111111" and ch["couleurs"]["accent"] == V.charte_defaut()["couleurs"]["accent"]
     assert ch["polices"]["titre"] == {**ch["polices"]["titre"], "fichier": "serif", "graisse": 900}
     assert len(ch["gabarits"]) == 1 and ch["gabarits"][0]["blocs"][0]["x"] == 100 and ch["source"] == "claude"
     with pytest.raises(ValueError):
