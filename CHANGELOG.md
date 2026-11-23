@@ -1,5 +1,9 @@
 # Historique des versions
 
+## 1.5.0 — 2026-11-23
+- Visuels : **texte « autocollant »** (contour épais et ombre portée nette, lisible sur n'importe quelle photo) et **petits dessins à main levée** (étoile, zigzag, boucles, éclat), ajoutables et réglables dans l'éditeur (bouton « Dessin »).
+- L'accroche devient une courte étiquette (« C'est gratuit. », « Tu es prêt ? »), utilisée en pastille ou au-dessus du titre.
+
 ## 1.4.0 — 2026-11-23
 - **Visuels plus modernes et épurés** : 6 nouvelles mises en page par défaut (titre seul, photo arrondie, plein cadre, personne sur la couleur, grand chiffre, moitié couleur / moitié photo). Grandes marges, Poppins semi-grasse aux lettres resserrées, une seule couleur d'accent, logo d'une couleur.
 - Rendu : logo teinté (blanc sur photo, encre sur fond clair), espacement des lettres, texte calé en haut, au milieu ou en bas de sa boîte ; réglages dans l'éditeur (« Espacement des lettres », couleur du logo).

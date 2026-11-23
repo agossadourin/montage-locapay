@@ -201,12 +201,13 @@ def valider_gabarit(g):
         return None
     blocs = []
     for b in g["blocs"][:20]:
-        if not isinstance(b, dict) or b.get("type") not in ("image", "forme", "texte", "logo"):
+        if not isinstance(b, dict) or b.get("type") not in ("image", "forme", "texte", "logo", "doodle"):
             continue
         nb = {k: v for k, v in b.items() if k in ("type", "role", "couleur", "degrade", "police", "align", "fond",
                                                    "opacite", "rayon", "taille", "texte", "story", "casse", "graisse",
                                                    "rotation", "contour", "motif", "couleur_motif", "ajustement",
-                                                   "interlettre", "valign", "sans_detourage")}
+                                                   "interlettre", "valign", "sans_detourage", "ombre",
+                                                   "ombre_decalage", "epaisseur", "dessin", "trait", "remplir")}
         for k in ("x", "y", "w", "h"):
             try:
                 nb[k] = float(min(100, max(-20, float(b.get(k, 0)))))
@@ -322,6 +323,8 @@ Gabarit : {{"id": "…", "nom": "…", "blocs": [ … du fond vers le premier pl
  texte : valign haut|milieu|bas (le texte se cale dans sa boîte), interlettre (en em, ex. -0.03) ;
  image : ajustement "couvrir" (photo entière, jamais détourée), sans_detourage {{x, y, w, h, story}} (boîte
          utilisée si la photo n'a pas pu être détourée) ;
+ texte « autocollant » : contour (couleur), epaisseur (part de la taille, ex. 0.14), ombre (couleur), ombre_decalage ;
+ doodle : petit dessin à main levée, dessin etoile|gribouillis|boucles|eclat, couleur, trait (contour de l'étoile), rotation ;
  gabarit : requiert ["filigrane"] = proposé seulement si ce texte existe (rôles : titre, sous_titre, cta, filigrane) ;
  Style conseillé : sobre et moderne, une idée par visuel, grandes marges (≈ 7 %), une seule couleur d'accent ;
  "story": {{…}} : mêmes clés, valeurs propres au format vertical 1080×1920 (sinon celles du carré/portrait).
@@ -401,7 +404,7 @@ Exemples de titres de la marque : {exemples}
 Contexte donné par l'utilisateur : « {contexte} »
 Réponds UNIQUEMENT avec un objet JSON :
 {{"titre": "accroche de 1 à 7 mots, percutante", "sous_titre": "une phrase de 8 à 18 mots",
- "cta": "appel à l'action de 2 à 4 mots", "accroche": "1 à 3 mots en écriture manuscrite (ex. « Bonne rentrée », « Welcome ») ou vide",
+ "cta": "appel à l'action de 2 à 4 mots", "accroche": "1 à 5 mots : courte étiquette ou interpellation (ex. « C'est gratuit. », « Vous êtes prêts ? », « Bonne rentrée ») ou vide",
  "filigrane": "un nombre ou un mot très court à afficher en très grand en fond (ex. « 05 », « 2027 ») ou vide",
  "requete_image": "2 à 4 mots en anglais pour chercher une photo d'illustration (une personne si possible)"}}"""
 

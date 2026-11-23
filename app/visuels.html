@@ -242,6 +242,34 @@ function volutes(ctx, x, y, w, h, coul) {          // texture en volutes (emprei
   }
   ctx.restore();
 }
+function dessinerDoodle(ctx, b, x, y, w, h) {   // petits dessins à main levée : étoile, gribouillis, boucles, éclat
+  const c = couleur(b.couleur) || "#fff", t = couleur(b.trait), m = Math.min(w, h);
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  if ((b.dessin || "etoile") === "etoile") {
+    const cx = x + w / 2, cy = y + h / 2, R = m * 0.46, r = R * 0.5;
+    ctx.beginPath();
+    for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, rr = k % 2 ? r : R; ctx[k ? "lineTo" : "moveTo"](cx + rr * Math.cos(a), cy + rr * Math.sin(a)); }
+    ctx.closePath();
+    if (b.remplir === false) { ctx.strokeStyle = c; ctx.lineWidth = m * 0.11; ctx.stroke(); }
+    else { if (t) { ctx.strokeStyle = t; ctx.lineWidth = m * 0.13; ctx.stroke(); } ctx.fillStyle = c; ctx.fill(); }
+    return;
+  }
+  ctx.strokeStyle = c; ctx.beginPath();
+  if (b.dessin === "gribouillis") {                // zigzag
+    ctx.lineWidth = h * 0.16; const n = 6;
+    for (let k = 0; k <= n; k++) ctx[k ? "lineTo" : "moveTo"](x + w * 0.08 + (w * 0.84) * k / n, y + h * (k % 2 ? 0.2 : 0.8));
+  } else if (b.dessin === "boucles") {             // trait qui boucle (cycloïde allongée)
+    ctx.lineWidth = h * 0.12; const n = 3, a = w / (2 * Math.PI * n) * 1.7;
+    for (let k = 0; k <= 120; k++) { const u = k / 120, ph = 2 * Math.PI * n * u;
+      ctx[k ? "lineTo" : "moveTo"](x + a + (w - 2 * a) * u - a * Math.sin(ph), y + h / 2 - h * 0.32 * Math.cos(ph)); }
+  } else {                                          // éclat : trois traits qui rayonnent
+    ctx.lineWidth = m * 0.12;
+    for (const a of [-0.9, -0.45, 0]) { const ox = x + w * 0.1, oy = y + h * 0.9;
+      ctx.moveTo(ox + Math.cos(a - 0.7) * m * 0.35, oy + Math.sin(a - 0.7) * m * 0.35);
+      ctx.lineTo(ox + Math.cos(a - 0.7) * m * 0.8, oy + Math.sin(a - 0.7) * m * 0.8); }
+  }
+  ctx.stroke();
+}
 function couleur(c) {
   if (!c) return null;
   if (c === "transparent") return "rgba(0,0,0,0)";
@@ -294,6 +322,8 @@ async function dessiner(cv, vis, echelle = 1) {
         ctx.filter = filtreImage(); ctx.drawImage(im, x + (w - iw) * fx, y + (h - ih) * fy, iw, ih); ctx.filter = "none";
         if (charte.traitement_image === "duotone") { ctx.globalCompositeOperation = "multiply"; ctx.fillStyle = couleur("fond"); ctx.fillRect(x, y, w, h); }
       } else { ctx.fillStyle = "#3a3a46"; ctx.fillRect(x, y, w, h); }
+    } else if (b.type === "doodle") {
+      dessinerDoodle(ctx, b, x, y, w, h);
     } else if (b.type === "logo") {
       const im = await chargerImage(E.identite.fichier_logo);
       if (im) {
@@ -317,7 +347,8 @@ async function dessiner(cv, vis, echelle = 1) {
       for (let k = 0; k < 30; k++) {                 // le texte rétrécit jusqu'à tenir dans sa boîte
         ctx.font = `${it ? "italic " : ""}${graisse} ${taille}px "${fam}"`;
         if ("letterSpacing" in ctx) ctx.letterSpacing = ((b.interlettre ?? p.interlettre ?? 0) * taille).toFixed(2) + "px";
-        lh = taille * (p.interligne || 1.15); lignes = lignesTexte(ctx, t, w - 2 * pad);
+        const ep0 = b.contour ? Math.max(2, (b.epaisseur ?? 0.025) * taille) : 0;
+        lh = taille * (p.interligne || 1.15); lignes = lignesTexte(ctx, t, w - 2 * pad - ep0);
         if (lignes.length * lh <= h - pad * 0.5 || taille < 10) break;
         taille *= 0.93;
       }
@@ -330,7 +361,9 @@ async function dessiner(cv, vis, echelle = 1) {
         ctx.fillStyle = couleur(b.fond); chemin(ctx, bx, y + (h - bh) / 2, bw, bh, (b.rayon || 6) / 100 * W); ctx.fill();
       }
       ctx.fillStyle = couleur(b.couleur) || "#fff";
-      if (b.contour) { ctx.strokeStyle = couleur(b.contour); ctx.lineWidth = Math.max(2, taille * 0.025); ctx.lineJoin = "round"; }
+      const ep = Math.max(2, (b.epaisseur ?? 0.025) * taille);
+      ctx.lineJoin = "round"; ctx.lineWidth = ep;
+      if (b.contour) ctx.strokeStyle = couleur(b.contour);
       const hauteur = lignes.length * lh - (lh - taille * 1.02);       // hauteur visible (sans l'interligne final)
       const y0 = b.fond ? y + (h - lignes.length * lh) / 2 : b.valign === "bas" ? y + h - hauteur
         : b.valign === "milieu" ? y + (h - hauteur) / 2 : y;
@@ -338,8 +371,14 @@ async function dessiner(cv, vis, echelle = 1) {
         const lw = ctx.measureText(l).width;
         const lx = b.fond ? bx + (bw - lw) / 2                         // texte centré dans sa pastille
           : b.align === "center" ? x + (w - lw) / 2 : b.align === "right" ? x + w - lw : x;
-        if (b.couleur !== "transparent") ctx.fillText(l, lx, y0 + i * lh + taille * 0.88);
-        if (b.contour) ctx.strokeText(l, lx, y0 + i * lh + taille * 0.88);
+        const ly = y0 + i * lh + taille * 0.88;
+        if (b.ombre) {                                   // ombre portée nette (texte « autocollant »)
+          const d = (b.ombre_decalage ?? 0.08) * taille;
+          ctx.save(); ctx.fillStyle = ctx.strokeStyle = couleur(b.ombre);
+          if (b.contour) ctx.strokeText(l, lx, ly + d); ctx.fillText(l, lx, ly + d); ctx.restore();
+        }
+        if (b.contour) ctx.strokeText(l, lx, ly);      // contour sous le remplissage : lettres pleines
+        if (b.couleur !== "transparent") ctx.fillText(l, lx, ly);
       });
     }
     ctx.restore();
@@ -478,10 +517,11 @@ function inspecter() {
     ins.innerHTML = `<h3>Visuel</h3><p class="aide">${esc(v.nom_gabarit || "")} · ${esc(E.formats[v.format])}</p>
       <label>Contexte</label><p class="aide" style="margin:0">${esc(v.contexte || "—")}</p>
       <p class="aide" style="margin-top:16px">Cliquez sur un élément pour le modifier. Glissez pour le déplacer, tirez le petit carré pour le redimensionner. Flèches : déplacement fin, ⌫ : supprimer, ⌘Z : annuler.</p>
-      <label>Ajouter</label><div class="ligne-btn"><button id="a-texte">${icone("plus")}Texte</button><button id="a-forme">${icone("plus")}Forme</button><button id="a-image">${icone("image")}Image</button></div>`;
+      <label>Ajouter</label><div class="ligne-btn"><button id="a-texte">${icone("plus")}Texte</button><button id="a-forme">${icone("plus")}Forme</button><button id="a-image">${icone("image")}Image</button><button id="a-doodle">${icone("plus")}Dessin</button></div>`;
     const ajout = (bloc) => { memoriser(); bloc.id = Math.random().toString(36).slice(2, 10); v.blocs.push(bloc); sel = bloc.id; rendre(); inspecter(); };
     $("a-texte").onclick = () => ajout({ type: "texte", role: "sous_titre", texte: "Votre texte", x: 10, y: 45, w: 80, h: 10, police: "corps", taille: 4.5, couleur: "texte", align: "center" });
     $("a-forme").onclick = () => ajout({ type: "forme", x: 10, y: 40, w: 80, h: 20, couleur: "accent", rayon: 3 });
+    $("a-doodle").onclick = () => ajout({ type: "doodle", dessin: "etoile", x: 70, y: 20, w: 10, h: 10, couleur: "clair", trait: "accent" });
     $("a-image").onclick = () => ajout({ type: "image", role: "photo", x: 20, y: 20, w: 60, h: 40, rayon: 3, fichier: (v.blocs.find(x => x.type === "image") || {}).fichier });
     return;
   }
@@ -545,6 +585,15 @@ function inspecter() {
       <label>Arrondi</label><input type="range" id="i-rayon" min="0" max="50" value="${b.rayon || 0}" style="width:100%">` + commun;
     $(`i-coul`).querySelectorAll(".pastille").forEach(p => p.onclick = () => { memoriser(); b.couleur = p.dataset.c; delete b.degrade; rendre(); inspecter(); });
     for (const [id, k] of [["i-op", "opacite"], ["i-rayon", "rayon"]]) { $(id).onpointerdown = memoriser; $(id).oninput = () => { b[k] = +$(id).value; rendre(); }; }
+  } else if (b.type === "doodle") {
+    ins.innerHTML = `<h3>Dessin</h3><label>Forme</label><div class="segment" id="i-dessin">${["etoile", "gribouillis", "boucles", "eclat"].map(d => `<button data-d="${d}" class="${(b.dessin || "etoile") === d ? "actif" : ""}">${{ etoile: "Étoile", gribouillis: "Zigzag", boucles: "Boucles", eclat: "Éclat" }[d]}</button>`).join("")}</div>
+      <label>Couleur</label>${pastilles("i-coul", b.couleur)}
+      <label>Contour (étoile)</label><div class="ligne-btn">${pastilles("i-trait", b.trait)}<button class="fantome" id="i-sanstrait">Aucun</button></div>
+      <label>Inclinaison</label><input type="range" id="i-rot" min="-45" max="45" step="1" value="${b.rotation || 0}" style="width:100%">` + commun;
+    $("i-dessin").querySelectorAll("button").forEach(x => x.onclick = () => { memoriser(); b.dessin = x.dataset.d; rendre(); inspecter(); });
+    brancherPastilles("i-coul", "couleur", b); brancherPastilles("i-trait", "trait", b);
+    $("i-sanstrait").onclick = () => { memoriser(); delete b.trait; rendre(); inspecter(); };
+    $("i-rot").onpointerdown = memoriser; $("i-rot").oninput = () => { b.rotation = +$("i-rot").value; rendre(); };
   } else {
     ins.innerHTML = `<h3>Logo</h3><p class="aide">Le logo de votre identité (⚙️ Paramètres › Identité). Glissez pour le placer, tirez le coin pour le redimensionner.</p>
       <label>Couleur</label>${pastilles("i-coul", b.couleur)}<button class="btn" id="i-orig" style="margin-top:6px">Couleurs d'origine</button>` + commun;

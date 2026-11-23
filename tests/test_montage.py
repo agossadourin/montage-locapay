@@ -900,3 +900,18 @@ def test_gabarits_epures_detourage_et_chiffre():
     vis = V.generer("Paie ton loyer sans te déplacer", n=6, charte=ch, rechercher=lambda *a: [], telecharger=lambda r: None,
                     demander=lambda *a, **k: None, cfg={**__import__("configuration").charger_config(), "cles": {}})
     assert vis and "chiffre" not in [x["gabarit"] for x in vis]
+
+
+def test_charte_texte_autocollant_et_dessins():
+    import visuels as V
+    ch = V.valider_charte({"couleurs": {"fond": "#12B09A"}, "gabarits": [{"id": "g", "blocs": [
+        {"type": "image", "role": "photo", "x": 0, "y": 0, "w": 100, "h": 100},
+        {"type": "texte", "role": "titre", "x": 6, "y": 10, "w": 88, "h": 20, "contour": "accent", "epaisseur": 0.16,
+         "ombre": "accent", "ombre_decalage": 0.09},
+        {"type": "doodle", "dessin": "etoile", "x": 80, "y": 40, "w": 10, "h": 10, "couleur": "clair", "trait": "accent", "rotation": 10},
+        {"type": "doodle", "dessin": "boucles", "x": 5, "y": 50, "w": 14, "h": 5, "script": "alert(1)"}]}]})
+    blocs = ch["gabarits"][0]["blocs"]
+    assert blocs[1]["ombre"] == "accent" and blocs[1]["epaisseur"] == 0.16
+    assert blocs[2]["type"] == "doodle" and blocs[2]["trait"] == "accent" and "script" not in blocs[3]
+    v = V.nouveau_visuel(ch["gabarits"][0], "story", {"titre": "Ça arrive hein !"}, None, ch)
+    assert [b["type"] for b in v["blocs"]] == ["forme", "texte", "doodle", "doodle"]
