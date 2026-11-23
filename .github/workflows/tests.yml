@@ -22,6 +22,6 @@ jobs:
         run: |
           bash -n Installer.command
           bash -n "Mettre à jour.command"
-          bash -n "Lancer Montage.command"
+          bash -n "Lancer Raccord.command"
           bash -n macos/build_app.sh
           bash -n "Installer IA locale (Ollama).command"
