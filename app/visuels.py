@@ -33,54 +33,72 @@ EXT_IMAGES = (".png", ".jpg", ".jpeg", ".webp")
 # ------------------------------------------------------------------ gabarits par défaut
 # Coordonnées en % de la largeur (x, w) et de la hauteur (y, h). « story » : valeurs propres au format vertical.
 GABARITS_DEFAUT = [
-    {"id": "photo-bas", "nom": "Photo plein cadre, titre en bas", "blocs": [
+    # Rôles de couleur : fond = couleur de marque, sombre = encre, clair = blanc, accent2 = surface claire teintée.
+    {"id": "titre", "nom": "Le titre, rien d'autre", "blocs": [
+        {"type": "forme", "x": 0, "y": 0, "w": 100, "h": 100, "couleur": "accent2"},
+        {"type": "logo", "x": 7.4, "y": 7.4, "w": 30, "h": 6.5, "couleur": "sombre", "story": {"y": 5, "w": 40, "h": 4.6}},
+        {"type": "forme", "x": 7.4, "y": 40, "w": 7, "h": 0.9, "couleur": "fond", "rayon": 0.45, "story": {"y": 42, "h": 0.5}},
+        {"type": "texte", "role": "titre", "x": 7.4, "y": 43.5, "w": 82, "h": 32, "police": "titre", "taille": 17,
+         "couleur": "sombre", "align": "left", "story": {"y": 45, "w": 85, "h": 26, "taille": 20}},
+        {"type": "texte", "role": "sous_titre", "x": 7.4, "y": 80, "w": 50, "h": 12.6, "police": "corps", "taille": 3.3,
+         "couleur": "sombre", "opacite": 0.7, "align": "left", "valign": "bas",
+         "story": {"y": 76, "w": 85, "h": 9, "taille": 4.4}},
+        {"type": "texte", "role": "cta", "x": 60, "y": 86, "w": 32.6, "h": 6.6, "police": "corps", "graisse": 600,
+         "taille": 3, "couleur": "clair", "fond": "fond", "rayon": 3.3, "align": "right",
+         "story": {"x": 7.4, "y": 88.5, "w": 85, "h": 4.6, "align": "left", "taille": 4}}]},
+    {"id": "photo-arrondie", "nom": "Photo arrondie, texte dessous", "blocs": [
+        {"type": "forme", "x": 0, "y": 0, "w": 100, "h": 100, "couleur": "accent2"},
+        {"type": "image", "role": "photo", "x": 7.4, "y": 7.4, "w": 85.2, "h": 56, "rayon": 2.8, "ajustement": "couvrir",
+         "story": {"y": 4.2, "h": 56}},
+        {"type": "texte", "role": "titre", "x": 7.4, "y": 68, "w": 85.2, "h": 14, "police": "titre", "taille": 9,
+         "couleur": "sombre", "align": "left", "story": {"y": 64, "h": 13, "taille": 12}},
+        {"type": "texte", "role": "sous_titre", "x": 7.4, "y": 83, "w": 58, "h": 10, "police": "corps", "taille": 3.3,
+         "couleur": "sombre", "opacite": 0.7, "align": "left", "story": {"y": 78, "w": 85, "h": 8, "taille": 4.4}},
+        {"type": "logo", "x": 62.6, "y": 86.5, "w": 30, "h": 6, "couleur": "sombre", "align": "right",
+         "story": {"x": 56.6, "y": 92, "w": 36, "h": 3.6}}]},
+    {"id": "plein-cadre", "nom": "Photo plein cadre", "blocs": [
         {"type": "image", "role": "photo", "x": 0, "y": 0, "w": 100, "h": 100},
-        {"type": "forme", "x": 0, "y": 45, "w": 100, "h": 55, "degrade": ["transparent", "sombre"], "opacite": 0.9},
-        {"type": "logo", "x": 6, "y": 5, "w": 22, "h": 8, "story": {"y": 4}},
-        {"type": "texte", "role": "titre", "x": 6, "y": 62, "w": 88, "h": 20, "police": "titre", "taille": 8.5,
-         "couleur": "clair", "align": "left", "story": {"y": 64, "h": 16, "taille": 9.5}},
-        {"type": "texte", "role": "sous_titre", "x": 6, "y": 82, "w": 80, "h": 8, "police": "corps", "taille": 3.6,
-         "couleur": "clair", "align": "left", "story": {"y": 80, "h": 6}},
-        {"type": "texte", "role": "cta", "x": 6, "y": 91, "w": 44, "h": 5.5, "police": "corps", "taille": 3.2,
-         "couleur": "sombre", "fond": "accent", "rayon": 6, "align": "left", "story": {"y": 88, "h": 4}}]},
-    {"id": "bandeau", "nom": "Photo en haut, bandeau de couleur", "blocs": [
-        {"type": "image", "role": "photo", "x": 0, "y": 0, "w": 100, "h": 60, "story": {"h": 62}},
-        {"type": "forme", "x": 0, "y": 60, "w": 100, "h": 40, "couleur": "fond", "story": {"y": 62, "h": 38}},
-        {"type": "forme", "x": 6, "y": 66, "w": 14, "h": 1.2, "couleur": "accent", "rayon": 1, "story": {"y": 67, "h": 0.7}},
-        {"type": "texte", "role": "titre", "x": 6, "y": 69, "w": 88, "h": 15, "police": "titre", "taille": 7,
-         "couleur": "clair", "align": "left", "story": {"y": 69, "h": 12, "taille": 8}},
-        {"type": "texte", "role": "sous_titre", "x": 6, "y": 85, "w": 62, "h": 9, "police": "corps", "taille": 3.4,
-         "couleur": "clair", "align": "left", "story": {"y": 82, "h": 7}},
-        {"type": "logo", "x": 72, "y": 87, "w": 22, "h": 8, "story": {"y": 90, "h": 5}}]},
-    {"id": "message", "nom": "Message fort sur aplat", "blocs": [
+        {"type": "forme", "x": 0, "y": 38, "w": 100, "h": 62, "degrade": ["transparent", "sombre"], "opacite": 0.9,
+         "story": {"y": 45, "h": 55}},
+        {"type": "logo", "x": 7.4, "y": 7.4, "w": 30, "h": 6.5, "couleur": "clair", "story": {"y": 5, "w": 40, "h": 4.6}},
+        {"type": "texte", "role": "titre", "x": 7.4, "y": 56, "w": 80, "h": 23, "police": "titre", "taille": 13,
+         "couleur": "clair", "align": "left", "valign": "bas", "story": {"y": 60, "w": 85, "h": 18, "taille": 16}},
+        {"type": "texte", "role": "sous_titre", "x": 7.4, "y": 81.5, "w": 66, "h": 11, "police": "corps", "taille": 3.3,
+         "couleur": "clair", "opacite": 0.85, "align": "left", "story": {"y": 80, "w": 85, "h": 8, "taille": 4.4}}]},
+    {"id": "couleur-personne", "nom": "La personne sur la couleur", "blocs": [
         {"type": "forme", "x": 0, "y": 0, "w": 100, "h": 100, "couleur": "fond"},
-        {"type": "image", "role": "photo", "x": 62, "y": 8, "w": 30, "h": 24, "rayon": 50, "story": {"x": 30, "y": 10, "w": 40, "h": 22.5}},
-        {"type": "texte", "role": "titre", "x": 8, "y": 36, "w": 84, "h": 30, "police": "titre", "taille": 9.5,
-         "couleur": "clair", "align": "left", "story": {"y": 38, "h": 26, "taille": 10.5}},
-        {"type": "forme", "x": 8, "y": 68, "w": 16, "h": 1.2, "couleur": "accent", "rayon": 1, "story": {"y": 66, "h": 0.7}},
-        {"type": "texte", "role": "sous_titre", "x": 8, "y": 72, "w": 80, "h": 10, "police": "corps", "taille": 3.6,
-         "couleur": "clair", "align": "left", "story": {"y": 69, "h": 8}},
-        {"type": "logo", "x": 8, "y": 88, "w": 24, "h": 7, "story": {"y": 90, "h": 5}}]},
-    {"id": "cadre", "nom": "Photo encadrée sur fond clair", "blocs": [
+        {"type": "image", "role": "photo", "x": 42, "y": 12, "w": 64, "h": 88, "story": {"x": 0, "y": 40, "w": 100, "h": 60},
+         "sans_detourage": {"x": 54, "y": 0, "w": 46, "h": 100, "story": {"x": 0, "y": 44, "w": 100, "h": 56}}},
+        {"type": "logo", "x": 7.4, "y": 7.4, "w": 30, "h": 6.5, "couleur": "clair", "story": {"y": 5, "w": 40, "h": 4.6}},
+        {"type": "texte", "role": "titre", "x": 7.4, "y": 26, "w": 44, "h": 34, "police": "titre", "taille": 13,
+         "couleur": "clair", "align": "left", "valign": "bas", "story": {"y": 11, "w": 85, "h": 15, "taille": 17}},
+        {"type": "texte", "role": "sous_titre", "x": 7.4, "y": 62, "w": 40, "h": 15, "police": "corps", "taille": 3.3,
+         "couleur": "clair", "opacite": 0.9, "align": "left", "story": {"y": 27.5, "w": 80, "h": 6.5, "taille": 4.4}},
+        {"type": "texte", "role": "cta", "x": 7.4, "y": 84, "w": 44, "h": 6.6, "police": "corps", "graisse": 600,
+         "taille": 3, "couleur": "fond", "fond": "clair", "rayon": 3.3, "align": "left",
+         "story": {"y": 35, "w": 85, "h": 4.4, "taille": 4}}]},
+    {"id": "chiffre", "nom": "Un grand chiffre", "requiert": ["filigrane"], "blocs": [
         {"type": "forme", "x": 0, "y": 0, "w": 100, "h": 100, "couleur": "clair"},
-        {"type": "texte", "role": "titre", "x": 7, "y": 6, "w": 86, "h": 18, "police": "titre", "taille": 7,
-         "couleur": "fond", "align": "left", "story": {"y": 8, "h": 14, "taille": 8}},
-        {"type": "image", "role": "photo", "x": 7, "y": 26, "w": 86, "h": 52, "rayon": 4, "story": {"y": 25, "h": 52}},
-        {"type": "texte", "role": "sous_titre", "x": 7, "y": 80, "w": 58, "h": 12, "police": "corps", "taille": 3.4,
-         "couleur": "sombre", "align": "left", "story": {"y": 80, "h": 8}},
-        {"type": "texte", "role": "cta", "x": 66, "y": 82, "w": 27, "h": 6, "police": "corps", "taille": 2.9,
-         "couleur": "clair", "fond": "accent", "rayon": 6, "align": "center", "story": {"y": 90, "x": 7, "w": 44, "h": 4}},
-        {"type": "logo", "x": 7, "y": 92, "w": 18, "h": 5, "story": {"x": 72, "y": 91, "w": 21, "h": 3.5}}]},
-    {"id": "partage", "nom": "Moitié couleur, moitié photo", "blocs": [
-        {"type": "forme", "x": 0, "y": 0, "w": 100, "h": 100, "couleur": "fond"},
-        {"type": "image", "role": "photo", "x": 50, "y": 0, "w": 50, "h": 100, "story": {"x": 0, "y": 50, "w": 100, "h": 50}},
-        {"type": "logo", "x": 6, "y": 6, "w": 30, "h": 7, "story": {"y": 5, "w": 30, "h": 4}},
-        {"type": "texte", "role": "titre", "x": 6, "y": 30, "w": 40, "h": 36, "police": "titre", "taille": 6.4,
-         "couleur": "clair", "align": "left", "story": {"y": 14, "w": 88, "h": 20, "taille": 9}},
-        {"type": "texte", "role": "sous_titre", "x": 6, "y": 68, "w": 40, "h": 16, "police": "corps", "taille": 3,
-         "couleur": "clair", "align": "left", "story": {"y": 35, "w": 88, "h": 8, "taille": 3.6}},
-        {"type": "texte", "role": "cta", "x": 6, "y": 87, "w": 38, "h": 6, "police": "corps", "taille": 2.8,
-         "couleur": "sombre", "fond": "accent", "rayon": 6, "align": "left", "story": {"y": 44, "w": 44, "h": 3.6}}]},
+        {"type": "logo", "x": 7.4, "y": 7.4, "w": 30, "h": 6.5, "couleur": "sombre", "story": {"y": 5, "w": 40, "h": 4.6}},
+        {"type": "texte", "role": "filigrane", "x": 6, "y": 16, "w": 88, "h": 40, "police": "titre", "graisse": 600,
+         "taille": 34, "couleur": "fond", "interlettre": -0.05, "align": "left", "valign": "bas",
+         "story": {"y": 24, "h": 28, "taille": 58}},
+        {"type": "texte", "role": "titre", "x": 7.4, "y": 60, "w": 80, "h": 19, "police": "titre", "taille": 8,
+         "couleur": "sombre", "align": "left", "story": {"y": 56, "w": 85, "h": 14, "taille": 11}},
+        {"type": "texte", "role": "sous_titre", "x": 7.4, "y": 81, "w": 60, "h": 11, "police": "corps", "taille": 3.3,
+         "couleur": "sombre", "opacite": 0.65, "align": "left", "story": {"y": 71, "w": 85, "h": 8, "taille": 4.4}}]},
+    {"id": "moitie", "nom": "Moitié couleur, moitié photo", "blocs": [
+        {"type": "forme", "x": 0, "y": 0, "w": 50, "h": 100, "couleur": "fond", "story": {"y": 52, "w": 100, "h": 48}},
+        {"type": "image", "role": "photo", "x": 50, "y": 0, "w": 50, "h": 100, "ajustement": "couvrir",
+         "story": {"x": 0, "w": 100, "h": 52}},
+        {"type": "logo", "x": 5.5, "y": 6, "w": 28, "h": 6, "couleur": "clair", "story": {"x": 7.4, "y": 56, "w": 40, "h": 4.6}},
+        {"type": "texte", "role": "titre", "x": 5.5, "y": 30, "w": 39, "h": 34, "police": "titre", "taille": 10,
+         "couleur": "clair", "align": "left", "valign": "bas", "story": {"x": 7.4, "y": 62, "w": 85, "h": 16, "taille": 15, "valign": "haut"}},
+        {"type": "texte", "role": "sous_titre", "x": 5.5, "y": 66, "w": 38, "h": 17, "police": "corps", "taille": 3.1,
+         "couleur": "clair", "opacite": 0.9, "align": "left", "story": {"x": 7.4, "y": 80, "w": 85, "h": 7, "taille": 4.4}},
+        {"type": "texte", "role": "cta", "x": 5.5, "y": 87, "w": 39, "h": 6.2, "police": "corps", "graisse": 600,
+         "taille": 2.8, "couleur": "fond", "fond": "clair", "rayon": 3.1, "align": "left",
+         "story": {"x": 7.4, "y": 89.5, "w": 85, "h": 4.4, "taille": 4}}]},
 ]
 
 
@@ -90,6 +108,12 @@ POLICES_INTEGREES = {"gras": "Montserrat (sans-serif, 100 à 900)", "poppins": "
 
 def _hex_ok(c):
     return isinstance(c, str) and re.fullmatch(r"#[0-9A-Fa-f]{6}", c) is not None
+
+
+def _melange(a, b, t):
+    """Couleur entre a et b (t = part de b), en hexa."""
+    ca, cb = ([int(h[i:i + 2], 16) for i in (1, 3, 5)] for h in (a, b))
+    return "#%02X%02X%02X" % tuple(round(x + (y - x) * t) for x, y in zip(ca, cb))
 
 
 def _clair(hexa):
@@ -103,12 +127,13 @@ def charte_defaut(cfg=None):
     ident = cfg["identite"]
     c1, c2 = ident.get("couleur_1") or "#1F2340", ident.get("couleur_2") or "#FFA41B"
     return {"format": "raccord-charte", "version": 1, "nom": f"Charte {ident.get('nom') or 'de la marque'}",
-            "couleurs": {"fond": c1, "accent": c2, "clair": "#FFFFFF", "sombre": "#14141A",
+            "couleurs": {"fond": c1, "accent": c2, "accent2": _melange(c1, "#FFFFFF", 0.92), "clair": "#FFFFFF",
+                         "sombre": c1 if not _clair(c1) else "#14141A",
                          "texte": "#FFFFFF" if not _clair(c1) else "#14141A"},
-            "polices": {"titre": {"fichier": ident.get("police_grasse") or "gras", "graisse": 800, "casse": "normale",
-                                  "interligne": 1.05},
-                        "corps": {"fichier": ident.get("police_grasse") or "gras", "graisse": 500, "casse": "normale",
-                                  "interligne": 1.3},
+            "polices": {"titre": {"fichier": ident.get("police_grasse") or "poppins", "graisse": 600, "casse": "normale",
+                                  "interligne": 1.06, "interlettre": -0.025},
+                        "corps": {"fichier": ident.get("police_grasse") or "poppins", "graisse": 400, "casse": "normale",
+                                  "interligne": 1.4},
                         "script": {"fichier": "script", "graisse": 400, "casse": "normale", "interligne": 1.0}},
             "ton": "Clair, direct et chaleureux. Phrases courtes. Tutoiement ou vouvoiement selon la marque.",
             "cta": ["En savoir plus", "Contactez-nous", "Lien en bio"], "traitement_image": "naturel",
@@ -150,6 +175,8 @@ def valider_charte(d):
             polices[role]["casse"] = p["casse"]
         if isinstance(p.get("interligne"), (int, float)):
             polices[role]["interligne"] = float(min(2, max(0.8, p["interligne"])))
+        if isinstance(p.get("interlettre"), (int, float)):
+            polices[role]["interlettre"] = float(min(0.3, max(-0.1, p["interlettre"])))
         if isinstance(p.get("italique"), bool):
             polices[role]["italique"] = p["italique"]
     out["polices"] = polices
@@ -179,7 +206,7 @@ def valider_gabarit(g):
         nb = {k: v for k, v in b.items() if k in ("type", "role", "couleur", "degrade", "police", "align", "fond",
                                                    "opacite", "rayon", "taille", "texte", "story", "casse", "graisse",
                                                    "rotation", "contour", "motif", "couleur_motif", "ajustement",
-                                                   "interlettre")}
+                                                   "interlettre", "valign", "sans_detourage")}
         for k in ("x", "y", "w", "h"):
             try:
                 nb[k] = float(min(100, max(-20, float(b.get(k, 0)))))
@@ -190,7 +217,8 @@ def valider_gabarit(g):
         return None
     return {"id": re.sub(r"[^\w\-]", "-", str(g.get("id") or uuid.uuid4().hex[:6]))[:40],
             "nom": str(g.get("nom") or "Gabarit")[:60], "blocs": blocs,
-            **({"formats": [f for f in g["formats"] if f in FORMATS]} if isinstance(g.get("formats"), list) else {})}
+            **({"formats": [f for f in g["formats"] if f in FORMATS]} if isinstance(g.get("formats"), list) else {}),
+            **({"requiert": [str(r) for r in g["requiert"]][:4]} if isinstance(g.get("requiert"), list) else {})}
 
 
 # ------------------------------------------------------------------ exemples de la marque
@@ -290,7 +318,12 @@ Gabarit : {{"id": "…", "nom": "…", "blocs": [ … du fond vers le premier pl
  forme : couleur (nom de rôle ci-dessus ou #hexa), degrade [haut, bas] (« transparent » permis), opacite 0-1, rayon ;
  texte : role titre|sous_titre|cta, police titre|corps, taille (% de la largeur ; 8 = gros titre), couleur,
          align left|center|right, fond (pastille derrière le texte), rayon ;
- logo : le logo de la marque, contenu dans la boîte ;
+ logo : le logo de la marque, contenu dans la boîte ; couleur (facultatif) = logo d'une seule couleur, align ;
+ texte : valign haut|milieu|bas (le texte se cale dans sa boîte), interlettre (en em, ex. -0.03) ;
+ image : ajustement "couvrir" (photo entière, jamais détourée), sans_detourage {{x, y, w, h, story}} (boîte
+         utilisée si la photo n'a pas pu être détourée) ;
+ gabarit : requiert ["filigrane"] = proposé seulement si ce texte existe (rôles : titre, sous_titre, cta, filigrane) ;
+ Style conseillé : sobre et moderne, une idée par visuel, grandes marges (≈ 7 %), une seule couleur d'accent ;
  "story": {{…}} : mêmes clés, valeurs propres au format vertical 1080×1920 (sinon celles du carré/portrait).
 Formats : carré 1080×1080, portrait 1080×1350, story 1080×1920.
 
@@ -421,6 +454,12 @@ def nouveau_visuel(gabarit, format, textes, image, charte, contexte=""):
         nb = {k: v for k, v in b.items() if k != "story"}
         if format == "story" and isinstance(b.get("story"), dict):
             nb.update(b["story"])
+        alt = nb.pop("sans_detourage", None)
+        if nb["type"] == "image" and image and not image.get("detoure") and isinstance(alt, dict):
+            nb.update({k: v for k, v in alt.items() if k != "story"})                 # photo non détourée
+            if format == "story" and isinstance(alt.get("story"), dict):
+                nb.update(alt["story"])
+            nb["ajustement"] = "couvrir"
         nb["id"] = uuid.uuid4().hex[:8]
         if nb["type"] == "texte":
             nb["texte"] = nb.get("texte") or textes.get(nb.get("role"), "") or ""
@@ -431,7 +470,7 @@ def nouveau_visuel(gabarit, format, textes, image, charte, contexte=""):
                 nb = {**nb, "type": "forme", "couleur": "accent", "opacite": 0.25}
             else:
                 plein = nb.get("w", 0) >= 95 and nb.get("h", 0) >= 95
-                if image.get("detoure") and not plein and not nb.get("rayon"):
+                if image.get("detoure") and not plein and not nb.get("rayon") and nb.get("ajustement") != "couvrir":
                     nb["fichier"], nb["ajustement"] = image["fichier"], "contenir-bas"     # personne détourée
                 else:
                     nb["fichier"] = image.get("original") or image.get("fichier")       # photo entière
@@ -486,6 +525,7 @@ def generer(contexte, format="carre", n=6, cfg=None, charte=None, rechercher=Non
         except Exception as e:
             print("Image ignorée :", e)
     gabarits = [g for g in charte["gabarits"] if not g.get("formats") or format in g["formats"]] or GABARITS_DEFAUT
+    gabarits = [g for g in gabarits if all(textes.get(r) for r in g.get("requiert") or [])] or gabarits
     etape(0.9, "Mise en page…")
     out = []
     for i in range(max(1, n)):

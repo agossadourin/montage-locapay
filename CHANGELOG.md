@@ -1,5 +1,10 @@
 # Historique des versions
 
+## 1.4.0 — 2026-11-23
+- **Visuels plus modernes et épurés** : 6 nouvelles mises en page par défaut (titre seul, photo arrondie, plein cadre, personne sur la couleur, grand chiffre, moitié couleur / moitié photo). Grandes marges, Poppins semi-grasse aux lettres resserrées, une seule couleur d'accent, logo d'une couleur.
+- Rendu : logo teinté (blanc sur photo, encre sur fond clair), espacement des lettres, texte calé en haut, au milieu ou en bas de sa boîte ; réglages dans l'éditeur (« Espacement des lettres », couleur du logo).
+- Une photo qui n'a pas pu être détourée prend une demi-page au lieu d'un cadre bancal ; le gabarit « grand chiffre » n'est proposé que si le message contient un chiffre.
+
 ## 1.3.0 — 2026-11-23
 - Visuels, plus proches des vrais visuels de marque :
   - **Polices** : Poppins (400 à 900) et une manuscrite (Great Vibes), en plus de Montserrat et Playfair ; rôle « Manuscrite » pour les accroches (« Bonne rentrée », « Welcome »).

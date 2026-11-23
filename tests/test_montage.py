@@ -821,9 +821,9 @@ def test_visuels_generation_charte_et_paquet(tmp_path, monkeypatch):
     assert len(vs) == 6 and len({v["gabarit"] for v in vs}) >= 5 and vs[0]["taille"] == [1080, 1920]
     titres = [b["texte"] for b in vs[0]["blocs"] if b.get("role") == "titre"]
     assert titres == ["Payez votre loyer par Mobile Money"]
-    assert any(b["type"] == "image" and b["fichier"] == str(photo) for b in vs[0]["blocs"])
+    assert any(b["type"] == "image" and b["fichier"] == str(photo) for v in vs for b in v["blocs"])
     story = next(b for b in vs[0]["blocs"] if b.get("role") == "titre")
-    assert story["y"] == 64                                                     # valeurs propres au format vertical
+    assert story["y"] == 45                                                     # valeurs propres au format vertical
     # textes rédigés par l'IA (Ollama) quand elle répond
     t = V.ecrire_textes("x", charte, cfg, demander=lambda conf, consigne: {"titre": "Loyer payé en 1 clic", "cta": "Essayer"})
     assert t["titre"] == "Loyer payé en 1 clic" and t["cta"] == "Essayer" and t["sous_titre"] == ""
@@ -847,8 +847,9 @@ def test_visuels_generation_charte_et_paquet(tmp_path, monkeypatch):
         assert {"planche-1.jpg", "mesures.json", "LISEZMOI.txt"} <= set(f.namelist())
         assert "raccord-charte" in f.read("LISEZMOI.txt").decode()
     # export : PNG + crédits
-    vs[0]["textes"]["titre"] = "Loyer / payé"
-    png = V.exporter_png(vs[0], b"\x89PNG fake")
+    avec_photo = next(v for v in vs if any(b["type"] == "image" for b in v["blocs"]))
+    avec_photo["textes"]["titre"] = "Loyer / payé"
+    png = V.exporter_png(avec_photo, b"\x89PNG fake")
     assert os.path.exists(png) and os.path.exists(os.path.splitext(png)[0] + "_credits.txt")
 
 
@@ -872,3 +873,30 @@ def test_charte_poppins_script_et_effets():
                               {"type": "image", "x": 5, "y": 5, "w": 30, "h": 30, "rayon": 50}]}
     v = V.nouveau_visuel(g, "carre", {}, img, ch)
     assert [(x["fichier"], x.get("ajustement")) for x in v["blocs"]] == [("/x_detoure.png", "contenir-bas"), ("/x.jpg", None), ("/x.jpg", None)]
+
+
+def test_gabarits_epures_detourage_et_chiffre():
+    import visuels as V
+    ch = V.valider_charte({"couleurs": {"fond": "#12B09A"}, "polices": {"titre": {"fichier": "poppins", "interlettre": -0.5}},
+                           "gabarits": V.GABARITS_DEFAUT})
+    assert ch["polices"]["titre"]["interlettre"] == -0.1                       # borné
+    ids = [g["id"] for g in ch["gabarits"]]
+    assert ids == ["titre", "photo-arrondie", "plein-cadre", "couleur-personne", "chiffre", "moitie"]
+    chiffre = ch["gabarits"][ids.index("chiffre")]
+    assert chiffre["requiert"] == ["filigrane"]
+    assert all(b.get("valign") in (None, "haut", "milieu", "bas") for g in ch["gabarits"] for b in g["blocs"])
+    # photo non détourée → boîte de repli ; détourée → posée en bas ; « couvrir » → jamais détourée
+    perso = ch["gabarits"][ids.index("couleur-personne")]
+    v = V.nouveau_visuel(perso, "carre", {"titre": "Loyer"}, {"fichier": "/x.jpg"}, ch)
+    im = next(b for b in v["blocs"] if b["type"] == "image")
+    assert (im["x"], im["w"], im["ajustement"]) == (54, 46, "couvrir") and "sans_detourage" not in im
+    v = V.nouveau_visuel(perso, "story", {"titre": "Loyer"}, {"fichier": "/x_d.png", "original": "/x.jpg", "detoure": True}, ch)
+    im = next(b for b in v["blocs"] if b["type"] == "image")
+    assert im["ajustement"] == "contenir-bas" and im["fichier"] == "/x_d.png" and im["y"] == 40
+    moitie = ch["gabarits"][ids.index("moitie")]
+    v = V.nouveau_visuel(moitie, "carre", {"titre": "Loyer"}, {"fichier": "/x_d.png", "original": "/x.jpg", "detoure": True}, ch)
+    assert next(b for b in v["blocs"] if b["type"] == "image")["fichier"] == "/x.jpg"
+    # pas de chiffre dans le contexte → le gabarit « chiffre » n'est pas proposé
+    vis = V.generer("Paie ton loyer sans te déplacer", n=6, charte=ch, rechercher=lambda *a: [], telecharger=lambda r: None,
+                    demander=lambda *a, **k: None, cfg={**__import__("configuration").charger_config(), "cles": {}})
+    assert vis and "chiffre" not in [x["gabarit"] for x in vis]

@@ -296,7 +296,17 @@ async function dessiner(cv, vis, echelle = 1) {
       } else { ctx.fillStyle = "#3a3a46"; ctx.fillRect(x, y, w, h); }
     } else if (b.type === "logo") {
       const im = await chargerImage(E.identite.fichier_logo);
-      if (im) { const s = Math.min(w / im.width, h / im.height); ctx.drawImage(im, x, y + (h - im.height * s) / 2, im.width * s, im.height * s); }
+      if (im) {
+        const s = Math.min(w / im.width, h / im.height), iw = im.width * s, ih = im.height * s;
+        let src = im;
+        if (b.couleur && couleur(b.couleur)) {                // logo d'une seule couleur (blanc sur photo, encre sur fond clair)
+          const o = document.createElement("canvas"); o.width = Math.max(1, Math.round(iw * 2)); o.height = Math.max(1, Math.round(ih * 2));
+          const oc = o.getContext("2d"); oc.drawImage(im, 0, 0, o.width, o.height);
+          oc.globalCompositeOperation = "source-in"; oc.fillStyle = couleur(b.couleur); oc.fillRect(0, 0, o.width, o.height); src = o;
+        }
+        const lx = b.align === "right" ? x + w - iw : b.align === "center" ? x + (w - iw) / 2 : x;
+        ctx.drawImage(src, lx, y + (h - ih) / 2, iw, ih);
+      }
     } else if (b.type === "texte") {
       const role = b.police || "corps", p = (charte.polices || {})[role] || {};
       const fam = await famille(role), graisse = b.graisse || p.graisse || (role === "script" ? 400 : 600), it = p.italique || p.fichier === "serif";
@@ -306,6 +316,7 @@ async function dessiner(cv, vis, echelle = 1) {
       let taille = (b.taille || 4) / 100 * W, lignes, lh;
       for (let k = 0; k < 30; k++) {                 // le texte rétrécit jusqu'à tenir dans sa boîte
         ctx.font = `${it ? "italic " : ""}${graisse} ${taille}px "${fam}"`;
+        if ("letterSpacing" in ctx) ctx.letterSpacing = ((b.interlettre ?? p.interlettre ?? 0) * taille).toFixed(2) + "px";
         lh = taille * (p.interligne || 1.15); lignes = lignesTexte(ctx, t, w - 2 * pad);
         if (lignes.length * lh <= h - pad * 0.5 || taille < 10) break;
         taille *= 0.93;
@@ -320,7 +331,9 @@ async function dessiner(cv, vis, echelle = 1) {
       }
       ctx.fillStyle = couleur(b.couleur) || "#fff";
       if (b.contour) { ctx.strokeStyle = couleur(b.contour); ctx.lineWidth = Math.max(2, taille * 0.025); ctx.lineJoin = "round"; }
-      const hauteur = lignes.length * lh, y0 = b.fond ? y + (h - hauteur) / 2 : y;
+      const hauteur = lignes.length * lh - (lh - taille * 1.02);       // hauteur visible (sans l'interligne final)
+      const y0 = b.fond ? y + (h - lignes.length * lh) / 2 : b.valign === "bas" ? y + h - hauteur
+        : b.valign === "milieu" ? y + (h - hauteur) / 2 : y;
       lignes.forEach((l, i) => {
         const lw = ctx.measureText(l).width;
         const lx = b.fond ? bx + (bw - lw) / 2                         // texte centré dans sa pastille
@@ -480,6 +493,7 @@ function inspecter() {
       <label>Pastille derrière le texte</label><div class="ligne-btn">${pastilles("i-fond", b.fond)}<button class="fantome" id="i-sansfond">Aucune</button></div>
       <label>Alignement</label><div class="segment" id="i-align">${["left", "center", "right"].map(a => `<button data-a="${a}" class="${(b.align || "left") === a ? "actif" : ""}">${{ left: "Gauche", center: "Centre", right: "Droite" }[a]}</button>`).join("")}</div>
       <label>Police</label><div class="segment" id="i-pol">${["titre", "corps", "script"].map(p => `<button data-p="${p}" class="${(b.police || "corps") === p ? "actif" : ""}">${{ titre: "Titre", corps: "Texte", script: "Manuscrite" }[p]}</button>`).join("")}</div>
+      <label>Espacement des lettres</label><input type="range" id="i-il" min="-0.08" max="0.2" step="0.005" value="${b.interlettre ?? ((charte.polices || {})[b.police || "corps"] || {}).interlettre ?? 0}" style="width:100%">
       <label>Inclinaison</label><input type="range" id="i-rot" min="-20" max="20" step="1" value="${b.rotation || 0}" style="width:100%">
       <label>Opacité</label><input type="range" id="i-op" min="0.05" max="1" step="0.05" value="${b.opacite ?? 1}" style="width:100%">` + commun;
     $("i-texte").oninput = () => { b.texte = $("i-texte").value; if (v.textes && b.role) v.textes[b.role] = b.texte; rendre(); };
@@ -489,7 +503,7 @@ function inspecter() {
     $("i-sansfond").onclick = () => { memoriser(); delete b.fond; rendre(); };
     $("i-align").querySelectorAll("button").forEach(x => x.onclick = () => { memoriser(); b.align = x.dataset.a; rendre(); inspecter(); });
     $("i-pol").querySelectorAll("button").forEach(x => x.onclick = () => { memoriser(); b.police = x.dataset.p; rendre(); inspecter(); });
-    for (const [id, k] of [["i-rot", "rotation"], ["i-op", "opacite"]]) { $(id).onpointerdown = memoriser; $(id).oninput = () => { b[k] = +$(id).value; rendre(); }; }
+    for (const [id, k] of [["i-rot", "rotation"], ["i-op", "opacite"], ["i-il", "interlettre"]]) { $(id).onpointerdown = memoriser; $(id).oninput = () => { b[k] = +$(id).value; rendre(); }; }
   } else if (b.type === "image") {
     ins.innerHTML = `<h3>Image</h3>
       <label>Cadrage</label><input type="range" id="i-cx" min="0" max="100" value="${b.cadrage_x ?? 50}" style="width:100%" title="gauche ↔ droite"><input type="range" id="i-cy" min="0" max="100" value="${b.cadrage_y ?? 40}" style="width:100%" title="haut ↕ bas">
@@ -532,7 +546,10 @@ function inspecter() {
     $(`i-coul`).querySelectorAll(".pastille").forEach(p => p.onclick = () => { memoriser(); b.couleur = p.dataset.c; delete b.degrade; rendre(); inspecter(); });
     for (const [id, k] of [["i-op", "opacite"], ["i-rayon", "rayon"]]) { $(id).onpointerdown = memoriser; $(id).oninput = () => { b[k] = +$(id).value; rendre(); }; }
   } else {
-    ins.innerHTML = `<h3>Logo</h3><p class="aide">Le logo de votre identité (⚙️ Paramètres › Identité). Glissez pour le placer, tirez le coin pour le redimensionner.</p>` + commun;
+    ins.innerHTML = `<h3>Logo</h3><p class="aide">Le logo de votre identité (⚙️ Paramètres › Identité). Glissez pour le placer, tirez le coin pour le redimensionner.</p>
+      <label>Couleur</label>${pastilles("i-coul", b.couleur)}<button class="btn" id="i-orig" style="margin-top:6px">Couleurs d'origine</button>` + commun;
+    brancherPastilles("i-coul", "couleur", b);
+    $("i-orig").onclick = () => { memoriser(); delete b.couleur; rendre(); inspecter(); };
   }
   $("i-suppr").onclick = supprimerBloc;
   $("i-avant").onclick = () => { memoriser(); v.blocs = v.blocs.filter(x => x !== b).concat([b]); rendre(); };
