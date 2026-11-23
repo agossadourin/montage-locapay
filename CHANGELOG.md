@@ -1,5 +1,11 @@
 # Historique des versions
 
+## 1.0.0 — 2026-11-23 — Raccord
+- **L'outil devient une application à part entière : Raccord** (« le montage face caméra, dans votre style »). Nouvelle icône, nouvel accent ambre, accueil et fenêtres renommés ; plus aucune marque imposée.
+- **Neutre par défaut** : identité « Ma marque » sans logo, style de base « Face caméra », pas de vocabulaire ni de corrections imposés. Votre marque se règle dans ⚙️ Paramètres › Identité.
+- **Reprise automatique de l'ancienne installation** : le dossier « Vidéos › Montages Locapay » devient « Vidéos › Raccord » (projets, sources, musiques, styles, clés), les projets s'ouvrent comme avant, et l'identité Locapay (couleurs, logo, contexte des images, vocabulaire, dictionnaire) est conservée comme **votre** marque enregistrée.
+- App Mac : `Raccord.app` (l'ancienne « Montage Locapay.app » est retirée lors de la mise à jour) ; `Lancer Raccord.command` ; notebook Colab `colab/Raccord.ipynb`.
+
 ## 0.17.0 — 2026-11-23
 - **Nouveau design** de l'éditeur, plus épuré : graphite neutre pour bien juger l'image, la vidéo posée sur un plateau indigo aux couleurs de la marque, turquoise réservé aux actions, à la sélection et à la tête de lecture.
   - Icônes dessinées (plus d'émojis dans l'interface), barre du haut allégée (Paramètres, Copier un style, Montage automatique, Exporter).

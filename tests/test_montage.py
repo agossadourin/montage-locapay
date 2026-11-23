@@ -64,7 +64,7 @@ def test_rendu_complet(tmp_path):
                     "-c:a", "aac", "-shortest", str(src)], check=True)
     mots = [{"w": w, "s": s, "e": s + 0.3} for w, s in
             [("Bonjour", 0.3), ("à", 0.7), ("tous,", 0.9), ("bienvenue", 2.4), ("chez", 2.8), ("Locapay.", 3.1)]]
-    R = M.Reglages(fichier_logo=os.path.join(RACINE, "app", "logo_locapay.png"), duree_fin=0.5,
+    R = M.Reglages(fichier_logo=os.path.join(RACINE, "macos", "AppIcon.png"), duree_fin=0.5,
                    police_serif=os.path.join(RACINE, "app", "polices", "serif.ttf"),
                    police_grasse=os.path.join(RACINE, "app", "polices", "gras.ttf"))
     plan = M.construire_plan(mots, M.duree_video(str(src)), R)
@@ -79,7 +79,7 @@ def test_rendu_complet(tmp_path):
 def test_notebook_colab_a_jour():
     """Le moteur intégré au notebook Colab doit être identique à app/montage_auto.py."""
     import base64, gzip, re
-    nb = json.load(open(os.path.join(RACINE, "colab", "Montage_auto_Locapay.ipynb"), encoding="utf-8"))
+    nb = json.load(open(os.path.join(RACINE, "colab", "Raccord.ipynb"), encoding="utf-8"))
     code = "".join(nb["cells"][1]["source"])
     blob = re.search(r'montage_auto\.py", "wb"\)\.write\(gzip\.decompress\(base64\.b64decode\("([^"]+)"\)\)\)', code).group(1)
     integre = gzip.decompress(base64.b64decode(blob))
@@ -750,3 +750,31 @@ def test_openverse_images_sans_cle():
     assert [r["id"] for r in res] == ["openverse-a", "openverse-b"]                       # portrait d'abord
     assert "Awa" in res[0]["credit_licence"] and "CC BY 4.0" in res[0]["credit_licence"]
     assert res[1]["credit_licence"] == ""                                                  # CC0 : rien à créditer
+
+
+def test_reprise_ancienne_installation_locapay(tmp_path):
+    """« Montages Locapay » → Raccord : dossier repris, chemins des projets réécrits, identité Locapay conservée."""
+    import chemins
+    ancien, nouveau = tmp_path / "Movies" / "Montages Locapay", tmp_path / "Movies" / "Raccord"
+    (ancien / ".sources").mkdir(parents=True)
+    (ancien / ".sources" / "rush.mp4").write_bytes(b"x")
+    (ancien / "essai.projet.json").write_text(json.dumps({"video": str(ancien / ".sources" / "rush.mp4")}), encoding="utf-8")
+    os.utime(ancien / "essai.projet.json", (1_700_000_000, 1_700_000_000))
+    (ancien / ".parametres").mkdir()
+    (ancien / ".parametres" / "config.json").write_text(json.dumps({"cles": {"pexels": "k"}, "style_actif": "Locapay"}),
+                                                       encoding="utf-8")
+    assert chemins.migrer(str(ancien), str(nouveau))
+    assert not ancien.exists() and (nouveau / ".sources" / "rush.mp4").exists()
+    assert json.loads((nouveau / "essai.projet.json").read_text())["video"] == str(nouveau / ".sources" / "rush.mp4")
+    assert os.path.getmtime(nouveau / "essai.projet.json") == 1_700_000_000         # date conservée
+    cfg = json.loads((nouveau / ".parametres" / "config.json").read_text())
+    assert cfg["cles"]["pexels"] == "k" and cfg["identite"]["nom"] == "Locapay" and cfg["identite"]["couleur_2"] == "#0AC2A4"
+    assert os.path.exists(cfg["identite"]["fichier_logo"]) and cfg["style_actif"] == "Face caméra"
+    assert "Cotonou" in cfg["illustrations"]["contexte"] and "Locapay" in cfg["vocabulaire"]
+    assert json.loads((nouveau / ".dictionnaire_corrections.json").read_text())[0]["apres"] == "Locapay"
+    assert not chemins.migrer(str(ancien), str(nouveau))                 # une seule fois
+
+
+def test_application_neutre_par_defaut():
+    assert C.IDENTITE_DEFAUT["nom"] == "Ma marque" and C.IDENTITE_DEFAUT["fichier_logo"] == ""
+    assert C.lister_styles()[0] == "Face caméra" and C.charger_style("Face caméra").mot_cle

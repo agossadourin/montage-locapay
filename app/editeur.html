@@ -3,16 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Éditeur — Montage Locapay</title>
+<title>Raccord</title>
+<link rel="icon" href="/editeur/icone.png">
 <style>
 @font-face{font-family:"Marque Serif";src:url(/editeur/polices/serif.ttf);font-style:italic;font-display:swap}
-/* Montage Locapay — éditeur.
-   Graphite neutre (pour juger l'image), la vidéo posée sur le « plateau » indigo de la marque,
-   turquoise réservé à l'action, à la sélection et à la tête de lecture. */
+/* Raccord — éditeur.
+   Graphite neutre (pour juger l'image sans dominante), la vidéo posée sur un plateau sombre,
+   ambre « lumière de plateau » réservé à l'action, à la sélection et à la tête de lecture. */
 :root{
   --fond:#202029; --panneau:#272731; --panneau2:#30303b; --survol:#383845; --ligne:rgba(255,255,255,.075); --ligne-forte:rgba(255,255,255,.14);
   --texte:#f1f0f6; --doux:#a6a5b7; --discret:#74738a;
-  --accent:#0AC2A4; --accent-encre:#04261f; --accent2:#2E2C51; --danger:#f06b7c; --alerte:#f2b84b;
+  --accent:#FFA41B; --accent-encre:#2a1800; --accent2:#1F2340; --danger:#f06b7c; --alerte:#f06b7c;
   --clip:#3d4170; --st:#1d5a52; --ecran:#4b3e74; --ill:#6a4a22; --mus:#244766;
   --rayon:8px;
 }
@@ -29,7 +30,7 @@ button:hover,.btn:hover{background:var(--survol)}
 button.fantome,.btn.fantome{background:transparent;color:var(--doux)}
 button.fantome:hover,.btn.fantome:hover{background:var(--panneau2);color:var(--texte)}
 button.primaire{background:var(--accent);color:var(--accent-encre);font-weight:650}
-button.primaire:hover{background:#19d4b5}
+button.primaire:hover{background:#ffb648}
 button.danger{color:var(--danger)}
 button.danger:hover{background:rgba(240,107,124,.12)}
 button:disabled{opacity:.4;cursor:default}
@@ -60,7 +61,7 @@ header .actions .sep{width:1px;height:20px;background:var(--ligne-forte);margin:
 
 #haut{display:grid;grid-template-columns:1fr 320px;min-height:0}
 #scene-zone{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;min-height:0;padding:14px;
-  background:radial-gradient(120% 90% at 50% 38%,#34325c 0%,#2a2845 45%,#22212f 100%)}
+  background:radial-gradient(120% 90% at 50% 40%,#363641 0%,#2b2b34 45%,#222229 100%)}
 #scene{position:relative;background:#000;overflow:hidden;border-radius:10px;
   box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 24px 60px -18px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.06)}
 #transport{display:flex;align-items:center;gap:14px;height:40px}
@@ -134,7 +135,7 @@ header .actions .sep{width:1px;height:20px;background:var(--ligne-forte);margin:
     padding:4px 9px;white-space:nowrap;text-overflow:ellipsis;user-select:none;
     box-shadow:0 1px 0 rgba(255,255,255,.12) inset,0 0 0 1px rgba(0,0,0,.25)}
 .el:hover{filter:brightness(1.12)}
-.el.sel{box-shadow:0 0 0 2px var(--accent),0 0 0 4px rgba(10,194,164,.18);z-index:3}
+.el.sel{box-shadow:0 0 0 2px var(--accent),0 0 0 4px rgba(255,164,27,.2);z-index:3}
 .el .poignee{position:absolute;top:0;bottom:0;width:7px;cursor:ew-resize;background:transparent}
 .el .poignee::after{content:"";position:absolute;top:9px;bottom:9px;left:2px;width:3px;border-radius:2px;background:rgba(255,255,255,.35)}
 .el .poignee.g{left:0}.el .poignee.d{right:0}
@@ -148,14 +149,14 @@ header .actions .sep{width:1px;height:20px;background:var(--ligne-forte);margin:
 .el.mus{background:var(--mus)}
 .el.fin{background:#33333f;cursor:default;color:var(--doux)}
 .el.fantome{opacity:.35}
-.el.alerte{background:repeating-linear-gradient(-45deg,rgba(242,184,75,.28) 0 6px,rgba(242,184,75,.14) 6px 12px);color:#ffe3ad;
-  box-shadow:0 0 0 1px rgba(242,184,75,.55) inset}
+.el.alerte{background:repeating-linear-gradient(-45deg,rgba(240,107,124,.3) 0 6px,rgba(240,107,124,.14) 6px 12px);color:#ffd5db;
+  box-shadow:0 0 0 1px rgba(240,107,124,.6) inset}
 .trans{position:absolute;top:11px;width:18px;height:18px;margin-left:-9px;border-radius:50%;background:var(--panneau);
   box-shadow:0 0 0 1px var(--ligne-forte);color:var(--doux);font-size:10px;line-height:18px;text-align:center;cursor:pointer;z-index:4;user-select:none}
 .trans:hover,.trans.choisie{background:var(--accent);color:var(--accent-encre);box-shadow:none}
 .trans.coupe{opacity:.6}
 .temps-fort{position:absolute;bottom:4px;width:2px;height:8px;margin-left:-1px;background:rgba(255,255,255,.5);border-radius:1px;pointer-events:none}
-#tete{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--accent);pointer-events:none;z-index:5;box-shadow:0 0 8px rgba(10,194,164,.5)}
+#tete{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--accent);pointer-events:none;z-index:5;box-shadow:0 0 8px rgba(255,164,27,.5)}
 #tete::before{content:"";position:absolute;top:2px;left:-5px;width:12px;height:12px;border-radius:3px 3px 6px 6px;background:var(--accent)}
 
 /* ---------- fenêtres */
@@ -171,15 +172,16 @@ header .actions .sep{width:1px;height:20px;background:var(--ligne-forte);margin:
 .grille .vignette span{position:absolute;left:4px;bottom:6px;font-size:10px;background:rgba(0,0,0,.7);color:#fff;border-radius:4px;padding:1px 5px}
 
 /* ---------- accueil */
-#accueil{height:100%;overflow:auto;background:radial-gradient(90% 70% at 50% 0%,#2f2d52 0%,#24233a 40%,var(--fond) 80%)}
+#accueil{height:100%;overflow:auto;background:radial-gradient(90% 70% at 50% 0%,#33333e 0%,#28282f 45%,var(--fond) 85%)}
 #accueil .page{max-width:860px;margin:0 auto;padding:44px 28px 60px}
 #accueil .haut{display:flex;align-items:center;gap:12px}
 #accueil h1{margin:0;font-family:"Marque Serif",Georgia,serif;font-style:italic;font-weight:600;font-size:34px;letter-spacing:-.01em}
 #accueil .haut .btn{margin-left:auto}
+#accueil .logo-app{width:44px;height:44px;border-radius:11px}
 #accueil .sous{color:var(--doux);margin:6px 0 0;font-size:14px}
 #depot{display:grid;grid-template-columns:auto 1fr;gap:26px;align-items:center;border:1.5px dashed rgba(255,255,255,.22);border-radius:16px;
   padding:26px 30px;cursor:pointer;background:rgba(255,255,255,.03);margin:30px 0 40px;transition:border-color .15s,background .15s}
-#depot:hover,#depot.survol{border-color:var(--accent);background:rgba(10,194,164,.06)}
+#depot:hover,#depot.survol{border-color:var(--accent);background:rgba(255,164,27,.06)}
 #depot .tel{width:64px;height:112px;border-radius:12px;border:2px solid rgba(255,255,255,.35);display:flex;align-items:center;justify-content:center;color:var(--accent)}
 #depot .tel .ico{width:26px;height:26px;stroke-width:2}
 #depot .grand{font-size:18px;font-weight:650;margin-bottom:4px}
@@ -195,9 +197,9 @@ header .actions .sep{width:1px;height:20px;background:var(--ligne-forte);margin:
 </head>
 <body>
 <div id="accueil" style="display:none"><div class="page">
-  <div class="haut"><h1>Montage Locapay</h1>
+  <div class="haut"><img src="/editeur/icone.png" alt="" class="logo-app"><h1>Raccord</h1>
     <a class="btn fantome" href="/?parametres=1"><i data-i="reglages"></i>Paramètres</a></div>
-  <p class="sous">Vos vidéos face caméra, montées dans votre style.</p>
+  <p class="sous">Le montage face caméra, dans votre style.</p>
   <div id="depot">
     <div class="tel"><i data-i="plus"></i></div>
     <div><div class="grand">Nouveau projet</div>
@@ -464,7 +466,7 @@ function rendreSousTitres(s, surEcran) {
         const chemin = g.doodle === "cercle"
           ? "M 20 -28 C -40 -30, -30 120, 50 128 C 130 130, 140 -30, 50 -30 C 35 -30, 25 -27, 15 -22"
           : "M -6 112 C 25 120, 60 112, 106 104";
-        const couleur = (R().couleur_2 || "#0AC2A4");
+        const couleur = (R().couleur_2 || "#FFA41B");
         sp.insertAdjacentHTML("beforeend", `<svg viewBox="0 0 100 100" preserveAspectRatio="none"><path d="${chemin}" pathLength="100"
           fill="none" stroke="${couleur}" stroke-width="${(g.doodle === "cercle" ? 9 : 11) * k}" stroke-linecap="round" vector-effect="non-scaling-stroke"
           stroke-dasharray="100" stroke-dashoffset="${100 * (1 - avance)}" opacity="${pd >= 0.999 && !lecture && s < m.t ? 0.35 : 1}"/></svg>`);
@@ -1184,7 +1186,7 @@ async function exporter() {
     if (!e.fini) return setTimeout(suivre, 800);
     if (e.erreur) { boite.innerHTML = `<h3>⚠️ Export impossible</h3><p class="aide">${e.erreur}</p><button onclick="document.getElementById('modal').style.display='none'">Fermer</button>`; return; }
     const cr = (e.resultat && e.resultat.credit) || "";
-    boite.innerHTML = `<h3>✅ Vidéo exportée</h3><p class="aide">${e.sortie.split("/").pop()}<br>dans Vidéos › Montages Locapay</p>` +
+    boite.innerHTML = `<h3>✅ Vidéo exportée</h3><p class="aide">${e.sortie.split("/").pop()}<br>dans Vidéos › Raccord</p>` +
       (cr ? `<p class="aide">🎵 À mettre dans la description de votre publication (licence de la musique) :</p><textarea readonly style="width:100%;min-height:60px">${cr.replace(/</g, "&lt;")}</textarea>` : "") + `
       <div class="rangee"><button class="primaire" id="m-lire">▶️ Lire dans QuickTime</button><button id="m-finder">📂 Afficher dans le Finder</button><button id="m-fermer">Fermer</button></div>`;
     $("m-lire").onclick = () => fetch("/editeur/api/ouvrir?mode=lire&f=" + encodeURIComponent(e.sortie), { method: "POST" });

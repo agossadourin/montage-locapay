@@ -1,17 +1,19 @@
 #!/bin/bash
-# Crée « Montage Locapay.app » (dans /Applications, ou ~/Applications à défaut).
+# Crée « Raccord.app » (dans /Applications, ou ~/Applications à défaut).
 # L'app est un lanceur léger : elle exécute le code de ce dossier, donc chaque
 # « git pull » est pris en compte au prochain lancement, sans reconstruire l'app.
 set -e
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-NOM="Montage Locapay"
-EXE="MontageLocapay"
+NOM="Raccord"
+EXE="Raccord"
 VERSION="$(cat "$REPO/VERSION" 2>/dev/null || echo 0.0.0)"
 
 DEST="/Applications"
 [ -w "$DEST" ] || DEST="$HOME/Applications"
 mkdir -p "$DEST"
 APP="$DEST/$NOM.app"
+# ancienne version (« Montage Locapay ») : remplacée par Raccord
+rm -rf "/Applications/Montage Locapay.app" "$HOME/Applications/Montage Locapay.app" 2>/dev/null || true
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
@@ -24,7 +26,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <dict>
   <key>CFBundleName</key><string>$NOM</string>
   <key>CFBundleDisplayName</key><string>$NOM</string>
-  <key>CFBundleIdentifier</key><string>com.locapay.montage</string>
+  <key>CFBundleIdentifier</key><string>app.raccord.mac</string>
   <key>CFBundleExecutable</key><string>$EXE</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
@@ -41,9 +43,9 @@ cat > "$APP/Contents/MacOS/$EXE" <<LANCEUR
 #!/bin/bash
 REPO="$REPO"
 export PATH="/opt/homebrew/bin:/usr/local/bin:\$HOME/.local/bin:\$PATH"
-LOG="\$HOME/Library/Logs/Montage Locapay.log"
+LOG="\$HOME/Library/Logs/Raccord.log"
 if [ ! -x "\$REPO/.venv/bin/python" ]; then
-  osascript -e 'display alert "Montage Locapay" message "Installation incomplète : lancez Installer.command dans le dossier du projet."'
+  osascript -e 'display alert "Raccord" message "Installation incomplète : lancez Installer.command dans le dossier du projet."'
   exit 1
 fi
 echo "=== \$(date) — lancement ===" >> "\$LOG"

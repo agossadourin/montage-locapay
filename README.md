@@ -1,6 +1,10 @@
-# 🎬 Montage Locapay
+<img src="macos/AppIcon.png" width="96" alt="">
 
-Montage vidéo automatique « style Locapay » pour vidéos face caméra (Reels, TikTok, Shorts).
+# Raccord
+
+**Le montage face caméra, dans votre style.** Raccord monte automatiquement vos vidéos face caméra (Reels, TikTok, Shorts) aux couleurs de votre marque, puis vous laisse tout retoucher dans une timeline. Tout tourne sur votre Mac : vos vidéos ne quittent pas votre ordinateur.
+
+> *Raccord* : en montage, le passage d'un plan à l'autre ; « être raccord », c'est rester cohérent d'une image à l'autre — comme vos vidéos avec votre style.
 
 On donne une **vidéo brute**, l'outil :
 
@@ -22,18 +26,18 @@ cd ~/Documents/montage-locapay
 ./Installer.command
 ```
 
-L'installateur met en place ffmpeg (Homebrew), Python (uv), les bibliothèques, le modèle de transcription (~1,5 Go, une seule fois) et crée l'app **Montage Locapay** dans le dossier Applications.
+L'installateur met en place ffmpeg (Homebrew), Python (uv), les bibliothèques, le modèle de transcription (~1,5 Go, une seule fois) et crée l'app **Raccord** dans le dossier Applications.
 
 > Le dépôt est privé : pour le `git clone`, connectez-vous une fois avec `brew install gh && gh auth login`, ou utilisez GitHub Desktop.
 
 ## Utilisation
 
-Ouvrez **Montage Locapay** (Launchpad / Applications / Spotlight) : l'app s'ouvre sur l'**éditeur**.
+Ouvrez **Raccord** (Launchpad / Applications / Spotlight) : l'app s'ouvre sur l'**éditeur**.
 
 1. **＋ Nouveau projet** : déposez une ou plusieurs vidéos. Elles arrivent sur la piste 🎬 Vidéo.
 2. **Prémontage** : <kbd>S</kbd> pour couper à la tête de lecture, <kbd>Suppr</kbd> pour enlever, glissez pour réordonner, tirez les bords pour raccourcir.
 3. **✨ Montage automatique** : blancs coupés, sous-titres, écrans de couleur, illustrations. Les passages douteux (fon, reprises) apparaissent sur la piste rouge **⚠️ À vérifier** : écoutez, coupez, traduisez ou gardez.
-4. Retouchez, puis **⬆️ Exporter** : la vidéo arrive dans **Vidéos › Montages Locapay**.
+4. Retouchez, puis **⬆️ Exporter** : la vidéo arrive dans **Vidéos › Raccord**.
 
 Le **mode classique** (et les **⚙️ Paramètres** : identité, style, clés) reste accessible par le lien en haut de l'éditeur.
 
@@ -67,11 +71,11 @@ Le **mode classique** (et les **⚙️ Paramètres** : identité, style, clés) 
 
 **🎵 Musique** : dans l'éditeur, **＋ Musique** → choisissez une ambiance, écoutez, **Utiliser** (musiques libres pour usage commercial, via Openverse). Si l'artiste doit être crédité, le texte à mettre en description est fourni et enregistré à côté de la vidéo.
 
-**Corriger un mot** : **✏️ Corrections de mots › ➕** — choisissez le **moment** (une phrase précise, ou partout), cliquez sur le ou les **mots**, tapez la **correction** (vide = supprimer), **✔ Ajouter**, puis **Monter la vidéo**. Les corrections « dans toutes mes vidéos » sont mémorisées (`Vidéos › Montages Locapay › .dictionnaire_corrections.json`).
+**Corriger un mot** : **✏️ Corrections de mots › ➕** — choisissez le **moment** (une phrase précise, ou partout), cliquez sur le ou les **mots**, tapez la **correction** (vide = supprimer), **✔ Ajouter**, puis **Monter la vidéo**. Les corrections « dans toutes mes vidéos » sont mémorisées (`Vidéos › Raccord › .dictionnaire_corrections.json`).
 
-**Plusieurs rushs ?** Onglet **Plusieurs vidéos (prémontage)** : déposez-les, réglez l'ordre, le début et la fin de chacun (en secondes), décochez ceux à ignorer, cliquez sur **Assembler**, puis sur **Monter la vidéo**. Les prémontages sont gardés dans **Vidéos › Montages Locapay › prémontages**.
+**Plusieurs rushs ?** Onglet **Plusieurs vidéos (prémontage)** : déposez-les, réglez l'ordre, le début et la fin de chacun (en secondes), décochez ceux à ignorer, cliquez sur **Assembler**, puis sur **Monter la vidéo**. Les prémontages sont gardés dans **Vidéos › Raccord › prémontages**.
 
-Sans l'app, `Lancer Montage.command` ouvre la même interface dans le navigateur.
+Sans l'app, `Lancer Raccord.command` ouvre la même interface dans le navigateur.
 
 ## Mettre à jour
 
@@ -85,7 +89,7 @@ Double-cliquez sur **`Mettre à jour.command`** (ou `git pull` dans le dossier).
 |---|---|
 | `app/montage_auto.py` | **Le moteur** : transcription, plan de montage (coupes, groupes de sous-titres, mots clés, écrans de couleur), rendu image par image, effets sonores, mixage audio. |
 | `app/interface.py` | Interface (Gradio) : paramètres, validation, corrections, illustrations, bouton Monter. |
-| `app/configuration.py` | Paramètres persistants (identité, clés, profils de style) dans `Vidéos › Montages Locapay › .parametres`. |
+| `app/configuration.py` | Paramètres persistants (identité, clés, profils de style) dans `Vidéos › Raccord › .parametres`. |
 | `app/analyse_style.py` | Analyse d'une vidéo de référence → profil de style. |
 | `app/illustrations.py` | Choix des moments à illustrer, recherche Pexels/Pixabay, téléchargement. |
 | `app/rythme.py` | Temps forts d'une musique et calage du montage sur le rythme. |
@@ -95,8 +99,9 @@ Double-cliquez sur **`Mettre à jour.command`** (ou `git pull` dans le dossier).
 | `app/projet.py` | Projet éditable (pistes) : création depuis un montage, conversion en plan, rendu. |
 | `app/editeur.py` | Serveur de l'éditeur : projet, médias, export en tâche de fond. |
 | `app/editeur.html` | L'éditeur timeline (HTML/JS, sans dépendance). |
-| `app/polices/`, `app/logo_locapay.png` | Polices (Playfair Display, Montserrat — licence OFL) et logo. |
-| `macos/build_app.sh` | Crée `Montage Locapay.app` (lanceur léger qui pointe vers ce dossier). |
+| `app/chemins.py` | Nom de l'app, dossiers de travail, reprise des anciennes installations « Montage Locapay ». |
+| `app/polices/` | Polices par défaut (Playfair Display, Montserrat — licence OFL). |
+| `macos/build_app.sh` | Crée `Raccord.app` (lanceur léger qui pointe vers ce dossier). |
 | `macos/AppIcon.icns` | Icône de l'app. |
 | `requirements/` | Dépendances par machine (`mac-arm64`, `mac-x86_64`, `dev`). |
 | `colab/` | Version Google Colab (`build_nb.py` régénère le notebook depuis le moteur). |
@@ -131,4 +136,4 @@ python colab/build_nb.py                              # régénérer le notebook
 
 Versionnage : mettre à jour `VERSION` et `CHANGELOG.md`, puis `git tag vX.Y.Z`.
 
-Journal de l'app (en cas de problème) : `~/Library/Logs/Montage Locapay.log`.
+Journal de l'app (en cas de problème) : `~/Library/Logs/Raccord.log`.

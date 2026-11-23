@@ -1,4 +1,4 @@
-"""Interface du montage automatique Locapay (fenêtre Mac via fenetre.py, ou navigateur)."""
+"""Raccord — interface (Paramètres, mode classique) ; fenêtre Mac via fenetre.py, ou navigateur."""
 import json, os, shutil, subprocess, sys, time, traceback
 from dataclasses import asdict, fields
 
@@ -18,7 +18,9 @@ import illustrations as I
 import montage_auto as M
 import projet as P
 
-SORTIES = os.path.join(os.path.expanduser("~"), "Movies", "Montages Locapay")
+import chemins
+
+SORTIES = chemins.DOSSIER_APP
 os.makedirs(SORTIES, exist_ok=True)
 try:
     VERSION = "v" + open(os.path.join(os.path.dirname(ICI), "VERSION")).read().strip()
@@ -141,7 +143,7 @@ def tester_ollama_ui():
 
 def charger_style_ui(nom):
     p = C.charger_style(nom)
-    cfg = C.charger_config(); cfg["style_actif"] = nom or "Locapay"; C.sauver_config(cfg)
+    cfg = C.charger_config(); cfg["style_actif"] = nom or C.STYLE_BASE; C.sauver_config(cfg)
     return [getattr(p, k) for k in STYLE_CLES] + [f"*{p.description}*" if p.description else ""]
 
 
@@ -379,7 +381,7 @@ def monter(video, musique, *args, progress=gr.Progress()):
         srt = sortie.replace(".mp4", ".srt"); M.ecrire_srt(plan, srt)
         txt = sortie.replace(".mp4", "_transcription.txt")
         open(txt, "w", encoding="utf-8").write(M.texte_transcription(mots))
-        info = f"✅ Vidéo enregistrée dans **Vidéos › Montages Locapay** : `{os.path.basename(sortie)}`"
+        info = f"✅ Vidéo enregistrée dans **Vidéos › {chemins.NOM_APP}** : `{os.path.basename(sortie)}`"
         if items:
             info += f" · {len(items)} illustration(s) insérée(s)"
         if av["auto_qt"]:
@@ -399,8 +401,7 @@ def monter(video, musique, *args, progress=gr.Progress()):
 
 # ============================================================ corrections de mots
 DICO = os.path.join(SORTIES, ".dictionnaire_corrections.json")
-DICO_DEFAUT = [{"portee": "toujours", "avant": "Locapé", "apres": "Locapay"},
-               {"portee": "toujours", "avant": "Lokapay", "apres": "Locapay"}]
+DICO_DEFAUT = []
 PARTOUT, TOUJOURS = "video", "toujours"
 
 
@@ -614,9 +615,9 @@ def ouvrir_dossier():
 
 
 GR6 = int(gr.__version__.split(".")[0]) >= 6
-# Même univers que l'éditeur : graphite sombre, turquoise de la marque pour l'action.
+# Même univers que l'éditeur : graphite sombre, ambre pour l'action.
 THEME = gr.themes.Base(
-    primary_hue=gr.themes.colors.teal, neutral_hue=gr.themes.colors.slate, radius_size=gr.themes.sizes.radius_md,
+    primary_hue=gr.themes.colors.amber, neutral_hue=gr.themes.colors.slate, radius_size=gr.themes.sizes.radius_md,
     font=["-apple-system", "BlinkMacSystemFont", "SF Pro Text", "Segoe UI", "Helvetica", "Arial", "sans-serif"],
 ).set(
     body_background_fill_dark="#202029", background_fill_primary_dark="#272731", background_fill_secondary_dark="#202029",
@@ -625,11 +626,11 @@ THEME = gr.themes.Base(
     input_background_fill_dark="#1b1b23", input_border_color_dark="rgba(255,255,255,0.14)",
     body_text_color_dark="#f1f0f6", body_text_color_subdued_dark="#a6a5b7",
     block_label_text_color_dark="#a6a5b7", block_title_text_color_dark="#f1f0f6", block_label_background_fill_dark="#272731",
-    button_primary_background_fill_dark="#0AC2A4", button_primary_background_fill_hover_dark="#19d4b5",
-    button_primary_text_color_dark="#04261f", button_secondary_background_fill_dark="#30303b",
+    button_primary_background_fill_dark="#FFA41B", button_primary_background_fill_hover_dark="#ffb648",
+    button_primary_text_color_dark="#2a1800", button_secondary_background_fill_dark="#30303b",
     button_secondary_background_fill_hover_dark="#383845", button_secondary_text_color_dark="#f1f0f6",
-    color_accent_soft_dark="rgba(10,194,164,0.15)", link_text_color_dark="#0AC2A4",
-    checkbox_background_color_selected_dark="#0AC2A4", slider_color_dark="#0AC2A4", block_shadow_dark="none",
+    color_accent_soft_dark="rgba(255,164,27,0.15)", link_text_color_dark="#FFA41B",
+    checkbox_background_color_selected_dark="#FFA41B", slider_color_dark="#FFA41B", block_shadow_dark="none",
 )
 # Toujours en sombre (comme l'éditeur) ; pied de page Gradio masqué.
 TETE = ("<script>(function(){var u=new URL(location.href);if(u.searchParams.get('__theme')!=='dark')"
@@ -645,16 +646,16 @@ CFG = C.charger_config()
 ID0, CLES0 = CFG["identite"], CFG["cles"]
 STYLE0 = C.charger_style(CFG["style_actif"])
 
-with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": THEME})) as app:
+with gr.Blocks(title=f"{chemins.NOM_APP} — Paramètres", **({} if GR6 else {"theme": THEME})) as app:
     # retour à l'éditeur (on revient sur le projet ouvert si on vient de là)
     gr.HTML("""<div style="display:flex;gap:10px;align-items:center;margin-bottom:4px">
       <a id="retour-editeur" href="/editeur"
          onclick="if (document.referrer.indexOf('/editeur') >= 0) { location.href = document.referrer; return false; }"
          style="position:fixed;top:14px;right:18px;z-index:1000;display:inline-flex;align-items:center;gap:6px;
-                padding:9px 16px;border-radius:9px;background:#0AC2A4;color:#fff;font-weight:600;text-decoration:none;
+                padding:9px 16px;border-radius:9px;background:#FFA41B;color:#2a1800;font-weight:600;text-decoration:none;
                 box-shadow:0 4px 14px rgba(0,0,0,.18)">← Retour à l'éditeur</a>
       <span style="opacity:.6;font-size:13px">Vos réglages sont enregistrés avec les boutons 💾 de chaque onglet.</span></div>""")
-    gr.Markdown(f"# 🎬 Montage automatique Locapay <small style='opacity:.5'>{VERSION}</small>\n"
+    gr.Markdown(f"# {chemins.NOM_APP} <small style='opacity:.5'>{VERSION}</small>\n"
                 "Glissez une vidéo brute face caméra (ou plusieurs, à assembler), cliquez sur **Monter la vidéo**, "
                 "récupérez la vidéo prête à publier — puis retouchez-la si besoin dans "
                 "[✂️ l'éditeur (timeline)](/editeur).")
@@ -788,7 +789,7 @@ with gr.Blocks(title="Montage automatique Locapay", **({} if GR6 else {"theme": 
                     with gr.Tab("🔧 Avancé"):
                         hesit = gr.Checkbox(value=True, label="Couper les hésitations (euh, hum…)")
                         vol = gr.Slider(0.05, 0.50, value=0.18, step=0.01, label="Volume de la musique")
-                        vocabulaire = gr.Textbox(value="Locapay, démarcheurs, loyer, propriétaire, locataire, Cotonou, Bénin",
+                        vocabulaire = gr.Textbox(value=CFG.get("vocabulaire") or CFG["identite"].get("nom", ""),
                                                  label="Mots rares à bien reconnaître")
                         modele = gr.Radio(["Précis (recommandé)", "Rapide"], value="Précis (recommandé)", label="Transcription")
                         auto_qt = gr.Checkbox(value=(sys.platform == "darwin"), label="Ouvrir la vidéo dans QuickTime à la fin du montage")
@@ -956,7 +957,7 @@ def lancer(port=None, navigateur=True, bloquant=True, page="editeur"):
     port = port or _port_libre()
     url = f"http://127.0.0.1:{port}/"
     serveur = uvicorn.Server(uvicorn.Config(api, host="127.0.0.1", port=port, log_level="warning"))
-    print(f"* Montage Locapay : {url}", flush=True)
+    print(f"* {chemins.NOM_APP} : {url}", flush=True)
     if bloquant:
         if navigateur:
             threading.Timer(2.0, lambda: webbrowser.open(url + page)).start()

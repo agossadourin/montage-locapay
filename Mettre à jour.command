@@ -13,5 +13,5 @@ uv pip install --python .venv/bin/python -r "requirements/mac-$(uname -m).txt"
 echo "➡️  Mise à jour de l app…"
 bash macos/build_app.sh
 echo
-echo "✅ À jour : version $(cat VERSION). Relancez « Montage Locapay »."
+echo "✅ À jour : version $(cat VERSION). Relancez « Raccord »."
 read -r -p "Appuyez sur Entrée pour fermer…"

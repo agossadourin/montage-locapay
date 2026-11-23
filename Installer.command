@@ -1,12 +1,12 @@
 #!/bin/bash
-# Installation du Montage automatique Locapay (à lancer une seule fois).
+# Installation de Raccord (à lancer une seule fois).
 cd "$(dirname "$0")" || exit 1
 DOSSIER="$(pwd)"
 set -e
 trap 'echo; echo "❌ L installation s est arrêtée (voir le message ci-dessus)."; read -r -p "Appuyez sur Entrée pour fermer…"' ERR
 
 echo "=============================================="
-echo "  Installation du Montage automatique Locapay"
+echo "  Installation de Raccord"
 echo "=============================================="
 xattr -dr com.apple.quarantine "$DOSSIER" 2>/dev/null || true
 chmod +x "$DOSSIER"/*.command "$DOSSIER"/macos/*.sh 2>/dev/null || true
@@ -72,15 +72,15 @@ fi
 echo "✅ Modèle prêt"
 
 # 5) App dans le dossier Applications
-mkdir -p "$HOME/Movies/Montages Locapay"
+mkdir -p "$HOME/Movies/Raccord"
 echo
-echo "➡️  Création de l app « Montage Locapay »…"
+echo "➡️  Création de l app « Raccord »…"
 bash macos/build_app.sh
 
 echo
 echo "=============================================="
 echo "  ✅ Installation terminée !"
-echo "  Ouvrez « Montage Locapay » depuis le Launchpad ou le dossier Applications."
-echo "  Vos vidéos montées vont dans : Vidéos › Montages Locapay"
+echo "  Ouvrez « Raccord » depuis le Launchpad ou le dossier Applications."
+echo "  Vos vidéos montées vont dans : Vidéos › Raccord"
 echo "=============================================="
 read -r -p "Appuyez sur Entrée pour fermer…"

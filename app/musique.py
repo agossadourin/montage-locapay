@@ -8,7 +8,9 @@ import os
 import re
 
 API = "https://api.openverse.org/v1/audio/"
-DOSSIER = os.path.join(os.path.expanduser("~"), "Movies", "Montages Locapay", ".musique")
+import chemins
+
+DOSSIER = os.path.join(chemins.DOSSIER_APP, ".musique")
 
 AMBIANCES = {
     "Dynamique": "upbeat corporate",
@@ -23,7 +25,7 @@ LICENCES_OK = {"cc0", "pdm", "by", "by-sa"}          # usage commercial autoris√
 
 def _client():
     import httpx
-    return httpx.Client(timeout=30, follow_redirects=True, headers={"User-Agent": "MontageLocapay/1.0"})
+    return httpx.Client(timeout=30, follow_redirects=True, headers={"User-Agent": "Raccord/1.0"})
 
 
 def credit(r):

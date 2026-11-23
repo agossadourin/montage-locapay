@@ -12,7 +12,9 @@ import re
 
 import ia
 
-DOSSIER_CACHE = os.path.join(os.path.expanduser("~"), "Movies", "Montages Locapay", ".illustrations")
+import chemins
+
+DOSSIER_CACHE = os.path.join(chemins.DOSSIER_APP, ".illustrations")
 
 # mot (forme normalisée, singulier) -> recherche en anglais (les banques d'images répondent mieux en anglais)
 MOTS_IMAGES = {

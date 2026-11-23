@@ -1,5 +1,5 @@
 """
-Montage automatique « style Locapay »
+Raccord — moteur de montage automatique pour vidéos face caméra
 -------------------------------------
 Vidéo brute face caméra  ->  transcription (Whisper)  ->  découpe des blancs
 ->  sous-titres animés mot par mot (italique fin + mot clé en gras capitales)
@@ -20,8 +20,8 @@ SR = 48000
 # ============================================================ réglages
 @dataclass
 class Reglages:
-    couleur_1: str = "#2E2C51"            # bleu nuit Locapay (écrans + fin)
-    couleur_2: str = "#0AC2A4"            # vert Locapay
+    couleur_1: str = "#1F2340"            # couleur principale de la marque (écrans + fin)
+    couleur_2: str = "#FFA41B"            # couleur secondaire (doodles, accents)
     position_sous_titres: float = 0.66    # 0 = haut, 1 = bas
     nb_ecrans_couleur: int = 2
     effets_sonores: str = "léger"         # "léger" ou "aucun"

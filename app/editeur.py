@@ -25,7 +25,9 @@ import musique as MU
 import projet as P
 
 ICI = os.path.dirname(os.path.abspath(__file__))
-SORTIES = os.path.join(os.path.expanduser("~"), "Movies", "Montages Locapay")
+import chemins
+
+SORTIES = chemins.DOSSIER_APP
 ENVOIS = os.path.join(SORTIES, ".envois")
 _travaux = {}
 
@@ -86,6 +88,10 @@ def ajouter_routes(api: FastAPI, racines):
     def page():
         with open(os.path.join(ICI, "editeur.html"), encoding="utf-8") as f:
             return f.read()
+
+    @api.get("/editeur/icone.png")
+    def icone_app():
+        return FileResponse(os.path.join(os.path.dirname(ICI), "macos", "AppIcon.png"), headers={"Cache-Control": "max-age=86400"})
 
     @api.get("/editeur/polices/{nom}")
     def police(nom: str):

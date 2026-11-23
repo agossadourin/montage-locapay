@@ -1,14 +1,17 @@
 """Paramètres persistants : identité visuelle, clés API, profils de style.
 
-Tout est rangé dans ~/Movies/Montages Locapay/.parametres/ (fichiers JSON lisibles).
+Tout est rangé dans ~/Movies/Raccord/.parametres/ (fichiers JSON lisibles).
 """
 import json
 import os
 import re
 from dataclasses import asdict, dataclass, fields
 
+import chemins
+
+chemins.migrer()                               # reprise d'une ancienne installation « Montage Locapay »
 ICI = os.path.dirname(os.path.abspath(__file__))
-DOSSIER = os.path.join(os.path.expanduser("~"), "Movies", "Montages Locapay", ".parametres")
+DOSSIER = chemins.DOSSIER_PARAMETRES
 FICHIER = os.path.join(DOSSIER, "config.json")
 DOSSIER_STYLES = os.path.join(DOSSIER, "styles")
 
@@ -43,25 +46,25 @@ class ProfilStyle:
         return cls(**{k: v for k, v in (d or {}).items() if k in noms})
 
 
-STYLE_LOCAPAY = ProfilStyle(description="Style de référence Locapay : sous-titres italiques + mot clé en gras, "
-                                        "coupes rapides, écrans de couleur.")
+STYLE_BASE = "Face caméra"
+STYLE_DEFAUT = ProfilStyle(description="Face caméra : sous-titres italiques + mot clé en gras, coupes rapides, "
+                                       "écrans de couleur.")
 
 IDENTITE_DEFAUT = {
-    "nom": "Locapay",
-    "couleur_1": "#2E2C51",
-    "couleur_2": "#0AC2A4",
-    "fichier_logo": os.path.join(ICI, "logo_locapay.png"),
+    "nom": "Ma marque",
+    "couleur_1": "#1F2340",
+    "couleur_2": "#FFA41B",
+    "fichier_logo": "",
     "police_serif": os.path.join(ICI, "polices", "serif.ttf"),
     "police_grasse": os.path.join(ICI, "polices", "gras.ttf"),
 }
 
-CONTEXTE_DEFAUT = ("Bénin, Cotonou, Afrique de l'Ouest. Personnes béninoises, quartiers et maisons typiques de Cotonou. "
-                   "Thème : la location de logements (propriétaires, locataires, loyer payé par Mobile Money sur téléphone).")
+CONTEXTE_DEFAUT = ""          # décrit dans les Paramètres : lieu, personnes, thème des vidéos
 
 CONFIG_DEFAUT = {"identite": IDENTITE_DEFAUT, "cles": {"anthropic": "", "pexels": "", "pixabay": "", "gemini": "",
                                                     "cloudflare_compte": "", "cloudflare_jeton": ""},
                  "illustrations": {"source": "banques", "contexte": CONTEXTE_DEFAUT},
-                 "style_actif": "Locapay"}
+                 "style_actif": STYLE_BASE}
 
 
 def _lire(chemin, defaut):
@@ -107,7 +110,7 @@ def _nom_fichier(nom):
 
 
 def lister_styles():
-    noms = ["Locapay"]
+    noms = [STYLE_BASE]
     if os.path.isdir(DOSSIER_STYLES):
         for f in sorted(os.listdir(DOSSIER_STYLES)):
             if f.endswith(".json"):
@@ -118,10 +121,8 @@ def lister_styles():
 
 
 def charger_style(nom):
-    if nom in (None, "", "Locapay") and not os.path.exists(os.path.join(DOSSIER_STYLES, "Locapay.json")):
-        return ProfilStyle(**asdict(STYLE_LOCAPAY))
-    d = _lire(os.path.join(DOSSIER_STYLES, _nom_fichier(nom) + ".json"), None)
-    return ProfilStyle.depuis(d) if d else ProfilStyle(**asdict(STYLE_LOCAPAY))
+    d = _lire(os.path.join(DOSSIER_STYLES, _nom_fichier(nom) + ".json"), None) if nom else None
+    return ProfilStyle.depuis(d) if d else ProfilStyle(**asdict(STYLE_DEFAUT))
 
 
 def sauver_style(nom, profil):

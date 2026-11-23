@@ -1,5 +1,5 @@
 #!/bin/bash
-# Installe l'IA locale gratuite (Ollama + modèle qwen2.5vl:3b, ≈ 3 Go) et l'active dans Montage Locapay.
+# Installe l'IA locale gratuite (Ollama + modèle qwen2.5vl:3b, ≈ 3 Go) et l'active dans Raccord.
 cd "$(dirname "$0")" || exit 1
 set -e
 trap 'echo; echo "❌ L installation de l IA locale s est arrêtée (voir le message ci-dessus)."; read -r -p "Entrée pour fermer…"' ERR
@@ -8,7 +8,7 @@ for b in /opt/homebrew/bin/brew /usr/local/bin/brew; do [ -x "$b" ] && eval "$("
 command -v brew >/dev/null 2>&1 || { echo "❌ Homebrew est introuvable : lancez d abord Installer.command."; false; }
 
 echo "=============================================="
-echo "  IA locale gratuite (Ollama) pour Montage Locapay"
+echo "  IA locale gratuite (Ollama) pour Raccord"
 echo "=============================================="
 if ! command -v ollama >/dev/null 2>&1; then
   echo "➡️  Installation d Ollama…"
@@ -29,8 +29,8 @@ if [ -x .venv/bin/python ]; then
 import sys; sys.path.insert(0, 'app')
 import configuration as C
 c = C.charger_config(); c.setdefault('ia', {})['fournisseur'] = 'ollama'; C.sauver_config(c)
-print('✅ IA locale activée dans Montage Locapay (Paramètres › Clés API)')"
+print('✅ IA locale activée dans Raccord (Paramètres › Clés API)')"
 fi
 echo
-echo "Terminé. Relancez Montage Locapay."
+echo "Terminé. Relancez Raccord."
 read -r -p "Appuyez sur Entrée pour fermer…"

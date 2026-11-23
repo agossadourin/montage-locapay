@@ -12,7 +12,9 @@ import time
 ICI = os.path.dirname(os.path.abspath(__file__))
 RACINE = os.path.dirname(ICI)
 sys.path.insert(0, ICI)
-NOM = "Montage Locapay"
+import chemins  # noqa: E402
+
+NOM = chemins.NOM_APP
 
 NAVIGATEURS = [
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -22,9 +24,9 @@ NAVIGATEURS = [
 ]
 
 CHARGEMENT = """<html><body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;
-background:#2E2C51;color:#fff;font-family:-apple-system,Helvetica,sans-serif">
-<div style="text-align:center"><div style="font-size:26px;font-weight:600">Montage Locapay</div>
-<div style="opacity:.7;margin-top:10px">Démarrage…</div></div></body></html>"""
+background:#202029;color:#f1f0f6;font-family:-apple-system,Helvetica,sans-serif">
+<div style="text-align:center"><div style="font-size:30px;font-weight:600;font-style:italic;font-family:Georgia,serif">Raccord</div>
+<div style="opacity:.6;margin-top:10px">Démarrage…</div></div></body></html>"""
 
 
 def navigateur_app():

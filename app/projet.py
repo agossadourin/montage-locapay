@@ -22,7 +22,9 @@ from dataclasses import asdict, fields
 
 import montage_auto as M
 
-DOSSIER_SOURCES = os.path.join(os.path.expanduser("~"), "Movies", "Montages Locapay", ".sources")
+import chemins
+
+DOSSIER_SOURCES = os.path.join(chemins.DOSSIER_APP, ".sources")
 
 
 def _id():
@@ -150,7 +152,7 @@ def charger(chemin):
 
 # ================================================================== démarrer par la timeline
 DOSSIER_PROJETS = os.path.dirname(DOSSIER_SOURCES)
-VOCABULAIRE_DEFAUT = "Locapay, démarcheurs, loyer, propriétaire, locataire, Cotonou, Bénin"
+VOCABULAIRE_DEFAUT = ""          # par défaut : le nom de la marque (Paramètres › Avancé pour en ajouter)
 FICHIER_DICO = os.path.join(DOSSIER_PROJETS, ".dictionnaire_corrections.json")
 
 
@@ -219,8 +221,7 @@ def _dico():
         with open(FICHIER_DICO, encoding="utf-8") as f:
             return [c for c in json.load(f) if c.get("portee") == "toujours"]
     except (OSError, ValueError):
-        return [{"portee": "toujours", "avant": "Locapé", "apres": "Locapay"},
-                {"portee": "toujours", "avant": "Lokapay", "apres": "Locapay"}]
+        return []
 
 
 def auto(proj, rappel=None, transcrire=None, rechercher=None, telecharger=None, generer=None):
@@ -245,7 +246,8 @@ def auto(proj, rappel=None, transcrire=None, rechercher=None, telecharger=None, 
     if proj.get("transcription_source") != proj["video"] or not proj.get("transcription"):
         etape(0.05, "Transcription de la voix… (la 1re fois, le modèle se télécharge)")
         proj["transcription"] = transcrire(proj["video"], modele="turbo", langue="fr",
-                                           vocabulaire=cfg.get("vocabulaire") or VOCABULAIRE_DEFAUT)
+                                           vocabulaire=cfg.get("vocabulaire") or VOCABULAIRE_DEFAUT
+                                           or cfg["identite"].get("nom", ""))
         proj["transcription_source"] = proj["video"]
     etape(0.45, "Analyse des phrases…")
     mots = M.corriger(proj["transcription"], _dico())
