@@ -614,7 +614,27 @@ def ouvrir_dossier():
 
 
 GR6 = int(gr.__version__.split(".")[0]) >= 6
-THEME = gr.themes.Soft(primary_hue="teal")
+# Même univers que l'éditeur : graphite sombre, turquoise de la marque pour l'action.
+THEME = gr.themes.Base(
+    primary_hue=gr.themes.colors.teal, neutral_hue=gr.themes.colors.slate, radius_size=gr.themes.sizes.radius_md,
+    font=["-apple-system", "BlinkMacSystemFont", "SF Pro Text", "Segoe UI", "Helvetica", "Arial", "sans-serif"],
+).set(
+    body_background_fill_dark="#202029", background_fill_primary_dark="#272731", background_fill_secondary_dark="#202029",
+    block_background_fill_dark="#272731", block_border_color_dark="rgba(255,255,255,0.075)",
+    border_color_primary_dark="rgba(255,255,255,0.10)", panel_background_fill_dark="#272731",
+    input_background_fill_dark="#1b1b23", input_border_color_dark="rgba(255,255,255,0.14)",
+    body_text_color_dark="#f1f0f6", body_text_color_subdued_dark="#a6a5b7",
+    block_label_text_color_dark="#a6a5b7", block_title_text_color_dark="#f1f0f6", block_label_background_fill_dark="#272731",
+    button_primary_background_fill_dark="#0AC2A4", button_primary_background_fill_hover_dark="#19d4b5",
+    button_primary_text_color_dark="#04261f", button_secondary_background_fill_dark="#30303b",
+    button_secondary_background_fill_hover_dark="#383845", button_secondary_text_color_dark="#f1f0f6",
+    color_accent_soft_dark="rgba(10,194,164,0.15)", link_text_color_dark="#0AC2A4",
+    checkbox_background_color_selected_dark="#0AC2A4", slider_color_dark="#0AC2A4", block_shadow_dark="none",
+)
+# Toujours en sombre (comme l'éditeur) ; pied de page Gradio masqué.
+TETE = ("<script>(function(){var u=new URL(location.href);if(u.searchParams.get('__theme')!=='dark')"
+        "{u.searchParams.set('__theme','dark');location.replace(u.toString());}})();</script>")
+CSS = "footer{display:none!important} .gradio-container{max-width:1200px!important}"
 
 
 def _cols(n):
@@ -932,7 +952,7 @@ def lancer(port=None, navigateur=True, bloquant=True, page="editeur"):
     api = FastAPI()
     E.ajouter_routes(api, racines)
     api = gr.mount_gradio_app(api, app.queue(), path="/", allowed_paths=racines,
-                              **({"theme": THEME} if GR6 else {}))
+                              **({"theme": THEME, "head": TETE, "css": CSS} if GR6 else {}))
     port = port or _port_libre()
     url = f"http://127.0.0.1:{port}/"
     serveur = uvicorn.Server(uvicorn.Config(api, host="127.0.0.1", port=port, log_level="warning"))

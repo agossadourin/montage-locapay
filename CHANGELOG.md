@@ -1,5 +1,13 @@
 # Historique des versions
 
+## 0.17.0 — 2026-11-23
+- **Nouveau design** de l'éditeur, plus épuré : graphite neutre pour bien juger l'image, la vidéo posée sur un plateau indigo aux couleurs de la marque, turquoise réservé aux actions, à la sélection et à la tête de lecture.
+  - Icônes dessinées (plus d'émojis dans l'interface), barre du haut allégée (Paramètres, Copier un style, Montage automatique, Exporter).
+  - Lecture et minutage sous la vidéo (chiffres en Playfair italique, comme les sous-titres).
+  - Pistes plus compactes et lisibles, couleurs adoucies, poignées discrètes, tête de lecture turquoise.
+  - Fenêtres avec fond flouté, accueil redessiné (dépôt de vidéos, projets récents).
+- La page **Paramètres** passe au même thème sombre.
+
 ## 0.16.1 — 2026-11-23
 - Copie de style : le message de progression indique l'IA réellement utilisée (Ollama ou Claude) au lieu de toujours afficher « Claude ».
 

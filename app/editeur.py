@@ -87,6 +87,13 @@ def ajouter_routes(api: FastAPI, racines):
         with open(os.path.join(ICI, "editeur.html"), encoding="utf-8") as f:
             return f.read()
 
+    @api.get("/editeur/polices/{nom}")
+    def police(nom: str):
+        f = os.path.join(ICI, "polices", os.path.basename(nom))
+        if not os.path.exists(f):
+            raise HTTPException(404)
+        return FileResponse(f, headers={"Cache-Control": "max-age=86400"})
+
     @api.get("/editeur/api/projets")
     def projets():
         fichiers = sorted(glob.glob(os.path.join(SORTIES, "*.projet.json")), key=os.path.getmtime, reverse=True)

@@ -5,51 +5,80 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Éditeur — Montage Locapay</title>
 <style>
+@font-face{font-family:"Marque Serif";src:url(/editeur/polices/serif.ttf);font-style:italic;font-display:swap}
+/* Montage Locapay — éditeur.
+   Graphite neutre (pour juger l'image), la vidéo posée sur le « plateau » indigo de la marque,
+   turquoise réservé à l'action, à la sélection et à la tête de lecture. */
 :root{
-  --fond:#15151c; --panneau:#1e1e28; --panneau2:#262633; --ligne:#33334a; --texte:#e9e9f1; --doux:#9a9ab0;
-  --accent:#0AC2A4; --accent2:#2E2C51; --danger:#e5566a;
-  --clip:#3b4a7a; --st:#0a8f7a; --ecran:#7a5cc2; --ill:#c27a2e; --mus:#2e7ac2;
+  --fond:#202029; --panneau:#272731; --panneau2:#30303b; --survol:#383845; --ligne:rgba(255,255,255,.075); --ligne-forte:rgba(255,255,255,.14);
+  --texte:#f1f0f6; --doux:#a6a5b7; --discret:#74738a;
+  --accent:#0AC2A4; --accent-encre:#04261f; --accent2:#2E2C51; --danger:#f06b7c; --alerte:#f2b84b;
+  --clip:#3d4170; --st:#1d5a52; --ecran:#4b3e74; --ill:#6a4a22; --mus:#244766;
+  --rayon:8px;
 }
 *{box-sizing:border-box}
-html,body{margin:0;height:100%;background:var(--fond);color:var(--texte);font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;overflow:hidden}
+html,body{margin:0;height:100%;background:var(--fond);color:var(--texte);
+  font:13px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Helvetica,Arial,sans-serif;overflow:hidden;
+  -webkit-font-smoothing:antialiased}
 button,select,input,textarea{font:inherit;color:inherit}
-button{background:var(--panneau2);border:1px solid var(--ligne);border-radius:7px;padding:6px 10px;cursor:pointer}
-button:hover{border-color:var(--accent)}
-button.primaire{background:var(--accent);border-color:var(--accent);color:#06231e;font-weight:600}
-button.danger{color:#ffb3bd;border-color:#5a2a33}
-button:disabled{opacity:.45;cursor:default}
-input,select,textarea{background:#12121a;border:1px solid var(--ligne);border-radius:6px;padding:6px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ico{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+button,.btn{display:inline-flex;align-items:center;gap:7px;background:var(--panneau2);border:1px solid transparent;border-radius:7px;
+  padding:6px 11px;cursor:pointer;color:var(--texte);font-weight:500;line-height:18px;text-decoration:none;white-space:nowrap}
+button:hover,.btn:hover{background:var(--survol)}
+button.fantome,.btn.fantome{background:transparent;color:var(--doux)}
+button.fantome:hover,.btn.fantome:hover{background:var(--panneau2);color:var(--texte)}
+button.primaire{background:var(--accent);color:var(--accent-encre);font-weight:650}
+button.primaire:hover{background:#19d4b5}
+button.danger{color:var(--danger)}
+button.danger:hover{background:rgba(240,107,124,.12)}
+button:disabled{opacity:.4;cursor:default}
+button.icone{padding:6px;width:32px;height:32px;justify-content:center;background:transparent;color:var(--doux)}
+button.icone:hover{background:var(--panneau2);color:var(--texte)}
+input,select,textarea{background:#1b1b23;border:1px solid var(--ligne-forte);border-radius:7px;padding:7px 9px}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);outline:none}
+input[type=range]{padding:0;border:0;background:transparent;accent-color:var(--accent)}
+input[type=checkbox],input[type=radio]{accent-color:var(--accent)}
 a{color:var(--accent);text-decoration:none}
-#app{display:grid;grid-template-rows:46px 1fr 344px;height:100%}
-.el.alerte{background:repeating-linear-gradient(45deg,#8a2433,#8a2433 6px,#a12d3e 6px,#a12d3e 12px);border-color:#ff7b8b}
-#depot{border:2px dashed var(--ligne);border-radius:14px;padding:38px;text-align:center;cursor:pointer;background:var(--panneau);margin:18px 0}
-#depot.survol{border-color:var(--accent);background:#1d2a2a}
-#depot .grand{font-size:18px;font-weight:600;margin-bottom:6px}
-.grille{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
-.grille img{width:100%;aspect-ratio:9/14;object-fit:cover;border-radius:5px;cursor:pointer;border:2px solid transparent}
-.grille img:hover{border-color:var(--accent)}
-#b-auto.attention{box-shadow:0 0 0 3px rgba(10,194,164,.35)}
-header{display:flex;align-items:center;gap:12px;padding:0 14px;background:var(--panneau);border-bottom:1px solid var(--ligne)}
-header .titre{font-weight:600}
-header .statut{color:var(--doux);margin-left:auto}
-#haut{display:grid;grid-template-columns:1fr auto 330px;min-height:0}
-#scene-zone{display:flex;align-items:center;justify-content:center;min-height:0;padding:10px}
-#scene{position:relative;background:#000;overflow:hidden;border-radius:8px;box-shadow:0 6px 30px rgba(0,0,0,.5)}
+progress{width:100%;height:6px;-webkit-appearance:none;appearance:none;border:0;border-radius:3px;overflow:hidden;background:var(--panneau2)}
+progress::-webkit-progress-bar{background:var(--panneau2)}
+progress::-webkit-progress-value{background:var(--accent);border-radius:3px}
+kbd{background:var(--panneau2);border:1px solid var(--ligne-forte);border-radius:4px;padding:0 5px;font-size:11px;font-family:inherit}
+.aide{color:var(--doux);line-height:1.5}
+
+/* ---------- structure */
+#app{display:grid;grid-template-rows:52px 1fr 312px;height:100%}
+header{display:flex;align-items:center;gap:10px;padding:0 12px 0 8px;background:var(--panneau);border-bottom:1px solid var(--ligne)}
+header .retour{display:inline-flex;width:32px;height:32px;align-items:center;justify-content:center;border-radius:7px;color:var(--doux)}
+header .retour:hover{background:var(--panneau2);color:var(--texte)}
+header .ident{display:flex;flex-direction:column;min-width:0;line-height:1.2}
+header .titre{font-weight:650;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:38vw}
+header .statut{color:var(--discret);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:38vw}
+header .actions{display:flex;align-items:center;gap:6px;margin-left:auto}
+header .actions .sep{width:1px;height:20px;background:var(--ligne-forte);margin:0 4px}
+#b-auto.attention{box-shadow:0 0 0 2px var(--accent) inset;color:var(--accent)}
+
+#haut{display:grid;grid-template-columns:1fr 320px;min-height:0}
+#scene-zone{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;min-height:0;padding:14px;
+  background:radial-gradient(120% 90% at 50% 38%,#34325c 0%,#2a2845 45%,#22212f 100%)}
+#scene{position:relative;background:#000;overflow:hidden;border-radius:10px;
+  box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 24px 60px -18px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.06)}
+#transport{display:flex;align-items:center;gap:14px;height:40px}
+#b-lecture{width:40px;height:40px;border-radius:50%;justify-content:center;padding:0;background:var(--texte);color:#1d1c28}
+#b-lecture:hover{background:#fff}
+#b-lecture .ico{width:16px;height:16px;stroke-width:0}
+#temps{font-family:"Marque Serif","PoliceTexte",Georgia,serif;font-style:italic;font-size:22px;letter-spacing:.01em;
+  font-variant-numeric:tabular-nums lining-nums;color:#fff;min-width:200px}
+#temps small{font-size:14px;color:rgba(255,255,255,.5);margin-left:6px}
+
 #lecteurs{position:absolute;inset:0;overflow:hidden;isolation:isolate}
 #scene video.src{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform-origin:50% 50%}
 #flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:5}
-.trans{position:absolute;top:13px;width:18px;height:18px;margin-left:-9px;border-radius:50%;background:#1b1b24;border:1px solid #fff8;
-  color:#fff;font-size:10px;line-height:16px;text-align:center;cursor:pointer;z-index:4;user-select:none}
-.trans:hover,.trans.choisie{background:var(--accent);border-color:#fff}
-.trans.coupe{opacity:.55}
-.temps-fort{position:absolute;bottom:3px;width:2px;height:9px;margin-left:-1px;background:#fff9;border-radius:1px;pointer-events:none}
 #scene .couche{position:absolute;inset:0;display:none}
 #scene .couche img,#scene .couche video{width:100%;height:100%;object-fit:cover}
 #c-ill .fond{display:none}
 #c-ill[data-mode=adapter] .fond{display:block;position:absolute;inset:0;filter:blur(16px) brightness(.55);transform:scale(1.15)}
 #c-ill[data-mode=adapter] .avant{position:absolute;left:-4%;top:50%;width:108%;height:auto;object-fit:contain;transform:translateY(-50%)}
-.grille .vignette{position:relative}
-.grille .vignette span{position:absolute;left:4px;bottom:6px;font-size:10px;background:rgba(0,0,0,.7);color:#fff;border-radius:4px;padding:1px 4px}
 #st-zone{position:absolute;left:0;right:0;display:flex;flex-direction:column;align-items:center;transform:translateY(-50%);pointer-events:none}
 #st-zone .ligne{display:flex;gap:.28em;justify-content:center;white-space:nowrap;line-height:1.05}
 #st-zone span{color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.55);transition:none;display:inline-block}
@@ -60,82 +89,139 @@ header .statut{color:var(--doux);margin-left:auto}
 #st-zone .edit-st{pointer-events:auto;cursor:text;min-width:55%;max-width:92%;text-align:center;color:#fff;font-family:"PoliceTexte",Georgia,serif;
   font-style:italic;line-height:1.15;background:rgba(0,0,0,.45);border:1px dashed #fff;border-radius:8px;padding:.15em .45em;outline:none;
   text-shadow:0 2px 8px rgba(0,0,0,.55);white-space:pre-wrap}
-#aide-edit{position:absolute;left:6px;right:6px;bottom:8px;text-align:center;font-size:11px;color:#fff;background:rgba(0,0,0,.6);
-  border-radius:6px;padding:5px;display:none;pointer-events:none}
+#aide-edit{position:absolute;left:8px;right:8px;bottom:10px;text-align:center;font-size:11px;color:#fff;background:rgba(20,20,28,.78);
+  backdrop-filter:blur(6px);border-radius:8px;padding:6px;display:none;pointer-events:none}
 .serif{font-family:"PoliceTexte",Georgia,serif;font-style:italic}
 .gras{font-family:"PoliceCle",Arial,sans-serif;font-weight:800;text-transform:uppercase}
 #fin{position:absolute;inset:0;display:none;align-items:center;justify-content:center}
 #fin img{max-width:66%;max-height:30%}
 #logo-coin{position:absolute;left:6.5%;bottom:7%;width:28%;display:none}
-#controles{display:flex;flex-direction:column;justify-content:center;gap:8px;padding:10px 4px}
-#inspecteur{background:var(--panneau);border-left:1px solid var(--ligne);padding:14px;overflow:auto}
-#inspecteur h3{margin:0 0 10px;font-size:14px}
-#inspecteur label{display:block;color:var(--doux);margin:10px 0 4px}
+#controles{display:none}
+
+/* ---------- inspecteur */
+#inspecteur{background:var(--panneau);border-left:1px solid var(--ligne);padding:18px 18px 28px;overflow:auto}
+#inspecteur h3{margin:0 0 14px;font-size:15px;font-weight:650;letter-spacing:-.005em}
+#inspecteur label{display:block;color:var(--doux);font-size:12px;font-weight:500;margin:16px 0 6px}
 #inspecteur .rangee{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-#inspecteur textarea{width:100%;min-height:70px;resize:vertical}
-#inspecteur .pastille{width:26px;height:26px;border-radius:50%;border:2px solid transparent;cursor:pointer}
+#inspecteur select,#inspecteur input:not([type]),#inspecteur input[type=text],#inspecteur input[type=number]{max-width:100%}
+#inspecteur textarea{width:100%;min-height:76px;resize:vertical;line-height:1.45}
+#inspecteur .pastille{width:26px;height:26px;border-radius:50%;border:2px solid transparent;cursor:pointer;box-shadow:0 0 0 1px var(--ligne-forte) inset}
 #inspecteur .pastille.actif{border-color:#fff}
-#inspecteur img.apercu,#inspecteur video.apercu{width:100%;max-height:230px;object-fit:contain;background:#000;border-radius:6px;margin-top:6px}
-.aide{color:var(--doux);line-height:1.5}
-kbd{background:#2b2b3a;border:1px solid #444;border-radius:4px;padding:0 5px;font-size:11px}
-#bas{display:grid;grid-template-rows:40px 1fr;background:var(--panneau);border-top:1px solid var(--ligne);min-height:0}
-#barre{display:flex;align-items:center;gap:8px;padding:0 10px;border-bottom:1px solid var(--ligne)}
-#barre .temps{font-variant-numeric:tabular-nums;min-width:120px}
-#barre .sep{width:1px;height:22px;background:var(--ligne)}
-#timeline{display:grid;grid-template-columns:118px 1fr;min-height:0}
-#etiquettes{background:var(--panneau2);border-right:1px solid var(--ligne)}
-#etiquettes div{height:44px;display:flex;align-items:center;padding:0 10px;border-bottom:1px solid var(--ligne);color:var(--doux)}
+#inspecteur img.apercu,#inspecteur video.apercu{width:100%;max-height:230px;object-fit:contain;background:#000;border-radius:8px;margin-top:6px}
+#inspecteur p.aide{font-size:12.5px;margin:10px 0}
+#inspecteur > .rangee:last-child,#inspecteur .rangee:has(.primaire){margin-top:16px}
+
+/* ---------- barre d'outils + timeline */
+#bas{display:grid;grid-template-rows:44px 1fr;background:var(--panneau);border-top:1px solid var(--ligne);min-height:0}
+#barre{display:flex;align-items:center;gap:2px;padding:0 10px;border-bottom:1px solid var(--ligne)}
+#barre .sep{width:1px;height:20px;background:var(--ligne-forte);margin:0 8px}
+#barre .groupe-ajout{display:flex;gap:2px}
+#barre .groupe-ajout button{background:transparent;color:var(--doux);padding:6px 9px}
+#barre .groupe-ajout button:hover{background:var(--panneau2);color:var(--texte)}
+#barre .zoom{display:flex;align-items:center;gap:6px;margin-left:auto;color:var(--discret)}
+#barre .zoom .ico{width:15px;height:15px}
+#timeline{display:grid;grid-template-columns:132px 1fr;min-height:0}
+#etiquettes{background:var(--panneau);border-right:1px solid var(--ligne)}
+#etiquettes div{height:40px;display:flex;align-items:center;gap:9px;padding:0 14px;border-bottom:1px solid var(--ligne);color:var(--doux);font-size:12px;font-weight:500}
 #etiquettes div:first-child{height:24px}
-#defile{overflow-x:auto;overflow-y:hidden;position:relative}
+#etiquettes .ico{width:15px;height:15px;color:var(--discret)}
+#defile{overflow-x:auto;overflow-y:hidden;position:relative;background:#22222b}
 #piste-contenu{position:relative;height:100%}
-#regle{height:24px;position:relative;border-bottom:1px solid var(--ligne);cursor:pointer}
-#regle .tic{position:absolute;top:0;height:100%;border-left:1px solid #3a3a52;color:var(--doux);font-size:10px;padding-left:3px}
-.piste{height:44px;position:relative;border-bottom:1px solid var(--ligne)}
-.el{position:absolute;top:5px;height:34px;border-radius:6px;overflow:hidden;cursor:grab;color:#fff;font-size:11px;
-    padding:3px 8px;white-space:nowrap;text-overflow:ellipsis;border:1px solid rgba(255,255,255,.18);user-select:none}
-.el.sel{outline:2px solid #fff;outline-offset:1px;z-index:3}
-.el .poignee{position:absolute;top:0;bottom:0;width:8px;cursor:ew-resize;background:rgba(255,255,255,.18)}
+#regle{height:24px;position:relative;border-bottom:1px solid var(--ligne);cursor:pointer;background:var(--panneau)}
+#regle .tic{position:absolute;top:0;height:100%;border-left:1px solid rgba(255,255,255,.1);color:var(--discret);font-size:10px;padding:5px 0 0 4px;font-variant-numeric:tabular-nums}
+.piste{height:40px;position:relative;border-bottom:1px solid var(--ligne)}
+.el{position:absolute;top:4px;height:32px;border-radius:6px;overflow:hidden;cursor:grab;color:rgba(255,255,255,.92);font-size:11px;font-weight:500;
+    padding:4px 9px;white-space:nowrap;text-overflow:ellipsis;user-select:none;
+    box-shadow:0 1px 0 rgba(255,255,255,.12) inset,0 0 0 1px rgba(0,0,0,.25)}
+.el:hover{filter:brightness(1.12)}
+.el.sel{box-shadow:0 0 0 2px var(--accent),0 0 0 4px rgba(10,194,164,.18);z-index:3}
+.el .poignee{position:absolute;top:0;bottom:0;width:7px;cursor:ew-resize;background:transparent}
+.el .poignee::after{content:"";position:absolute;top:9px;bottom:9px;left:2px;width:3px;border-radius:2px;background:rgba(255,255,255,.35)}
 .el .poignee.g{left:0}.el .poignee.d{right:0}
-.el canvas{position:absolute;inset:0;width:100%;height:100%;opacity:.55;pointer-events:none}
-.el span{position:relative}
-.el.clip{background:var(--clip)}.el.st{background:var(--st)}.el.ecran{background:var(--ecran)}
-.el.ill{background:var(--ill);background-size:cover;background-position:center}.el.mus{background:var(--mus)}
-.el.fin{background:#3a3a46;cursor:default;opacity:.8}
+.el canvas{position:absolute;inset:0;width:100%;height:100%;opacity:.32;pointer-events:none}
+.el span{position:relative;text-shadow:0 1px 2px rgba(0,0,0,.55)}
+.el.clip{background:var(--clip)}
+.el.st{background:var(--st)}
+.el.ecran{background:var(--ecran)}
+.el.ill{background:var(--ill);background-size:cover;background-position:center}
+.el.ill span{text-shadow:0 1px 3px rgba(0,0,0,.8)}
+.el.mus{background:var(--mus)}
+.el.fin{background:#33333f;cursor:default;color:var(--doux)}
 .el.fantome{opacity:.35}
-#tete{position:absolute;top:0;bottom:0;width:2px;background:#ff4d5e;pointer-events:none;z-index:5}
-#tete::before{content:"";position:absolute;top:0;left:-6px;border:7px solid transparent;border-top-color:#ff4d5e}
-#modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:20}
-#modal .boite{background:var(--panneau);border:1px solid var(--ligne);border-radius:12px;padding:20px;width:420px}
-progress{width:100%;height:10px}
-#accueil{padding:30px;max-width:760px;margin:0 auto;overflow:auto;height:100%}
-#accueil .proj{display:flex;justify-content:space-between;padding:12px 14px;border:1px solid var(--ligne);border-radius:8px;margin:8px 0;background:var(--panneau)}
+.el.alerte{background:repeating-linear-gradient(-45deg,rgba(242,184,75,.28) 0 6px,rgba(242,184,75,.14) 6px 12px);color:#ffe3ad;
+  box-shadow:0 0 0 1px rgba(242,184,75,.55) inset}
+.trans{position:absolute;top:11px;width:18px;height:18px;margin-left:-9px;border-radius:50%;background:var(--panneau);
+  box-shadow:0 0 0 1px var(--ligne-forte);color:var(--doux);font-size:10px;line-height:18px;text-align:center;cursor:pointer;z-index:4;user-select:none}
+.trans:hover,.trans.choisie{background:var(--accent);color:var(--accent-encre);box-shadow:none}
+.trans.coupe{opacity:.6}
+.temps-fort{position:absolute;bottom:4px;width:2px;height:8px;margin-left:-1px;background:rgba(255,255,255,.5);border-radius:1px;pointer-events:none}
+#tete{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--accent);pointer-events:none;z-index:5;box-shadow:0 0 8px rgba(10,194,164,.5)}
+#tete::before{content:"";position:absolute;top:2px;left:-5px;width:12px;height:12px;border-radius:3px 3px 6px 6px;background:var(--accent)}
+
+/* ---------- fenêtres */
+#modal{position:fixed;inset:0;background:rgba(14,14,20,.55);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;z-index:20}
+#modal .boite{background:var(--panneau);border:1px solid var(--ligne-forte);border-radius:14px;padding:24px;width:440px;max-height:88vh;overflow:auto;
+  box-shadow:0 30px 80px -20px rgba(0,0,0,.7)}
+#modal h3{margin:0 0 12px;font-size:16px;font-weight:650}
+#modal progress{margin:8px 0 4px}
+.grille{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+.grille img{width:100%;aspect-ratio:9/14;object-fit:cover;border-radius:6px;cursor:pointer;border:2px solid transparent}
+.grille img:hover{border-color:var(--accent)}
+.grille .vignette{position:relative}
+.grille .vignette span{position:absolute;left:4px;bottom:6px;font-size:10px;background:rgba(0,0,0,.7);color:#fff;border-radius:4px;padding:1px 5px}
+
+/* ---------- accueil */
+#accueil{height:100%;overflow:auto;background:radial-gradient(90% 70% at 50% 0%,#2f2d52 0%,#24233a 40%,var(--fond) 80%)}
+#accueil .page{max-width:860px;margin:0 auto;padding:44px 28px 60px}
+#accueil .haut{display:flex;align-items:center;gap:12px}
+#accueil h1{margin:0;font-family:"Marque Serif",Georgia,serif;font-style:italic;font-weight:600;font-size:34px;letter-spacing:-.01em}
+#accueil .haut .btn{margin-left:auto}
+#accueil .sous{color:var(--doux);margin:6px 0 0;font-size:14px}
+#depot{display:grid;grid-template-columns:auto 1fr;gap:26px;align-items:center;border:1.5px dashed rgba(255,255,255,.22);border-radius:16px;
+  padding:26px 30px;cursor:pointer;background:rgba(255,255,255,.03);margin:30px 0 40px;transition:border-color .15s,background .15s}
+#depot:hover,#depot.survol{border-color:var(--accent);background:rgba(10,194,164,.06)}
+#depot .tel{width:64px;height:112px;border-radius:12px;border:2px solid rgba(255,255,255,.35);display:flex;align-items:center;justify-content:center;color:var(--accent)}
+#depot .tel .ico{width:26px;height:26px;stroke-width:2}
+#depot .grand{font-size:18px;font-weight:650;margin-bottom:4px}
+#depot #depot-prog{grid-column:1/-1}
+#accueil h2{font-size:13px;font-weight:600;color:var(--doux);margin:0 0 8px}
+#accueil .proj{display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:10px;margin:2px 0;color:var(--texte)}
+#accueil .proj:hover{background:rgba(255,255,255,.05)}
+#accueil .proj .ico{color:var(--discret)}
+#accueil .proj .nom{font-weight:550}
+#accueil .proj small{margin-left:auto;color:var(--discret);font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
-<div id="accueil" style="display:none">
-  <div style="display:flex;align-items:center;gap:12px"><h2 style="margin:0">🎬 Montage Locapay</h2>
-    <a href="/" style="margin-left:auto">⚙️ Paramètres (identité, style, clés) · mode classique</a></div>
+<div id="accueil" style="display:none"><div class="page">
+  <div class="haut"><h1>Montage Locapay</h1>
+    <a class="btn fantome" href="/?parametres=1"><i data-i="reglages"></i>Paramètres</a></div>
+  <p class="sous">Vos vidéos face caméra, montées dans votre style.</p>
   <div id="depot">
-    <div class="grand">＋ Nouveau projet</div>
-    <div class="aide">Glissez ici une ou plusieurs vidéos (ou cliquez pour les choisir).<br>
-      Elles arrivent sur la timeline : coupez, réordonnez, puis lancez ✨ Montage automatique.</div>
+    <div class="tel"><i data-i="plus"></i></div>
+    <div><div class="grand">Nouveau projet</div>
+      <div class="aide">Glissez une ou plusieurs vidéos ici, ou cliquez pour les choisir.<br>
+        Elles arrivent sur la timeline : coupez, réordonnez, puis lancez le montage automatique.</div></div>
     <input type="file" id="f-nouveau" accept="video/*" multiple style="display:none">
-    <div id="depot-prog" style="display:none;margin-top:14px"><progress id="depot-barre" max="1" value="0"></progress>
+    <div id="depot-prog" style="display:none"><progress id="depot-barre" max="1" value="0"></progress>
       <div class="aide" id="depot-txt"></div></div>
   </div>
-  <h3>Projets récents</h3>
+  <h2>Projets récents</h2>
   <div id="liste"></div>
-</div>
+</div></div>
 
 <div id="app" style="display:none">
   <header>
-    <a href="/editeur">← Projets</a>
-    <span class="titre" id="nom-projet">Projet</span>
-    <a href="/?parametres=1" title="Identité visuelle, style, clés API">⚙️ Paramètres</a>
-    <span class="statut" id="statut">Chargement…</span>
-    <button id="b-style" title="Charger une vidéo dont vous aimez le montage : son style est copié sur votre vidéo">🎨 Copier un style</button>
-    <button id="b-auto">✨ Montage automatique</button>
-    <button id="b-exporter" class="primaire">⬆️ Exporter la vidéo</button>
+    <a class="retour" href="/editeur" title="Tous les projets"><i data-i="retour"></i></a>
+    <div class="ident"><span class="titre" id="nom-projet">Projet</span><span class="statut" id="statut">Chargement…</span></div>
+    <div class="actions">
+      <a class="btn fantome" href="/?parametres=1" title="Identité visuelle, style, clés API"><i data-i="reglages"></i>Paramètres</a>
+      <button id="b-style" class="fantome" title="Charger une vidéo dont vous aimez le montage : son style est copié sur votre vidéo"><i data-i="style"></i>Copier un style</button>
+      <span class="sep"></span>
+      <button id="b-auto"><i data-i="magie"></i>Montage automatique</button>
+      <button id="b-exporter" class="primaire"><i data-i="exporter"></i>Exporter</button>
+    </div>
   </header>
   <div id="haut">
     <div id="scene-zone">
@@ -152,32 +238,34 @@ progress{width:100%;height:10px}
         <img id="logo-coin" alt="">
         <div id="fin"><img id="logo-fin" alt=""></div>
       </div>
+      <div id="transport">
+        <button id="b-lecture" title="Lecture / pause (Espace)"><i data-i="lire"></i></button>
+        <span class="temps" id="temps">00:00,0</span>
+      </div>
     </div>
-    <div id="controles"></div>
+    
     <aside id="inspecteur"></aside>
   </div>
   <div id="bas">
     <div id="barre">
-      <button id="b-lecture" title="Lecture / pause (Espace)">▶️</button>
-      <span class="temps" id="temps">00:00.0 / 00:00.0</span>
+      <button id="b-couper" class="icone" title="Couper le plan à la tête de lecture (S)"><i data-i="couper"></i></button>
+      <button id="b-suppr" class="icone" title="Supprimer l'élément sélectionné (Suppr)"><i data-i="suppr"></i></button>
       <span class="sep"></span>
-      <button id="b-couper" title="Couper le plan à la tête de lecture (S)">✂️ Couper</button>
-      <button id="b-suppr" class="danger" title="Supprimer l'élément sélectionné (Suppr)">🗑 Supprimer</button>
+      <button id="b-annuler" class="icone" title="Annuler (⌘Z)"><i data-i="annuler"></i></button>
+      <button id="b-retablir" class="icone" title="Rétablir (⇧⌘Z)"><i data-i="retablir"></i></button>
       <span class="sep"></span>
-      <button id="b-annuler" title="Annuler (⌘Z)">↶</button>
-      <button id="b-retablir" title="Rétablir (⇧⌘Z)">↷</button>
-      <span class="sep"></span>
-      <button id="b-add-st">＋ Sous-titre</button>
-      <button id="b-add-ecran">＋ Écran couleur</button>
-      <button id="b-add-ill">＋ Illustration</button>
-      <button id="b-gen-ill" title="Créer une image sur mesure (Cloudflare gratuit ou Gemini) pour le passage sous la tête de lecture">✨ Image IA</button>
-      <button id="b-add-mus">＋ Musique</button>
+      <div class="groupe-ajout">
+        <button id="b-add-st" title="Ajouter un sous-titre à la tête de lecture"><i data-i="st"></i>Sous-titre</button>
+        <button id="b-add-ecran" title="Ajouter un écran de couleur"><i data-i="ecran"></i>Écran</button>
+        <button id="b-add-ill" title="Ajouter une image ou une vidéo"><i data-i="image"></i>Illustration</button>
+        <button id="b-gen-ill" title="Créer une image sur mesure (Cloudflare gratuit ou Gemini) pour le passage sous la tête de lecture"><i data-i="image-ia"></i>Image IA</button>
+        <button id="b-add-mus" title="Ajouter une musique de fond"><i data-i="musique"></i>Musique</button>
+      </div>
       <input type="file" id="f-envoi" style="display:none">
-      <span style="margin-left:auto" class="aide">Zoom</span>
-      <input type="range" id="zoom" min="15" max="320" value="70" style="width:140px">
+      <label class="zoom" title="Zoom de la timeline"><i data-i="moins"></i><input type="range" id="zoom" min="15" max="320" value="70" style="width:130px"><i data-i="plus-loupe"></i></label>
     </div>
     <div id="timeline">
-      <div id="etiquettes"><div></div><div>🎬 Vidéo</div><div>⚠️ À vérifier</div><div>💬 Sous-titres</div><div>🖼 Illustrations</div><div>🎨 Écrans</div><div>🎵 Musique</div></div>
+      <div id="etiquettes"><div></div><div><i data-i="film"></i>Vidéo</div><div><i data-i="alerte"></i>À vérifier</div><div><i data-i="st"></i>Sous-titres</div><div><i data-i="image"></i>Illustrations</div><div><i data-i="ecran"></i>Écrans</div><div><i data-i="musique"></i>Musique</div></div>
       <div id="defile"><div id="piste-contenu">
         <div id="regle"></div>
         <div class="piste" id="p-clip"></div><div class="piste" id="p-alerte"></div><div class="piste" id="p-st"></div><div class="piste" id="p-ill"></div>
@@ -196,6 +284,33 @@ progress{width:100%;height:10px}
 <script>
 "use strict";
 const $ = (id) => document.getElementById(id);
+const ICONES = {
+  retour: '<path d="M15 18l-6-6 6-6"/>',
+  reglages: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
+  style: '<path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.7-1 1.2-1.9-.6-1.1 0-2.4 1.3-2.4H17a4 4 0 0 0 4-4C21 7.4 17 3 12 3z"/><circle cx="7.5" cy="11.5" r="1.1"/><circle cx="10.5" cy="7.5" r="1.1"/><circle cx="15.5" cy="8" r="1.1"/>',
+  magie: '<path d="M11 3l1.7 4.3L17 9l-4.3 1.7L11 15l-1.7-4.3L5 9l4.3-1.7z"/><path d="M18.5 14.5l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8z"/>',
+  exporter: '<path d="M12 15V4M7.5 8.5L12 4l4.5 4.5"/><path d="M5 14v4.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V14"/>',
+  lire: '<path d="M8 5.2v13.6a.8.8 0 0 0 1.2.7l10.6-6.8a.8.8 0 0 0 0-1.4L9.2 4.5A.8.8 0 0 0 8 5.2z" fill="currentColor"/>',
+  pause: '<rect x="6.5" y="5" width="4" height="14" rx="1.2" fill="currentColor"/><rect x="13.5" y="5" width="4" height="14" rx="1.2" fill="currentColor"/>',
+  couper: '<circle cx="6" cy="6" r="2.6"/><circle cx="6" cy="18" r="2.6"/><path d="M8.2 7.6L20 18M8.2 16.4L20 6"/>',
+  suppr: '<path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l.9 12.2a1 1 0 0 0 1 .8h7.2a1 1 0 0 0 1-.8L17.5 7"/>',
+  annuler: '<path d="M9 14L4.5 9.5 9 5"/><path d="M4.5 9.5H15a4.5 4.5 0 0 1 0 9h-3"/>',
+  retablir: '<path d="M15 14l4.5-4.5L15 5"/><path d="M19.5 9.5H9a4.5 4.5 0 0 0 0 9h3"/>',
+  st: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M7 12.5h4M13.5 12.5H17M7 15.5h7"/>',
+  ecran: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M4 15l16-6"/>',
+  image: '<rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M21 15.5l-5-5L6.5 20"/>',
+  "image-ia": '<rect x="3" y="7" width="14" height="13" rx="2.5"/><path d="M17 16l-3.5-3.5L7 19.5"/><path d="M19 2.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/>',
+  musique: '<path d="M9 18V5.5l11-2V16"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/>',
+  film: '<rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M7.5 4v16M16.5 4v16M3 9h4.5M3 15h4.5M16.5 9H21M16.5 15H21"/>',
+  alerte: '<path d="M10.3 4.3L2.6 18a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 4.3a2 2 0 0 0-3.4 0z"/><path d="M12 10v4M12 17.5v.01"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  moins: '<circle cx="11" cy="11" r="6.5"/><path d="M8.5 11h5M20 20l-4.3-4.3"/>',
+  "plus-loupe": '<circle cx="11" cy="11" r="6.5"/><path d="M8.5 11h5M11 8.5v5M20 20l-4.3-4.3"/>',
+  projet: '<rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 9.5v5l4-2.5z"/>',
+};
+const icone = (n) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${ICONES[n] || ""}</svg>`;
+function poserIcones(racine = document) { racine.querySelectorAll("i[data-i]").forEach(i => { i.outerHTML = icone(i.dataset.i); }); }
+poserIcones();
 const params = new URLSearchParams(location.search);
 const CHEMIN = params.get("p");
 const media = (f) => "/editeur/media?f=" + encodeURIComponent(f);
@@ -293,7 +408,7 @@ async function sauvegarder() {
 // ------------------------------------------------------------------ scène (aperçu en direct)
 let SW = 360, SH = 640;
 function dimensionner() {
-  const zone = $("scene-zone"); const h = zone.clientHeight - 20, w = zone.clientWidth - 20;
+  const zone = $("scene-zone"); const h = zone.clientHeight - 28 - 54, w = zone.clientWidth - 28;
   SH = Math.max(200, Math.min(h, w * 16 / 9)); SW = SH * 9 / 16;
   $("scene").style.width = SW + "px"; $("scene").style.height = SH + "px";
 }
@@ -418,7 +533,7 @@ $("st-zone").addEventListener("click", (e) => {
 let illCourante = null, generateur = null;
 function rendreScene(forcerSeek) {
   const cps = clips(), cor = corps();
-  $("temps").textContent = tc(t) + " / " + tc(total());
+  $("temps").innerHTML = tc(t).replace(".", ",") + `<small>/ ${tc(total()).replace(".", ",")}</small>`;
   $("tete").style.left = (t * pxs) + "px";
   const fin = $("fin"), cIll = $("c-ill"), cEc = $("c-ecran");
   if (t >= cor) {
@@ -552,13 +667,13 @@ function boucle(ts) {
 }
 function jouer() {
   if (t >= total() - 0.05) t = 0;
-  lecture = true; $("b-lecture").textContent = "⏸";
+  lecture = true; $("b-lecture").innerHTML = icone("pause");
   rendreScene(true);
   if (t < corps()) { const m = vA(); m.muted = false; vB().muted = true; m.play().catch(() => {}); const o = vB(); if (o.dataset.sortant === "1") o.play().catch(() => {}); }
   if (proj.musique && aMus.src) { aMus.currentTime = (proj.musique.decalage || 0) + t; aMus.play().catch(() => {}); }
   dernier = performance.now(); requestAnimationFrame(boucle);
 }
-function arreter() { lecture = false; $("b-lecture").textContent = "▶️"; lect.forEach(x => x.pause()); aMus.pause(); const iv = $("c-ill").querySelector("video"); if (iv) iv.pause(); }
+function arreter() { lecture = false; $("b-lecture").innerHTML = icone("lire"); lect.forEach(x => x.pause()); aMus.pause(); const iv = $("c-ill").querySelector("video"); if (iv) iv.pause(); }
 function allerA(x) { t = clamp(x, 0, total() - 0.001); rendreScene(true); suivreTete(); }
 function suivreTete() { const d = $("defile"), x = t * pxs; if (x < d.scrollLeft + 20 || x > d.scrollLeft + d.clientWidth - 40) d.scrollLeft = Math.max(0, x - d.clientWidth / 3); }
 
@@ -616,13 +731,13 @@ function dessinerTimeline() {
     }
   };
   poser("p-st", proj.sous_titres, "st", it => it.mots.map((m, i) => i === it.cle ? m.w.toUpperCase() : m.w).join(" "));
-  poser("p-ill", proj.illustrations, "ill", it => (it.type === "video" ? "🎞 " : "🖼 ") + it.fichier.split("/").pop());
+  poser("p-ill", proj.illustrations, "ill", it => it.fichier.split("/").pop().replace(/^\d+_/, ""));
   poser("p-ecran", proj.ecrans, "ecran", () => "Écran");
-  poser("p-alerte", proj.alertes, "alerte", it => (it.type === "incompris" ? "⚠️ Incompris (fon ?) · " : "⚠️ Reprise · ") + it.phrase);
+  poser("p-alerte", proj.alertes, "alerte", it => (it.type === "incompris" ? "Incompris (fon ?) · " : "Reprise · ") + it.phrase);
   $("b-auto").classList.toggle("attention", !(proj.auto && proj.auto.fait));
   const pm = $("p-mus"); pm.innerHTML = "";
   if (proj.musique) {
-    const d = el("mus", 0, tot, "🎵 " + (proj.musique.titre || proj.musique.fichier.split("/").pop()) + ` · volume ${Math.round((proj.musique.volume ?? .18) * 100)} %` + (proj.musique.tempo ? ` · ${Math.round(proj.musique.tempo)} BPM` : ""), { type: "mus", id: "mus" }); pm.appendChild(d);
+    const d = el("mus", 0, tot, (proj.musique.titre || proj.musique.fichier.split("/").pop()) + ` · volume ${Math.round((proj.musique.volume ?? .18) * 100)} %` + (proj.musique.tempo ? ` · ${Math.round(proj.musique.tempo)} BPM` : ""), { type: "mus", id: "mus" }); pm.appendChild(d);
     const dec = +(proj.musique.decalage || 0);           // temps forts de la musique (repères)
     for (const b of proj.musique.temps_forts || []) {
       const x = b - dec; if (x < 0 || x > tot) continue;
@@ -781,14 +896,14 @@ function inspecter() {
       <p>2. Cliquez sur <b>✨ Montage automatique</b> : blancs coupés, sous-titres, écrans de couleur et illustrations sont ajoutés, et les passages douteux signalés ⚠️.</p>
       <p>3. Retouchez, puis <b>⬆️ Exporter</b>.</p>` + aide; return; }
   if (!sel) { ins.innerHTML = `<h3>Projet</h3><p class="aide">${proj.clips.length} plans · ${proj.sous_titres.length} sous-titres · ${proj.illustrations.length} illustrations · ${proj.ecrans.length} écrans</p>` +
-      (proj.alertes.length ? `<p>⚠️ <b>${proj.alertes.length} passage(s) à vérifier</b> sur la piste rouge : cliquez dessus pour écouter, couper, traduire ou garder.</p>` : "") +
+      (proj.alertes.length ? `<p><b>${proj.alertes.length} passage(s) à vérifier</b> sur la piste « À vérifier » : cliquez dessus pour écouter, couper, traduire ou garder.</p>` : "") +
       (proj.auto && proj.auto.erreur_gemini ? `<p class="aide">⚠️ ${String(proj.auto.erreur_gemini).replace(/</g, "&lt;")}</p>` : "") +
       (proj.auto && proj.auto.sans_cle_images ? `<p class="aide">🖼 Illustrations trouvées sur Openverse (images libres). Pour avoir aussi des vidéos, ajoutez une clé Pexels (gratuite) dans <a href="/?parametres=1">⚙️ Paramètres › Clés API</a>.</p>` : "") +
       champ("Doodles sur les mots clés", `<select id="i-doodles-tout">${[["aucun", "Aucun"], ["souligne", "〰️ Soulignés"], ["cercle", "⭕ Entourés"], ["melange", "〰️⭕ Mélange"]].map(([v, n]) => `<option value="${v}" ${(R().doodles || "aucun") === v ? "selected" : ""}>${n}</option>`).join("")}</select>
         <p class="aide">Un trait se dessine sur les mots clés les plus forts (environ 1 sur 4). Pour un seul sous-titre : cliquez dessus.</p>`) +
       champ("Transitions entre les plans", `<div class="rangee"><select id="i-trans-tout">${Object.entries(TRANSITIONS).map(([k, [n, i]]) => `<option value="${k}" ${(R().transition || "coupe") === k ? "selected" : ""}>${i} ${n}</option>`).join("")}</select>
         <select id="i-trans-duree">${[[0.15, "Rapide"], [0.25, "Normale"], [0.4, "Lente"], [0.6, "Très lente"]].map(([d, n]) => `<option value="${d}" ${Math.abs(dureeTr() - d) < 0.04 ? "selected" : ""}>${n}</option>`).join("")}</select></div>
-        <p class="aide">Pour un seul plan : cliquez sur le petit rond entre deux plans de la piste 🎬.</p>`) +
+        <p class="aide">Pour un seul plan : cliquez sur le petit rond entre deux plans de la piste Vidéo.</p>`) +
       ($("statut").dataset.masques > 0 ? `<p class="aide">ℹ️ ${$("statut").dataset.masques} élément(s) tombent dans des passages coupés et ne s'affichent pas.</p>` : "") + aide;
     $("i-doodles-tout").onchange = () => { memoriser(); proj.reglages = { ...R(), doodles: $("i-doodles-tout").value }; choisirDoodles($("i-doodles-tout").value); apresModif(); };
     $("i-trans-tout").onchange = () => { memoriser(); proj.reglages = { ...R(), transition: $("i-trans-tout").value }; apresModif(); };
@@ -797,11 +912,11 @@ function inspecter() {
   if (sel.type === "clip") {
     const c = proj.clips.find(c => c.id === sel.id); if (!c) { sel = null; return inspecter(); }
     // (sel.trans : ouvert depuis le repère de transition)
-    ins.innerHTML = `<h3>🎬 Plan</h3>` +
+    ins.innerHTML = `<h3>Plan</h3>` +
       champ("Extrait de la vidéo brute", `<div class="rangee"><input type="number" step="0.1" id="i-a" value="${c.a.toFixed(2)}" style="width:90px"> → <input type="number" step="0.1" id="i-b" value="${c.b.toFixed(2)}" style="width:90px"> s</div>`) +
       champ("Cadrage", `<select id="i-zoom">${[[1, "Normal"], [1.05, "Léger zoom"], [1.15, "Zoom (punch-in)"], [1.25, "Gros plan"]].map(([z, n]) => `<option value="${z}" ${Math.abs((c.zoom || 1) - z) < 0.011 ? "selected" : ""}>${n}</option>`).join("")}</select>`) +
       (proj.clips.indexOf(c) < proj.clips.length - 1 ? champ("Transition vers le plan suivant", `<div class="rangee"><select id="i-trans"><option value="">Comme le style (${(TRANSITIONS[R().transition || "coupe"] || ["?"])[0]})</option>${Object.entries(TRANSITIONS).map(([k, [n, i]]) => `<option value="${k}" ${c.transition === k ? "selected" : ""}>${i} ${n}</option>`).join("")}</select><button id="i-voir-trans" title="Voir la transition">▶︎ Voir</button></div>`) : "") +
-      `<div class="rangee" style="margin-top:12px"><button id="i-couper">✂️ Couper ici</button><button class="danger" id="i-suppr">🗑 Supprimer</button></div>` + aide;
+      `<div class="rangee" style="margin-top:12px"><button id="i-couper">✂️ Couper ici</button><button class="danger" id="i-suppr">Supprimer</button></div>` + aide;
     $("i-a").onchange = () => { memoriser(); c.a = clamp(+$("i-a").value, 0, c.b - 0.1); apresModif(); };
     $("i-b").onchange = () => { memoriser(); c.b = clamp(+$("i-b").value, c.a + 0.1, proj.duree_source); apresModif(); };
     $("i-zoom").onchange = () => { memoriser(); c.zoom = +$("i-zoom").value; apresModif(); };
@@ -814,11 +929,11 @@ function inspecter() {
     $("i-couper").onclick = couper; $("i-suppr").onclick = supprimer;
   } else if (sel.type === "st") {
     const g = proj.sous_titres.find(g => g.id === sel.id); if (!g) { sel = null; return inspecter(); }
-    ins.innerHTML = `<h3>💬 Sous-titre</h3>` + champ("Texte", `<textarea id="i-texte">${g.mots.map(m => m.w).join(" ").replace(/</g, "&lt;")}</textarea>`) +
+    ins.innerHTML = `<h3>Sous-titre</h3>` + champ("Texte", `<textarea id="i-texte">${g.mots.map(m => m.w).join(" ").replace(/</g, "&lt;")}</textarea>`) +
       champ("Mot clé (en GRAS CAPITALES)", `<select id="i-cle"><option value="">— aucun —</option>${g.mots.map((m, i) => `<option value="${i}" ${i === g.cle ? "selected" : ""}>${m.w.replace(/</g, "&lt;")}</option>`).join("")}</select>`) +
       champ("Doodle sur le mot clé", `<select id="i-doodle">${[["", "Aucun"], ["souligne", "〰️ Souligné"], ["cercle", "⭕ Entouré"]].map(([v, n]) => `<option value="${v}" ${(g.doodle || "") === v ? "selected" : ""}>${n}</option>`).join("")}</select>`) +
-      `<p class="aide">${tc(g.deb)} → ${tc(g.fin)} (temps de la vidéo brute)</p><div class="rangee"><button class="primaire" id="i-ok">Appliquer</button><button class="danger" id="i-suppr">🗑 Supprimer</button></div>
-      <p class="aide">💡 Vous pouvez aussi cliquer directement sur le texte dans la vidéo (en pause) pour le modifier, et faire ⌥ + clic sur un mot pour le mettre en GRAS.</p>`;
+      `<p class="aide">${tc(g.deb)} → ${tc(g.fin)} (temps de la vidéo brute)</p><div class="rangee"><button class="primaire" id="i-ok">Appliquer</button><button class="danger" id="i-suppr">Supprimer</button></div>
+      <p class="aide">Vous pouvez aussi cliquer directement sur le texte dans la vidéo (en pause) pour le modifier, et faire ⌥ + clic sur un mot pour le mettre en GRAS.</p>`;
     const appliquer = () => {
       memoriser(); const c = $("i-cle").value;
       if (!changerTexte(g, $("i-texte").value, c === "" ? null : +c)) { histo.pop(); supprimer(); return; }
@@ -831,16 +946,16 @@ function inspecter() {
   } else if (sel.type === "ecran") {
     const e = proj.ecrans.find(e => e.id === sel.id); if (!e) { sel = null; return inspecter(); }
     const coul = [...new Set([...ident.couleurs, "#000000", "#FFFFFF", e.couleur])];
-    ins.innerHTML = `<h3>🎨 Écran de couleur</h3><p class="aide">Pendant l'écran, les sous-titres s'affichent au centre, un mot après l'autre.</p>` +
+    ins.innerHTML = `<h3>Écran de couleur</h3><p class="aide">Pendant l'écran, les sous-titres s'affichent au centre, un mot après l'autre.</p>` +
       champ("Couleur", `<div class="rangee">${coul.map(c => `<div class="pastille ${c.toUpperCase() === e.couleur.toUpperCase() ? "actif" : ""}" data-c="${c}" style="background:${c}"></div>`).join("")}<input type="color" id="i-coul" value="${e.couleur}"></div>`) +
-      `<div class="rangee" style="margin-top:12px"><button class="danger" id="i-suppr">🗑 Supprimer</button></div>`;
+      `<div class="rangee" style="margin-top:12px"><button class="danger" id="i-suppr">Supprimer</button></div>`;
     ins.querySelectorAll(".pastille").forEach(p => p.onclick = () => { memoriser(); e.couleur = p.dataset.c; apresModif(); });
     $("i-coul").onchange = () => { memoriser(); e.couleur = $("i-coul").value; apresModif(); };
     $("i-suppr").onclick = supprimer;
   } else if (sel.type === "alerte") {
     const al = proj.alertes.find(a => a.id === sel.id); if (!al) { sel = null; return inspecter(); }
     const incompris = al.type === "incompris";
-    ins.innerHTML = `<h3>⚠️ ${incompris ? "Passage incompris" : "Reprise / faux départ"}</h3>
+    ins.innerHTML = `<h3>${incompris ? "Passage incompris" : "Reprise / faux départ"}</h3>
       <p class="aide">${al.texte.replace(/</g, "&lt;")}</p><p>« ${al.phrase.replace(/</g, "&lt;")} »</p>
       <p class="aide">${incompris ? "L'outil n'a pas compris ce passage (bruit, fon ou autre langue). Il est gardé, sans sous-titres." : "Cette phrase semble redite plus loin : vous pouvez couper cette prise."}</p>
       <div class="rangee"><button id="a-ecouter">▶︎ Écouter</button><button class="danger" id="a-couper">✂️ Couper ce passage</button></div>
@@ -861,9 +976,9 @@ function inspecter() {
   } else if (sel.type === "ill") {
     const it = proj.illustrations.find(i => i.id === sel.id); if (!it) { sel = null; return inspecter(); }
     const alt = it.alternatives || [];
-    ins.innerHTML = `<h3>🖼 Illustration</h3>` + (it.type === "video" ? `<video class="apercu" src="${media(it.fichier)}" muted controls style="width:100%;border-radius:6px"></video>` : `<img class="apercu" src="${media(it.fichier)}">`) +
+    ins.innerHTML = `<h3>Illustration</h3>` + (it.type === "video" ? `<video class="apercu" src="${media(it.fichier)}" muted controls style="width:100%;border-radius:6px"></video>` : `<img class="apercu" src="${media(it.fichier)}">`) +
       `<p class="aide">${(it.fin - it.deb).toFixed(1)} s · ${it.requete ? "recherche « " + it.requete.replace(/</g, "&lt;") + " »" : it.fichier.split("/").pop()}</p>
-      <div class="rangee">${alt.length > 1 ? `<button id="i-autre">🔄 Autre proposition</button>` : ""}<button id="i-remp">📁 Mon fichier</button><button class="danger" id="i-suppr">🗑 Supprimer</button></div>` +
+      <div class="rangee">${alt.length > 1 ? `<button id="i-autre">🔄 Autre proposition</button>` : ""}<button id="i-remp">📁 Mon fichier</button><button class="danger" id="i-suppr">Supprimer</button></div>` +
       champ("Cadrage", `<select id="i-cadrage">${[["auto", "Automatique"], ["remplir", "Plein écran (bords rognés)"], ["adapter", "Image entière sur fond flou"]].map(([k, n]) => `<option value="${k}" ${(it.cadrage || "auto") === k ? "selected" : ""}>${n}</option>`).join("")}</select>`) +
       `<p class="aide">Automatique : une image ou vidéo plus large que haute (paysage) est montrée en entière sur un fond flou, au lieu d'être fortement zoomée.</p>
       <label>✨ Créer une image sur mesure (IA)</label>
@@ -909,14 +1024,14 @@ function inspecter() {
     $("i-cadrage").onchange = () => { memoriser(); if ($("i-cadrage").value === "auto") delete it.cadrage; else it.cadrage = $("i-cadrage").value; apresModif(); };
   } else if (sel.type === "mus") {
     const m = proj.musique; if (!m) { sel = null; return inspecter(); }
-    ins.innerHTML = `<h3>🎵 Musique</h3><p class="aide">${(m.titre || m.fichier.split("/").pop()).replace(/</g, "&lt;")}</p>` +
+    ins.innerHTML = `<h3>Musique</h3><p class="aide">${(m.titre || m.fichier.split("/").pop()).replace(/</g, "&lt;")}</p>` +
       (m.credit ? `<label>Crédit à mettre dans la description de la publication</label><textarea readonly id="i-credit">${m.credit.replace(/</g, "&lt;")}</textarea><button id="i-copier">📋 Copier le crédit</button>` : "") +
       champ("Volume (sous la voix)", `<input type="range" id="i-vol" min="0" max="0.6" step="0.01" value="${m.volume ?? 0.18}" style="width:100%">`) +
       champ("Démarrer le morceau à (secondes)", `<input type="number" id="i-dec" min="0" step="0.5" value="${m.decalage || 0}" style="width:100px">`) +
       `<p class="aide">À l'export, la musique baisse automatiquement quand on parle.</p>` +
       champ("Rythme", `<div class="rangee"><button id="i-rythme">🥁 Caler le montage sur le rythme</button></div>
-        <p class="aide" id="i-rythme-info">${m.tempo ? `≈ ${Math.round(m.tempo)} BPM — les petits traits sur la piste 🎵 marquent les temps.` : "La musique démarre sur un temps fort, les recadrages et écrans de couleur tombent sur les temps."}</p>`) +
-      `<div class="rangee"><button id="i-remp">📁 Changer de musique</button><button class="danger" id="i-suppr">🗑 Retirer</button></div>`;
+        <p class="aide" id="i-rythme-info">${m.tempo ? `≈ ${Math.round(m.tempo)} BPM — les petits traits sur la piste Musique marquent les temps.` : "La musique démarre sur un temps fort, les recadrages et écrans de couleur tombent sur les temps."}</p>`) +
+      `<div class="rangee"><button id="i-remp">📁 Changer de musique</button><button class="danger" id="i-suppr">Retirer</button></div>`;
     $("i-vol").onchange = () => { memoriser(); m.volume = +$("i-vol").value; apresModif(); };
     $("i-dec").onchange = () => { memoriser(); m.decalage = Math.max(0, +$("i-dec").value); apresModif(); };
     $("i-remp").onclick = choisirMusique; $("i-suppr").onclick = supprimer;
@@ -932,7 +1047,7 @@ async function copierStyle() {
   arreter();
   const boite = $("modal-boite"); $("modal").style.display = "flex"; boite.style.width = "560px";
   const fermer = () => { $("modal").style.display = "none"; boite.style.width = ""; };
-  boite.innerHTML = `<h3>🎨 Copier le style d'une vidéo</h3>
+  boite.innerHTML = `<h3>Copier le style d'une vidéo</h3>
     <p class="aide">Déposez une vidéo dont vous aimez le montage (Reel, TikTok…). L'outil mesure son rythme de coupes, ses zooms, la place et la taille des sous-titres, le mot mis en valeur, ses écrans de couleur, son étalonnage, ses transitions, son calage sur la musique et ses couleurs, puis refait <b>votre</b> vidéo dans ce style.</p>
     <div id="m-depot" class="depot" style="border:2px dashed var(--ligne);border-radius:10px;padding:28px;text-align:center;cursor:pointer">📥 Glissez la vidéo modèle ici, ou cliquez pour la choisir</div>
     <input type="file" id="m-fic" accept="video/*" style="display:none">
@@ -945,7 +1060,7 @@ async function copierStyle() {
   $("m-fic").onchange = () => { if ($("m-fic").files[0]) analyser($("m-fic").files[0]); };
 
   async function analyser(f) {
-    boite.innerHTML = `<h3>🎨 Analyse de « ${f.name.replace(/</g, "&lt;")} »</h3><progress id="m-prog" max="1" value="0"></progress><p class="aide" id="m-txt">Envoi de la vidéo…</p>`;
+    boite.innerHTML = `<h3>Analyse de « ${f.name.replace(/</g, "&lt;")} »</h3><progress id="m-prog" max="1" value="0"></progress><p class="aide" id="m-txt">Envoi de la vidéo…</p>`;
     const fd = new FormData(); fd.append("fichier", f);
     const rep = await fetch("/editeur/api/style/analyser", { method: "POST", body: fd });
     if (!rep.ok) { boite.innerHTML = `<h3>⚠️ Envoi impossible</h3><button id="m-fermer">Fermer</button>`; $("m-fermer").onclick = fermer; return; }
@@ -966,7 +1081,7 @@ async function copierStyle() {
       ["Doodles", { aucun: "aucun", souligne: "soulignés", cercle: "entourés", melange: "mélange" }[p.doodles] || "aucun"],
       ["Musique", p.caler_sur_rythme ? "recadrages calés sur le rythme (si vous ajoutez une musique)" : "sans calage sur le rythme"],
     ];
-    boite.innerHTML = `<h3>🎨 Style repéré</h3>
+    boite.innerHTML = `<h3>Style repéré</h3>
       <table style="width:100%;font-size:13px;border-collapse:collapse">${lignes.map(([a, b]) => `<tr><td style="opacity:.7;padding:3px 8px 3px 0;white-space:nowrap">${a}</td><td>${String(b).replace(/</g, "&lt;")}</td></tr>`).join("")}</table>
       <details style="margin-top:8px"><summary class="aide">Détail de l'analyse${r.ia && !/aucune/i.test(r.ia) ? " (avec " + r.ia + ")" : ""}</summary><pre class="aide" style="white-space:pre-wrap">${String(r.rapport).replace(/</g, "&lt;")}</pre></details>
       <label style="margin-top:10px">Couleurs</label>
@@ -993,7 +1108,7 @@ async function choisirMusique() {
   arreter();
   const boite = $("modal-boite"); $("modal").style.display = "flex"; boite.style.width = "560px";
   const amb = await (await fetch("/editeur/api/ambiances")).json();
-  boite.innerHTML = `<h3>🎵 Musique de fond</h3>
+  boite.innerHTML = `<h3>Musique de fond</h3>
     <p class="aide">Musiques libres de droits <b>autorisées pour un usage commercial</b> (Openverse). Si l'artiste doit être crédité, le texte à mettre en description vous est donné.</p>
     <div class="rangee">${Object.keys(amb).map(k => `<button class="amb" data-q="${amb[k]}">${k}</button>`).join("")}</div>
     <div class="rangee" style="margin-top:8px"><input id="m-q" placeholder="ou tapez une recherche (en anglais : chill, afro, piano…)" style="flex:1;min-width:400px"><button id="m-go">🔍</button></div>
@@ -1046,7 +1161,7 @@ async function montageAuto(sansConfirmer) {
   if (proj.auto && proj.auto.fait && sansConfirmer !== true && !confirm("Relancer le montage automatique ? Les sous-titres, écrans, illustrations et alertes seront recalculés (⌘Z pour revenir en arrière).")) return;
   arreter(); clearTimeout(minuteurSauve);
   const boite = $("modal-boite"); $("modal").style.display = "flex";
-  boite.innerHTML = `<h3>✨ Montage automatique</h3><progress id="m-prog" max="1" value="0"></progress><p class="aide" id="m-txt">Préparation…</p>`;
+  boite.innerHTML = `<h3>Montage automatique</h3><progress id="m-prog" max="1" value="0"></progress><p class="aide" id="m-txt">Préparation…</p>`;
   const avant = JSON.stringify(proj);
   const r = await (await fetch("/editeur/api/auto?p=" + encodeURIComponent(CHEMIN), { method: "POST", headers: { "content-type": "application/json" }, body: avant })).json();
   const e = await suivreTravail(r.job, "Montage…", $("m-prog"), $("m-txt"));
@@ -1061,7 +1176,7 @@ async function montageAuto(sansConfirmer) {
 async function exporter() {
   arreter(); clearTimeout(minuteurSauve);
   const boite = $("modal-boite"); $("modal").style.display = "flex";
-  boite.innerHTML = `<h3>⬆️ Export de la vidéo</h3><progress id="m-prog" max="1" value="0"></progress><p class="aide" id="m-txt">Préparation…</p>`;
+  boite.innerHTML = `<h3>Export de la vidéo</h3><progress id="m-prog" max="1" value="0"></progress><p class="aide" id="m-txt">Préparation…</p>`;
   const r = await (await fetch("/editeur/api/exporter?p=" + encodeURIComponent(CHEMIN), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(proj) })).json();
   const suivre = async () => {
     const e = await (await fetch("/editeur/api/etat?job=" + r.job)).json();
@@ -1126,7 +1241,7 @@ async function accueil() {
   dep.ondragleave = () => dep.classList.remove("survol");
   dep.ondrop = (e) => { e.preventDefault(); dep.classList.remove("survol"); creerProjet(e.dataTransfer.files); };
   const liste = await (await fetch("/editeur/api/projets")).json();
-  $("liste").innerHTML = liste.length ? liste.map(p => `<div class="proj"><span>🎬 ${p.nom.replace(/</g, "&lt;")}<br><small class="aide">${p.date}</small></span><a href="/editeur?p=${encodeURIComponent(p.chemin)}">✂️ Ouvrir</a></div>`).join("")
+  $("liste").innerHTML = liste.length ? liste.map(p => `<a class="proj" href="/editeur?p=${encodeURIComponent(p.chemin)}">${icone("projet")}<span class="nom">${p.nom.replace(/</g, "&lt;")}</span><small>${p.date}</small></a>`).join("")
     : `<p class="aide">Aucun projet pour l'instant.</p>`;
 }
 async function demarrer() {
