@@ -330,7 +330,7 @@ def analyser(video, cle_api="", ocr=True, rappel=None, details=None):
             rapport.append("Sous-titres : OCR indisponible (réglages par défaut conservés)")
 
     if cle_api:
-        etape(0.75, "Lecture visuelle par Claude…")
+        etape(0.75, f"Lecture visuelle des images par l’IA — {ia.nom_ia(cle_api)}…")
         choix = [im for _, im in ims[:: max(1, len(ims) // 10)]][:10]
         mesures = {k: getattr(p, k) for k in ("position_sous_titres", "taille_texte", "mots_par_groupe",
                                                  "casse", "style_etalonnage", "ecran_fin", "transition")}

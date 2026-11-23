@@ -1,5 +1,8 @@
 # Historique des versions
 
+## 0.16.1 — 2026-11-23
+- Copie de style : le message de progression indique l'IA réellement utilisée (Ollama ou Claude) au lieu de toujours afficher « Claude ».
+
 ## 0.16.0 — 2026-11-23
 - **🎨 Copier un style, directement dans l'éditeur** : bouton en haut. On dépose une vidéo modèle → l'outil montre ce qu'il a repéré (rythme des plans, zooms, sous-titres, écrans de couleur, étalonnage, transitions, doodles, calage sur la musique, couleurs) → « Refaire ma vidéo dans ce style », avec **mes couleurs** ou **celles de la vidéo modèle**. Possibilité de garder le style pour les prochaines vidéos.
 - Analyse de style enrichie : détection des **transitions** (coupes franches, fondus, flashs), des **couleurs de marque** du modèle, du **calage des coupes sur la musique** ; l'IA (Ollama / Claude) repère aussi les doodles.
