@@ -213,16 +213,34 @@ function chargerImage(f) {
   return imgs[f];
 }
 const polices = {};
+const POPPINS = { 400: "Regular", 500: "Medium", 600: "SemiBold", 700: "Bold", 800: "ExtraBold", 900: "Black" };
 async function famille(role) {
-  const p = (charte.polices || {})[role] || {};
+  const p = (charte.polices || {})[role] || (role === "script" ? { fichier: "script" } : {});
   const f = p.fichier || "gras";
-  const nom = "R-" + role + "-" + f.replace(/[^\w]/g, "").slice(-24);
+  const nom = "R-" + f.replace(/[^\w]/g, "").slice(-24);
   if (!polices[nom]) {
-    const url = (f === "gras" || f === "serif") ? `/editeur/polices/${f}.ttf` : media(f);
-    const ff = new FontFace(nom, `url(${url})`, f === "serif" ? { style: "italic" } : { weight: "100 900" });
-    polices[nom] = ff.load().then(x => { document.fonts.add(x); return nom; }).catch(() => "Helvetica");
+    let faces;
+    if (f === "poppins") faces = Object.entries(POPPINS).map(([w, n]) => new FontFace(nom, `url(/editeur/polices/poppins/Poppins-${n}.ttf)`, { weight: w }));
+    else if (f === "gras" || f === "serif" || f === "script") faces = [new FontFace(nom, `url(/editeur/polices/${f}.ttf)`, f === "serif" ? { style: "italic" } : f === "gras" ? { weight: "100 900" } : {})];
+    else faces = [new FontFace(nom, `url(${media(f)})`, { weight: "100 900" })];
+    polices[nom] = Promise.all(faces.map(x => x.load().then(y => document.fonts.add(y)))).then(() => nom).catch(() => "Helvetica");
   }
   return polices[nom];
+}
+function volutes(ctx, x, y, w, h, coul) {          // texture en volutes (empreinte), très discrète
+  ctx.save(); chemin(ctx, x, y, w, h, 0); ctx.clip();
+  ctx.strokeStyle = coul; ctx.lineWidth = Math.max(4, w * 0.006); ctx.globalAlpha *= 0.09;
+  const cx = x + w * 0.78, cy = y + h * 0.62, maxi = Math.hypot(w, h);
+  for (let r = w * 0.04, k = 0; r < maxi; r += w * 0.028, k++) {
+    ctx.beginPath();
+    for (let a = 0; a <= Math.PI * 2 + 0.01; a += 0.08) {
+      const rr = r * (1 + 0.05 * Math.sin(3 * a + k * 0.7));
+      const px = cx + rr * Math.cos(a) * 1.15, py = cy + rr * Math.sin(a) * 0.9;
+      a === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 function couleur(c) {
   if (!c) return null;
@@ -258,14 +276,19 @@ async function dessiner(cv, vis, echelle = 1) {
   for (const b of vis.blocs) {
     const x = b.x / 100 * W, y = b.y / 100 * H, w = b.w / 100 * W, h = b.h / 100 * H, r = (b.rayon || 0) / 100 * W;
     ctx.save(); ctx.globalAlpha = b.opacite ?? 1;
+    if (b.rotation) { ctx.translate(x + w / 2, y + h / 2); ctx.rotate(b.rotation * Math.PI / 180); ctx.translate(-(x + w / 2), -(y + h / 2)); }
     if (b.type === "forme") {
       if (b.degrade) { const g = ctx.createLinearGradient(0, y, 0, y + h); g.addColorStop(0, couleur(b.degrade[0]) || "rgba(0,0,0,0)"); g.addColorStop(1, couleur(b.degrade[1]) || "#000"); ctx.fillStyle = g; }
       else ctx.fillStyle = couleur(b.couleur) || "#000";
       chemin(ctx, x, y, w, h, r); ctx.fill();
+      if (b.motif === "volutes") volutes(ctx, x, y, w, h, couleur(b.couleur_motif || "clair"));
     } else if (b.type === "image") {
       const im = await chargerImage(b.fichier);
-      chemin(ctx, x, y, w, h, r); ctx.clip();
-      if (im) {
+      if (b.ajustement !== "contenir-bas") { chemin(ctx, x, y, w, h, r); ctx.clip(); }
+      if (im && b.ajustement === "contenir-bas") {          // photo détourée : entière, posée en bas de sa boîte
+        const s = Math.min(w / im.width, h / im.height), iw = im.width * s, ih = im.height * s;
+        ctx.filter = filtreImage(); ctx.drawImage(im, x + (w - iw) * ((b.cadrage_x ?? 50) / 100), y + h - ih, iw, ih); ctx.filter = "none";
+      } else if (im) {
         const s = Math.max(w / im.width, h / im.height), iw = im.width * s, ih = im.height * s;
         const fx = (b.cadrage_x ?? 50) / 100, fy = (b.cadrage_y ?? 40) / 100;
         ctx.filter = filtreImage(); ctx.drawImage(im, x + (w - iw) * fx, y + (h - ih) * fy, iw, ih); ctx.filter = "none";
@@ -276,7 +299,7 @@ async function dessiner(cv, vis, echelle = 1) {
       if (im) { const s = Math.min(w / im.width, h / im.height); ctx.drawImage(im, x, y + (h - im.height * s) / 2, im.width * s, im.height * s); }
     } else if (b.type === "texte") {
       const role = b.police || "corps", p = (charte.polices || {})[role] || {};
-      const fam = await famille(role), graisse = b.graisse || p.graisse || 600, it = p.italique || p.fichier === "serif";
+      const fam = await famille(role), graisse = b.graisse || p.graisse || (role === "script" ? 400 : 600), it = p.italique || p.fichier === "serif";
       const casse = b.casse || p.casse;
       let t = b.texte || ""; if (casse === "majuscules") t = t.toUpperCase(); if (casse === "minuscules") t = t.toLowerCase();
       const pad = b.fond ? h * 0.18 : 0;
@@ -296,12 +319,14 @@ async function dessiner(cv, vis, echelle = 1) {
         ctx.fillStyle = couleur(b.fond); chemin(ctx, bx, y + (h - bh) / 2, bw, bh, (b.rayon || 6) / 100 * W); ctx.fill();
       }
       ctx.fillStyle = couleur(b.couleur) || "#fff";
+      if (b.contour) { ctx.strokeStyle = couleur(b.contour); ctx.lineWidth = Math.max(2, taille * 0.025); ctx.lineJoin = "round"; }
       const hauteur = lignes.length * lh, y0 = b.fond ? y + (h - hauteur) / 2 : y;
       lignes.forEach((l, i) => {
         const lw = ctx.measureText(l).width;
         const lx = b.fond ? bx + (bw - lw) / 2                         // texte centré dans sa pastille
           : b.align === "center" ? x + (w - lw) / 2 : b.align === "right" ? x + w - lw : x;
-        ctx.fillText(l, lx, y0 + i * lh + taille * 0.88);
+        if (b.couleur !== "transparent") ctx.fillText(l, lx, y0 + i * lh + taille * 0.88);
+        if (b.contour) ctx.strokeText(l, lx, y0 + i * lh + taille * 0.88);
       });
     }
     ctx.restore();
@@ -454,7 +479,9 @@ function inspecter() {
       <label>Couleur</label>${pastilles("i-coul", b.couleur)}
       <label>Pastille derrière le texte</label><div class="ligne-btn">${pastilles("i-fond", b.fond)}<button class="fantome" id="i-sansfond">Aucune</button></div>
       <label>Alignement</label><div class="segment" id="i-align">${["left", "center", "right"].map(a => `<button data-a="${a}" class="${(b.align || "left") === a ? "actif" : ""}">${{ left: "Gauche", center: "Centre", right: "Droite" }[a]}</button>`).join("")}</div>
-      <label>Police</label><div class="segment" id="i-pol">${["titre", "corps"].map(p => `<button data-p="${p}" class="${(b.police || "corps") === p ? "actif" : ""}">${p === "titre" ? "Titre" : "Texte"}</button>`).join("")}</div>` + commun;
+      <label>Police</label><div class="segment" id="i-pol">${["titre", "corps", "script"].map(p => `<button data-p="${p}" class="${(b.police || "corps") === p ? "actif" : ""}">${{ titre: "Titre", corps: "Texte", script: "Manuscrite" }[p]}</button>`).join("")}</div>
+      <label>Inclinaison</label><input type="range" id="i-rot" min="-20" max="20" step="1" value="${b.rotation || 0}" style="width:100%">
+      <label>Opacité</label><input type="range" id="i-op" min="0.05" max="1" step="0.05" value="${b.opacite ?? 1}" style="width:100%">` + commun;
     $("i-texte").oninput = () => { b.texte = $("i-texte").value; if (v.textes && b.role) v.textes[b.role] = b.texte; rendre(); };
     $("i-texte").onfocus = memoriser;
     $("i-taille").onpointerdown = memoriser; $("i-taille").oninput = () => { b.taille = +$("i-taille").value; rendre(); };
@@ -462,14 +489,25 @@ function inspecter() {
     $("i-sansfond").onclick = () => { memoriser(); delete b.fond; rendre(); };
     $("i-align").querySelectorAll("button").forEach(x => x.onclick = () => { memoriser(); b.align = x.dataset.a; rendre(); inspecter(); });
     $("i-pol").querySelectorAll("button").forEach(x => x.onclick = () => { memoriser(); b.police = x.dataset.p; rendre(); inspecter(); });
+    for (const [id, k] of [["i-rot", "rotation"], ["i-op", "opacite"]]) { $(id).onpointerdown = memoriser; $(id).oninput = () => { b[k] = +$(id).value; rendre(); }; }
   } else if (b.type === "image") {
     ins.innerHTML = `<h3>Image</h3>
       <label>Cadrage</label><input type="range" id="i-cx" min="0" max="100" value="${b.cadrage_x ?? 50}" style="width:100%" title="gauche ↔ droite"><input type="range" id="i-cy" min="0" max="100" value="${b.cadrage_y ?? 40}" style="width:100%" title="haut ↕ bas">
       <label>Arrondi</label><input type="range" id="i-rayon" min="0" max="50" value="${b.rayon || 0}" style="width:100%">
+      <label>Ajustement</label><div class="segment" id="i-ajust"><button data-a="" class="${b.ajustement !== "contenir-bas" ? "actif" : ""}">Remplir la zone</button><button data-a="contenir-bas" class="${b.ajustement === "contenir-bas" ? "actif" : ""}">Entière, posée en bas</button></div>
+      <div class="ligne-btn" style="margin-top:8px"><button id="i-detourer">${icone("magie")}Détourer (retirer le fond)</button></div><p class="aide" id="i-det-info" style="margin:4px 0 0;font-size:12px"></p>
       <label>Changer d'image</label><div class="ligne-btn"><input id="i-q" value="${esc((v.textes || {}).requete_image || "")}" style="flex:1;min-width:0"><button id="i-chercher">Chercher</button></div>
       <div class="mini-grille" id="i-grille"></div>
       <div class="ligne-btn" style="margin-top:10px"><button id="i-fichier">${icone("exporter")}Mon image</button>${E.generateur ? `<button id="i-ia">${icone("magie")}Image IA</button>` : ""}</div>
       <input type="file" id="i-f" accept="image/*" style="display:none">` + commun;
+    $("i-ajust").querySelectorAll("button").forEach(x => x.onclick = () => { memoriser(); if (x.dataset.a) b.ajustement = x.dataset.a; else delete b.ajustement; rendre(); inspecter(); });
+    $("i-detourer").onclick = async () => {
+      $("i-detourer").disabled = true; $("i-det-info").textContent = "Détourage…";
+      const rep = await fetch("/visuels/api/detourer", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ fichier: b.fichier }) });
+      const d = await rep.json(); $("i-detourer").disabled = false;
+      if (!rep.ok) { $("i-det-info").textContent = d.detail || "Détourage impossible"; return; }
+      memoriser(); b.fichier = d.fichier; b.ajustement = "contenir-bas"; rendre(); inspecter();
+    };
     for (const [id, k] of [["i-cx", "cadrage_x"], ["i-cy", "cadrage_y"], ["i-rayon", "rayon"]]) { $(id).onpointerdown = memoriser; $(id).oninput = () => { b[k] = +$(id).value; rendre(); }; }
     const prendre = async (r) => { $("statut").textContent = "Téléchargement…"; const d = await (await fetch("/editeur/api/prendre", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(r) })).json(); memoriser(); b.fichier = d.fichier; b.credit = r.credit_licence || ""; $("statut").textContent = ""; rendre(); };
     $("i-chercher").onclick = async () => {
@@ -542,7 +580,7 @@ function afficherCharte() {
   const noms = { fond: "Fond", texte: "Texte", accent: "Accent", accent2: "Accent 2", clair: "Clair", sombre: "Sombre" };
   $("couleurs").innerHTML = Object.entries(charte.couleurs).map(([k, c]) => `<label><input type="color" data-c="${k}" value="${c}">${noms[k] || k}</label>`).join("");
   $("couleurs").querySelectorAll("input").forEach(i => i.onchange = () => { charte.couleurs[i.dataset.c] = i.value; sauverCharte(); });
-  const opts = (sel) => [["gras", "Montserrat (sans-serif)"], ["serif", "Playfair (serif italique)"]].concat(
+  const opts = (sel) => [["poppins", "Poppins (sans-serif)"], ["gras", "Montserrat (sans-serif)"], ["serif", "Playfair (serif italique)"], ["script", "Great Vibes (manuscrite)"]].concat(
     [E.identite.police_grasse, E.identite.police_serif].filter(Boolean).filter(f => !/polices\/(gras|serif)\.ttf$/.test(f)).map(f => [f, "Identité : " + f.split("/").pop()]))
     .map(([v_, n]) => `<option value="${esc(v_)}" ${sel === v_ ? "selected" : ""}>${esc(n)}</option>`).join("");
   $("pol-titre").innerHTML = opts(charte.polices.titre.fichier); $("pol-corps").innerHTML = opts(charte.polices.corps.fichier);
@@ -551,7 +589,7 @@ function afficherCharte() {
   $("charte-ton").textContent = charte.ton ? "Ton : " + charte.ton : "";
   const g = $("gabarits"); g.innerHTML = "";
   charte.gabarits.forEach(gab => {
-    const vis = { format: "carre", taille: [1080, 1080], blocs: gab.blocs.map(b => ({ ...b, texte: { titre: "Votre titre ici", sous_titre: "Une phrase qui précise le message.", cta: (charte.cta || ["En savoir plus"])[0] }[b.role] || b.texte })) };
+    const vis = { format: "carre", taille: [1080, 1080], blocs: gab.blocs.map(b => ({ ...b, texte: { titre: "Votre titre ici", sous_titre: "Une phrase qui précise le message.", cta: (charte.cta || ["En savoir plus"])[0], accroche: "Bonne nouvelle", filigrane: "05" }[b.role] || b.texte })) };
     g.appendChild(vignette(vis, gab.nom, () => {}));
   });
 }

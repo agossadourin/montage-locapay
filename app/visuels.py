@@ -84,6 +84,10 @@ GABARITS_DEFAUT = [
 ]
 
 
+POLICES_INTEGREES = {"gras": "Montserrat (sans-serif, 100 à 900)", "poppins": "Poppins (sans-serif, 400 à 900)",
+                     "serif": "Playfair Display italique", "script": "Great Vibes (manuscrite)"}
+
+
 def _hex_ok(c):
     return isinstance(c, str) and re.fullmatch(r"#[0-9A-Fa-f]{6}", c) is not None
 
@@ -104,7 +108,8 @@ def charte_defaut(cfg=None):
             "polices": {"titre": {"fichier": ident.get("police_grasse") or "gras", "graisse": 800, "casse": "normale",
                                   "interligne": 1.05},
                         "corps": {"fichier": ident.get("police_grasse") or "gras", "graisse": 500, "casse": "normale",
-                                  "interligne": 1.3}},
+                                  "interligne": 1.3},
+                        "script": {"fichier": "script", "graisse": 400, "casse": "normale", "interligne": 1.0}},
             "ton": "Clair, direct et chaleureux. Phrases courtes. Tutoiement ou vouvoiement selon la marque.",
             "cta": ["En savoir plus", "Contactez-nous", "Lien en bio"], "traitement_image": "naturel",
             "mots_images": [], "gabarits": GABARITS_DEFAUT, "source": "identité"}
@@ -135,9 +140,9 @@ def valider_charte(d):
     couleurs.update({k: v for k, v in (d.get("couleurs") or {}).items() if _hex_ok(v)})
     out["couleurs"] = couleurs
     polices = json.loads(json.dumps(base["polices"]))
-    for role in ("titre", "corps"):
+    for role in ("titre", "corps", "script"):
         p = (d.get("polices") or {}).get(role) or {}
-        if p.get("fichier") in ("gras", "serif") or (isinstance(p.get("fichier"), str) and os.path.exists(p["fichier"])):
+        if p.get("fichier") in POLICES_INTEGREES or (isinstance(p.get("fichier"), str) and os.path.exists(p["fichier"])):
             polices[role]["fichier"] = p["fichier"]
         if isinstance(p.get("graisse"), (int, float)):
             polices[role]["graisse"] = int(min(900, max(100, p["graisse"])))
@@ -153,6 +158,8 @@ def valider_charte(d):
             out[k] = d[k][:600]
     if out.get("traitement_image") not in ("naturel", "sombre", "chaud", "noir-blanc", "duotone"):
         out["traitement_image"] = "naturel"
+    if isinstance(d.get("detourer_photos"), bool):
+        out["detourer_photos"] = d["detourer_photos"]
     for k in ("cta", "mots_images", "exemples_textes"):
         if isinstance(d.get(k), list):
             out[k] = [str(x)[:120] for x in d[k][:12]]
@@ -170,7 +177,9 @@ def valider_gabarit(g):
         if not isinstance(b, dict) or b.get("type") not in ("image", "forme", "texte", "logo"):
             continue
         nb = {k: v for k, v in b.items() if k in ("type", "role", "couleur", "degrade", "police", "align", "fond",
-                                                   "opacite", "rayon", "taille", "texte", "story", "casse", "graisse")}
+                                                   "opacite", "rayon", "taille", "texte", "story", "casse", "graisse",
+                                                   "rotation", "contour", "motif", "couleur_motif", "ajustement",
+                                                   "interlettre")}
         for k in ("x", "y", "w", "h"):
             try:
                 nb[k] = float(min(100, max(-20, float(b.get(k, 0)))))
@@ -310,8 +319,7 @@ def preparer_paquet_charte(dossier=None):
     chemin = os.path.join(dossier, f"Raccord — charte {re.sub(r'[^0-9A-Za-zÀ-ÿ_ -]', '_', marque)}.zip")
     mesures = {"format": "raccord-paquet-charte", "version": 1, "marque": marque, "nb_exemples": len(fichiers),
                "palette_mesuree": palette(ims), "identite": {k: cfg["identite"].get(k) for k in ("nom", "couleur_1", "couleur_2")},
-               "polices_disponibles": {"gras": "Montserrat (sans-serif, graisses 100 à 900)",
-                                       "serif": "Playfair Display italique",
+               "polices_disponibles": {**POLICES_INTEGREES,
                                        **{cfg["identite"][k]: "police de l'identité" for k in ("police_serif", "police_grasse")
                                           if cfg["identite"].get(k)}},
                "dimensions_exemples": [list(im.size) for im in ims], "charte_actuelle": charger_charte()}
@@ -359,8 +367,10 @@ Ton de la marque : {ton}
 Exemples de titres de la marque : {exemples}
 Contexte donné par l'utilisateur : « {contexte} »
 Réponds UNIQUEMENT avec un objet JSON :
-{{"titre": "accroche de 3 à 8 mots", "sous_titre": "une phrase de 8 à 18 mots", "cta": "appel à l'action de 2 à 4 mots",
- "requete_image": "2 à 4 mots en anglais pour chercher une photo d'illustration"}}"""
+{{"titre": "accroche de 1 à 7 mots, percutante", "sous_titre": "une phrase de 8 à 18 mots",
+ "cta": "appel à l'action de 2 à 4 mots", "accroche": "1 à 3 mots en écriture manuscrite (ex. « Bonne rentrée », « Welcome ») ou vide",
+ "filigrane": "un nombre ou un mot très court à afficher en très grand en fond (ex. « 05 », « 2027 ») ou vide",
+ "requete_image": "2 à 4 mots en anglais pour chercher une photo d'illustration (une personne si possible)"}}"""
 
 
 def ecrire_textes(contexte, charte, cfg=None, format="carre", demander=None):
@@ -375,7 +385,7 @@ def ecrire_textes(contexte, charte, cfg=None, format="carre", demander=None):
     sous = " ".join(x for x in [suite[:1].upper() + suite[1:] if suite else "", *ph[1:]] if x)
     regles = {"titre": _titre(tete), "sous_titre": _couper(sous, 22),
               "cta": (charte.get("cta") or ["En savoir plus"])[0], "requete_image": requete_image(contexte, charte),
-              "par": "règles"}
+              "accroche": "", "filigrane": (re.findall(r"\b\d{1,4}\b", contexte) or [""])[0], "par": "règles"}
     import ia
     conf = ia.config_ia(cfg)
     if not conf and demander is None:
@@ -385,6 +395,8 @@ def ecrire_textes(contexte, charte, cfg=None, format="carre", demander=None):
             format=NOMS_FORMATS.get(format, format), marque=cfg["identite"].get("nom") or "la marque",
             ton=charte.get("ton", ""), exemples="; ".join(charte.get("exemples_textes") or []) or "—", contexte=contexte))
         out = {k: str(d.get(k) or regles[k]).strip()[:160] for k in ("titre", "sous_titre", "cta", "requete_image")}
+        for k in ("accroche", "filigrane"):
+            out[k] = str(d.get(k) or "").strip()[:40]
         out["par"] = ia.nom_ia(conf) if conf else "IA"
         return out
     except Exception as e:
@@ -418,7 +430,11 @@ def nouveau_visuel(gabarit, format, textes, image, charte, contexte=""):
             if not image:
                 nb = {**nb, "type": "forme", "couleur": "accent", "opacite": 0.25}
             else:
-                nb["fichier"] = image.get("fichier")
+                plein = nb.get("w", 0) >= 95 and nb.get("h", 0) >= 95
+                if image.get("detoure") and not plein and not nb.get("rayon"):
+                    nb["fichier"], nb["ajustement"] = image["fichier"], "contenir-bas"     # personne détourée
+                else:
+                    nb["fichier"] = image.get("original") or image.get("fichier")       # photo entière
                 nb["credit"] = image.get("credit_licence", "")
         blocs.append(nb)
     return {"id": uuid.uuid4().hex[:10], "format": format, "taille": [W, H], "gabarit": gabarit["id"],
@@ -445,6 +461,9 @@ def generer(contexte, format="carre", n=6, cfg=None, charte=None, rechercher=Non
         try:
             consigne = I.prompt_illustration({"phrase": contexte, "requete": textes["requete_image"]},
                                              (cfg.get("illustrations") or {}).get("contexte", ""), I.fournisseur_images(cfg))
+            # sujet sur un fond uni de la couleur de la charte : il se fond dans le visuel, comme détouré
+            consigne += (f" Plain solid flat background color {charte['couleurs'].get('fond')}, no texture, "
+                         "subject isolated in soft studio light, centered, upper body visible.")
             images.append({"fichier": (generer_image or I.generer)(consigne, cfg), "credit_licence": ""})
         except Exception as e:
             print("Image IA impossible :", e)
@@ -457,6 +476,13 @@ def generer(contexte, format="carre", n=6, cfg=None, charte=None, rechercher=Non
         etape(0.3 + 0.5 * k / max(1, n), "Téléchargement des images…")
         try:
             images.append({"fichier": telecharger(r), "credit_licence": r.get("credit_licence", "")})
+            if charte.get("detourer_photos"):            # comme les visuels de la marque : personnes détourées
+                try:
+                    images[-1]["original"] = images[-1]["fichier"]
+                    images[-1]["fichier"] = detourer(images[-1]["fichier"])
+                    images[-1]["detoure"] = True
+                except Exception as e:
+                    print("Détourage impossible :", e)
         except Exception as e:
             print("Image ignorée :", e)
     gabarits = [g for g in charte["gabarits"] if not g.get("formats") or format in g["formats"]] or GABARITS_DEFAUT
@@ -498,3 +524,49 @@ def exporter_png(v, donnees_png):
         with open(os.path.splitext(chemin)[0] + "_credits.txt", "w", encoding="utf-8") as f:
             f.write("\n".join(dict.fromkeys(credits)) + "\n")
     return chemin
+
+
+# ------------------------------------------------------------------ détourage (retirer le fond d'une photo)
+def detourer(fichier):
+    """PNG avec fond transparent. Mac (macOS 14+) : Apple Vision, sur l'appareil ; sinon rembg s'il est installé."""
+    dossier = os.path.join(DOSSIER, ".detoures")
+    os.makedirs(dossier, exist_ok=True)
+    sortie = os.path.join(dossier, os.path.splitext(os.path.basename(fichier))[0] + "_detoure.png")
+    if os.path.exists(sortie):
+        return sortie
+    erreurs = []
+    try:
+        import Quartz
+        import Vision
+        from Foundation import NSURL
+        gestion = Vision.VNImageRequestHandler.alloc().initWithURL_options_(NSURL.fileURLWithPath_(fichier), None)
+        requete = Vision.VNGenerateForegroundInstanceMaskRequest.alloc().init()
+        ok, err = gestion.performRequests_error_([requete], None)
+        resultats = requete.results() if ok else None
+        if not resultats:
+            raise RuntimeError("aucun sujet trouvé sur la photo")
+        obs = resultats[0]
+        masque, err = obs.generateMaskedImageOfInstances_fromRequestHandler_croppedToInstancesExtent_error_(
+            obs.allInstances(), gestion, True, None)
+        if masque is None:
+            raise RuntimeError(str(err))
+        image = Quartz.CIImage.imageWithCVPixelBuffer_(masque)
+        contexte = Quartz.CIContext.contextWithOptions_(None)
+        ok = contexte.writePNGRepresentationOfImage_toURL_format_colorSpace_options_error_(
+            image, NSURL.fileURLWithPath_(sortie), Quartz.kCIFormatRGBA8, Quartz.CGColorSpaceCreateDeviceRGB(), None, None)
+        if os.path.exists(sortie):
+            return sortie
+        raise RuntimeError("écriture du PNG impossible")
+    except Exception as e:
+        erreurs.append(f"Vision : {e}")
+    try:
+        from rembg import remove
+        with open(fichier, "rb") as f:
+            png = remove(f.read())
+        with open(sortie, "wb") as f:
+            f.write(png)
+        return sortie
+    except Exception as e:
+        erreurs.append(f"rembg : {e}")
+    raise RuntimeError("Détourage indisponible sur cet ordinateur (il demande macOS 14 Sonoma ou plus). "
+                       + " ; ".join(erreurs)[:300])

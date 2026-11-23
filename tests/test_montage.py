@@ -850,3 +850,25 @@ def test_visuels_generation_charte_et_paquet(tmp_path, monkeypatch):
     vs[0]["textes"]["titre"] = "Loyer / payé"
     png = V.exporter_png(vs[0], b"\x89PNG fake")
     assert os.path.exists(png) and os.path.exists(os.path.splitext(png)[0] + "_credits.txt")
+
+
+def test_charte_poppins_script_et_effets():
+    import visuels as V
+    ch = V.valider_charte({"couleurs": {"fond": "#12B09A"}, "detourer_photos": True,
+                           "polices": {"titre": {"fichier": "poppins", "graisse": 800}, "script": {"fichier": "script"}},
+                           "gabarits": [{"id": "g", "blocs": [
+                               {"type": "texte", "role": "filigrane", "x": 0, "y": 0, "w": 100, "h": 40, "opacite": 0.15, "rotation": -6,
+                                "contour": "clair"},
+                               {"type": "forme", "x": 0, "y": 0, "w": 100, "h": 100, "motif": "volutes"},
+                               {"type": "image", "x": 40, "y": 10, "w": 60, "h": 90}]}]})
+    assert ch["polices"]["titre"]["fichier"] == "poppins" and ch["polices"]["script"]["fichier"] == "script"
+    b = ch["gabarits"][0]["blocs"]
+    assert b[0]["rotation"] == -6 and b[0]["contour"] == "clair" and b[1]["motif"] == "volutes" and ch["detourer_photos"]
+    for f in ("Poppins-ExtraBold.ttf", "Poppins-Medium.ttf"):
+        assert os.path.exists(os.path.join(RACINE, "app", "polices", "poppins", f))
+    # photo détourée : personne entière posée en bas ; photo d'origine pour un plein cadre ou une forme arrondie
+    img = {"fichier": "/x_detoure.png", "original": "/x.jpg", "detoure": True}
+    g = {"id": "t", "blocs": [{"type": "image", "x": 40, "y": 10, "w": 60, "h": 90}, {"type": "image", "x": 0, "y": 0, "w": 100, "h": 100},
+                              {"type": "image", "x": 5, "y": 5, "w": 30, "h": 30, "rayon": 50}]}
+    v = V.nouveau_visuel(g, "carre", {}, img, ch)
+    assert [(x["fichier"], x.get("ajustement")) for x in v["blocs"]] == [("/x_detoure.png", "contenir-bas"), ("/x.jpg", None), ("/x.jpg", None)]

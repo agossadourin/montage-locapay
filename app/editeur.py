@@ -166,6 +166,18 @@ def ajouter_routes(api: FastAPI, racines):
             return {"visuels": vs}
         return {"job": lancer_travail(travail)}
 
+    @api.post("/visuels/api/detourer")
+    async def visuels_detourer(req: Request):
+        import asyncio
+        d = await req.json()
+        f = str(d.get("fichier") or "")
+        if not _autorise(f, racines) or not os.path.exists(f):
+            raise HTTPException(404, "Image introuvable")
+        try:
+            return {"fichier": await asyncio.to_thread(V.detourer, f)}
+        except Exception as e:
+            raise HTTPException(501, str(e))
+
     @api.put("/visuels/api/visuel")
     async def visuels_sauver(req: Request):
         return V.sauver_visuel(await req.json())
@@ -185,10 +197,11 @@ def ajouter_routes(api: FastAPI, racines):
     def icone_app():
         return FileResponse(os.path.join(os.path.dirname(ICI), "macos", "AppIcon.png"), headers={"Cache-Control": "max-age=86400"})
 
-    @api.get("/editeur/polices/{nom}")
+    @api.get("/editeur/polices/{nom:path}")
     def police(nom: str):
-        f = os.path.join(ICI, "polices", os.path.basename(nom))
-        if not os.path.exists(f):
+        base = os.path.realpath(os.path.join(ICI, "polices"))
+        f = os.path.realpath(os.path.join(base, nom))
+        if not f.startswith(base + os.sep) or not os.path.exists(f):
             raise HTTPException(404)
         return FileResponse(f, headers={"Cache-Control": "max-age=86400"})
 

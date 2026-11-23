@@ -1,5 +1,12 @@
 # Historique des versions
 
+## 1.3.0 — 2026-11-23
+- Visuels, plus proches des vrais visuels de marque :
+  - **Polices** : Poppins (400 à 900) et une manuscrite (Great Vibes), en plus de Montserrat et Playfair ; rôle « Manuscrite » pour les accroches (« Bonne rentrée », « Welcome »).
+  - **Personnes détourées** : sur Mac (macOS 14+), le fond des photos est retiré automatiquement (Apple Vision, sur l'ordinateur) quand la charte le demande ; bouton « Détourer » dans l'éditeur ; image « entière, posée en bas ».
+  - **Grand chiffre ou mot en filigrane**, **pastille inclinée**, **texture en volutes**, contour de texte, opacité et inclinaison réglables dans l'éditeur.
+  - Textes : l'IA propose aussi une accroche manuscrite et un filigrane ; images IA générées sur le fond uni de la charte (le sujet s'intègre comme détouré).
+
 ## 1.2.0 — 2026-11-23
 - **Visuels** (nouveau) : posts carrés et portrait, stories, dans la charte de la marque.
   - **Créer** : on décrit le message → Raccord écrit les textes (Ollama si installé, sinon règles simples), trouve des photos (Pexels, Pixabay, Openverse, ou image créée par IA) et propose 6 mises en page.
