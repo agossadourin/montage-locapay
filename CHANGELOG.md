@@ -1,5 +1,9 @@
 # Historique des versions
 
+## 1.1.0 — 2026-11-23
+- **Copie de style analysée par Claude, sans clé API** : « Copier un style › Préparer le paquet pour Claude » crée un petit .zip (planche de 12 images + mesures + consignes) dans Vidéos › Raccord › Pour Claude. On le dépose dans une conversation avec Claude, qui rend un fichier `.raccord-style.json` ; « Importer la réponse de Claude » l'applique à la vidéo (avec vos couleurs ou celles du modèle) et peut l'enregistrer comme style.
+- Les valeurs importées sont vérifiées et bornées ; un fichier qui n'est pas un style est refusé avec un message clair.
+
 ## 1.0.0 — 2026-11-23 — Raccord
 - **L'outil devient une application à part entière : Raccord** (« le montage face caméra, dans votre style »). Nouvelle icône, nouvel accent ambre, accueil et fenêtres renommés ; plus aucune marque imposée.
 - **Neutre par défaut** : identité « Ma marque » sans logo, style de base « Face caméra », pas de vocabulaire ni de corrections imposés. Votre marque se règle dans ⚙️ Paramètres › Identité.

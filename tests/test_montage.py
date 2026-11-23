@@ -778,3 +778,26 @@ def test_reprise_ancienne_installation_locapay(tmp_path):
 def test_application_neutre_par_defaut():
     assert C.IDENTITE_DEFAUT["nom"] == "Ma marque" and C.IDENTITE_DEFAUT["fichier_logo"] == ""
     assert C.lister_styles()[0] == "Face caméra" and C.charger_style("Face caméra").mot_cle
+
+
+def test_paquet_pour_claude_et_import(tmp_path):
+    """Sans clé API : paquet (planche + mesures + consignes) → fichier rendu par Claude → style applicable."""
+    import zipfile
+    import analyse_style as A
+    src = tmp_path / "modele.mp4"
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=360x640:rate=30:d=3",
+                    "-f", "lavfi", "-i", "color=0x2E2C51:size=360x640:rate=30:d=2", "-filter_complex",
+                    "[0][1]concat=n=2:v=1,format=yuv420p", "-c:v", "libx264", "-preset", "ultrafast", str(src)], check=True)
+    z = A.preparer_pour_claude(str(src), str(tmp_path / "Pour Claude"), nom="Modèle test")
+    with zipfile.ZipFile(z) as f:
+        assert set(f.namelist()) == {"planche.jpg", "mesures.json", "LISEZMOI.txt"}
+        m = json.loads(f.read("mesures.json"))
+        assert m["style_propose"]["duree_plan_max"] > 0 and "raccord-style" in f.read("LISEZMOI.txt").decode()
+    reponse = {"format": "raccord-style", "version": 1, "nom": "Punchy", "couleurs": ["#112233", "pas une couleur"],
+               "profil": {**m["style_propose"], "taille_texte": 9, "casse": "majuscules", "doodles": "cercle", "inconnu": 1},
+               "notes": "Gros texte, mots entourés."}
+    r = A.lire_style_claude(reponse)
+    assert r["profil"]["taille_texte"] == 2.0 and r["profil"]["casse"] == "majuscules" and r["profil"]["doodles"] == "cercle"
+    assert r["couleurs"] == ["#112233"] and r["nom"] == "Punchy" and "inconnu" not in r["profil"]
+    with pytest.raises(ValueError):
+        A.lire_style_claude({"rien": 1})

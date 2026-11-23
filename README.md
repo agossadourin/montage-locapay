@@ -57,6 +57,8 @@ Le **mode classique** (et les **⚙️ Paramètres** : identité, style, clés) 
 
 **🎨 Copier un style** : bouton en haut de l'éditeur → déposez une vidéo dont vous aimez le montage → l'outil affiche ce qu'il a repéré → **Refaire ma vidéo dans ce style** (vos couleurs ou celles du modèle).
 
+**🤝 Sans clé API, avec Claude** : *Copier un style › Préparer le paquet pour Claude* → glissez le .zip dans une conversation avec Claude → *Importer la réponse de Claude* avec le fichier `.raccord-style.json` rendu (format décrit dans le `LISEZMOI.txt` du paquet ; code : `preparer_pour_claude` / `lire_style_claude` dans `analyse_style.py`).
+
 **🥁 Rythme** : en ajoutant une musique, elle démarre sur un temps fort et les recadrages / écrans de couleur tombent sur les temps (bouton « Caler le montage sur le rythme » dans la musique ; code : `rythme.py`).
 
 **〰️ Doodles** : trait dessiné sous ou autour des mots clés forts — panneau de droite (rien de sélectionné) pour tout le projet, ou dans un sous-titre (code : `dessiner_doodle` / `choisir_doodles` dans `montage_auto.py`).

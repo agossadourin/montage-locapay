@@ -165,6 +165,10 @@ header .actions .sep{width:1px;height:20px;background:var(--ligne-forte);margin:
   box-shadow:0 30px 80px -20px rgba(0,0,0,.7)}
 #modal h3{margin:0 0 12px;font-size:16px;font-weight:650}
 #modal progress{margin:8px 0 4px}
+.depot-style{border:1.5px dashed rgba(255,255,255,.22);border-radius:12px;padding:26px;text-align:center;cursor:pointer;color:var(--doux);margin:14px 0}
+.depot-style:hover{border-color:var(--accent);color:var(--texte)}
+.voie-claude{border-top:1px solid var(--ligne);padding-top:14px;margin-top:4px}
+.voie-claude p{margin:6px 0 10px}
 .grille{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
 .grille img{width:100%;aspect-ratio:9/14;object-fit:cover;border-radius:6px;cursor:pointer;border:2px solid transparent}
 .grille img:hover{border-color:var(--accent)}
@@ -1051,15 +1055,53 @@ async function copierStyle() {
   const fermer = () => { $("modal").style.display = "none"; boite.style.width = ""; };
   boite.innerHTML = `<h3>Copier le style d'une vidéo</h3>
     <p class="aide">Déposez une vidéo dont vous aimez le montage (Reel, TikTok…). L'outil mesure son rythme de coupes, ses zooms, la place et la taille des sous-titres, le mot mis en valeur, ses écrans de couleur, son étalonnage, ses transitions, son calage sur la musique et ses couleurs, puis refait <b>votre</b> vidéo dans ce style.</p>
-    <div id="m-depot" class="depot" style="border:2px dashed var(--ligne);border-radius:10px;padding:28px;text-align:center;cursor:pointer">📥 Glissez la vidéo modèle ici, ou cliquez pour la choisir</div>
+    <div id="m-depot" class="depot-style">Glissez la vidéo modèle ici, ou cliquez pour la choisir</div>
     <input type="file" id="m-fic" accept="video/*" style="display:none">
-    <div class="rangee" style="margin-top:12px"><button id="m-fermer" style="margin-left:auto">Fermer</button></div>`;
+    <div class="voie-claude">
+      <b>Analyse plus fine par Claude, sans clé API</b>
+      <p class="aide">Raccord prépare un petit paquet (images + mesures) à glisser dans votre conversation avec Claude. Claude vous rend un fichier de style, que vous importez ici.</p>
+      <div class="rangee"><button id="m-paquet">${icone("exporter")}1. Préparer le paquet pour Claude</button>
+        <button id="m-importer">${icone("style")}2. Importer la réponse de Claude</button></div>
+      <input type="file" id="m-fic-paquet" accept="video/*" style="display:none">
+      <input type="file" id="m-fic-json" accept=".json,application/json" style="display:none">
+    </div>
+    <div class="rangee" style="margin-top:14px"><button id="m-fermer" class="fantome" style="margin-left:auto">Fermer</button></div>`;
   $("m-fermer").onclick = fermer;
   const depot = $("m-depot");
   depot.onclick = () => $("m-fic").click();
   depot.ondragover = (e) => { e.preventDefault(); depot.style.borderColor = "var(--accent)"; };
   depot.ondrop = (e) => { e.preventDefault(); if (e.dataTransfer.files[0]) analyser(e.dataTransfer.files[0]); };
   $("m-fic").onchange = () => { if ($("m-fic").files[0]) analyser($("m-fic").files[0]); };
+  $("m-paquet").onclick = () => $("m-fic-paquet").click();
+  $("m-fic-paquet").onchange = () => { if ($("m-fic-paquet").files[0]) paquet($("m-fic-paquet").files[0]); };
+  $("m-importer").onclick = () => $("m-fic-json").click();
+  $("m-fic-json").onchange = async () => {
+    const f = $("m-fic-json").files[0]; if (!f) return;
+    const fd = new FormData(); fd.append("fichier", f);
+    const rep = await fetch("/editeur/api/style/importer", { method: "POST", body: fd });
+    const d = await rep.json();
+    if (!rep.ok) { boite.innerHTML = `<h3>Fichier non reconnu</h3><p class="aide">${String(d.detail || "").replace(/</g, "&lt;")}</p><p class="aide">Importez le fichier <b>.raccord-style.json</b> que Claude vous a rendu.</p><button id="m-fermer">Fermer</button>`; $("m-fermer").onclick = fermer; return; }
+    resultat(d);
+  };
+
+  async function paquet(f) {
+    boite.innerHTML = `<h3>Préparation du paquet pour Claude</h3><progress id="m-prog" max="1" value="0"></progress><p class="aide" id="m-txt">Envoi de la vidéo…</p>`;
+    const fd = new FormData(); fd.append("fichier", f);
+    const rep = await fetch("/editeur/api/style/paquet", { method: "POST", body: fd });
+    const e = await suivreTravail((await rep.json()).job, "Préparation…", $("m-prog"), $("m-txt"));
+    if (e.erreur) { boite.innerHTML = `<h3>Préparation impossible</h3><p class="aide">${String(e.erreur).replace(/</g, "&lt;")}</p><button id="m-fermer">Fermer</button>`; $("m-fermer").onclick = fermer; return; }
+    const z = e.resultat.paquet;
+    boite.innerHTML = `<h3>Paquet prêt</h3>
+      <p class="aide"><b>${e.resultat.nom.replace(/</g, "&lt;")}</b><br>dans Vidéos › Raccord › Pour Claude</p>
+      <ol class="aide" style="padding-left:18px;margin:10px 0">
+        <li>Glissez ce fichier .zip dans votre conversation avec Claude (« analyse ce style »).</li>
+        <li>Téléchargez le fichier <b>.raccord-style.json</b> qu'il vous rend.</li>
+        <li>Revenez ici : <b>Copier un style › Importer la réponse de Claude</b>.</li>
+      </ol>
+      <div class="rangee"><button class="primaire" id="m-finder">Afficher dans le Finder</button><button id="m-fermer" class="fantome" style="margin-left:auto">Fermer</button></div>`;
+    $("m-fermer").onclick = fermer;
+    $("m-finder").onclick = () => fetch("/editeur/api/ouvrir?mode=finder&f=" + encodeURIComponent(z), { method: "POST" });
+  }
 
   async function analyser(f) {
     boite.innerHTML = `<h3>Analyse de « ${f.name.replace(/</g, "&lt;")} »</h3><progress id="m-prog" max="1" value="0"></progress><p class="aide" id="m-txt">Envoi de la vidéo…</p>`;

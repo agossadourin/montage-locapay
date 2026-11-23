@@ -298,6 +298,8 @@ def analyser(video, cle_api="", ocr=True, rappel=None, details=None):
     couleurs = couleurs_modele(unis, ims)
     if details is not None:
         details["couleurs"] = couleurs
+        details["images"] = ims
+        details["mesures"] = {"duree_s": round(duree, 1), "plans": nb_plans, "ecrans_couleur": cartes}
 
     rapport = [f"Durée : {duree:.1f} s — {nb_plans} plans (≈ {plan_moyen:.1f} s par plan)",
                f"Écrans de couleur détectés : {cartes}" + (" (dont l'écran de fin)" if ecran_fin else ""),
@@ -373,3 +375,95 @@ def _bornes(d):
     if d.get("transition") not in ("coupe", "fondu", "zoom", "flash", "glissement"):
         d["transition"] = "coupe"
     return d
+
+
+# ------------------------------------------------------------------ analyse par Claude, dans la conversation (sans clé API)
+FORMAT_STYLE = "raccord-style"
+
+LISEZMOI_CLAUDE = """Paquet d'analyse de style — Raccord (outil de montage face caméra)
+
+Pour Claude : ce paquet contient « planche.jpg » ({n} images de la vidéo modèle, dans l'ordre, de gauche à droite
+puis de haut en bas) et « mesures.json » (mesures automatiques faites sur le Mac : rythme, écrans de couleur,
+étalonnage, transitions, couleurs, sous-titres si l'OCR a fonctionné, et le style proposé).
+
+Regarde les images, corrige le style proposé là où les mesures se trompent (surtout : place, taille, casse et
+animation des sous-titres, mot mis en valeur, doodles, densité d'illustrations), puis renvoie UN fichier
+« <nom>.raccord-style.json » à télécharger, de la forme :
+
+{{"format": "raccord-style", "version": 1, "nom": "<nom court du style>",
+  "profil": {{ ...toutes les clés de « style_propose » de mesures.json, corrigées... }},
+  "couleurs": ["#RRGGBB", "#RRGGBB"],      (facultatif : couleurs principale et secondaire de la vidéo modèle)
+  "notes": "2-3 phrases sur ce qui fait ce style"}}
+
+Valeurs permises : position_sous_titres 0.1–0.9 (0 = haut) ; taille_texte 0.5–2.0 ; mots_par_groupe 1–6 ;
+casse normale|majuscules|minuscules ; animation pop|fondu|aucune ; style_etalonnage naturel|chaud|contrasté|froid|
+désaturé ; doodles aucun|souligne|cercle|melange ; transition coupe|fondu|zoom|flash|glissement ;
+illustrations_par_minute 0–20 ; nb_ecrans_couleur 0–6 ; duree_plan_max (secondes par plan) ; zoom (1.0–1.4).
+
+Pour l'utilisateur : glissez ce fichier .zip dans la conversation avec Claude, puis, dans Raccord,
+« Copier un style › Importer la réponse de Claude » avec le fichier .json qu'il vous rend.
+"""
+
+
+def planche(ims, n=12, largeur=270):
+    """Planche contact : n images régulièrement espacées, 4 par ligne."""
+    choix = [im for _, im in ims[:: max(1, len(ims) // n)]][:n] if ims else []
+    if not choix:
+        return None
+    h = int(largeur * 16 / 9)
+    cols = 4
+    lignes = (len(choix) + cols - 1) // cols
+    out = Image.new("RGB", (cols * largeur + (cols - 1) * 6, lignes * h + (lignes - 1) * 6), (20, 20, 20))
+    for i, im in enumerate(choix):
+        im = im.copy()
+        s = max(largeur / im.width, h / im.height)
+        im = im.resize((int(im.width * s) + 1, int(im.height * s) + 1))
+        x0, y0 = (im.width - largeur) // 2, (im.height - h) // 2
+        out.paste(im.crop((x0, y0, x0 + largeur, y0 + h)), ((i % cols) * (largeur + 6), (i // cols) * (h + 6)))
+    return out, len(choix)
+
+
+def preparer_pour_claude(video, dossier, nom=None, rappel=None):
+    """Analyse locale + planche d'images → paquet .zip à déposer dans une conversation avec Claude."""
+    import json
+    import zipfile
+    from dataclasses import asdict
+    details = {}
+    p, rapport = analyser(video, cle_api=None, rappel=rappel, details=details)
+    nom = (nom or os.path.splitext(os.path.basename(video))[0])[:40]
+    pl = planche(details.get("images") or [], n=12, largeur=270)
+    if pl is None:
+        raise RuntimeError("Impossible de lire des images dans cette vidéo.")
+    image, n = pl
+    os.makedirs(dossier, exist_ok=True)
+    propre = re.sub(r"[^\w\- ]", "_", nom)
+    chemin = os.path.join(dossier, f"Raccord — style {propre}.zip")
+    mesures = {"format": "raccord-paquet-style", "version": 1, "nom": nom, **details.get("mesures", {}),
+               "couleurs_detectees": details.get("couleurs", []), "rapport": rapport, "style_propose": asdict(p)}
+    tmp = tempfile.mkdtemp()
+    try:
+        image.save(os.path.join(tmp, "planche.jpg"), quality=85)
+        with zipfile.ZipFile(chemin, "w", zipfile.ZIP_DEFLATED) as z:
+            z.write(os.path.join(tmp, "planche.jpg"), "planche.jpg")
+            z.writestr("mesures.json", json.dumps(mesures, ensure_ascii=False, indent=1))
+            z.writestr("LISEZMOI.txt", LISEZMOI_CLAUDE.format(n=n))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    return chemin
+
+
+def lire_style_claude(donnees):
+    """Fichier rendu par Claude (dict) → {profil, couleurs, nom, rapport}, valeurs vérifiées et bornées."""
+    from dataclasses import asdict
+    if not isinstance(donnees, dict):
+        raise ValueError("Ce fichier n'est pas un style Raccord.")
+    profil = donnees.get("profil") if isinstance(donnees.get("profil"), dict) else donnees
+    connus = {f for f in C.ProfilStyle.__dataclass_fields__}
+    if not (set(profil) & connus):
+        raise ValueError("Ce fichier ne contient aucun réglage de style reconnu.")
+    p = C.ProfilStyle.depuis(_bornes({**asdict(C.ProfilStyle()), **profil}))
+    couleurs = [c for c in (donnees.get("couleurs") or []) if isinstance(c, str) and re.fullmatch(r"#[0-9A-Fa-f]{6}", c)]
+    nom = str(donnees.get("nom") or "Style de Claude")[:40]
+    notes = str(donnees.get("notes") or p.description or "")
+    return {"profil": asdict(p), "couleurs": couleurs[:2], "nom": nom, "rapport": "Analyse faite par Claude : " + notes,
+            "ia": "Claude (conversation)"}

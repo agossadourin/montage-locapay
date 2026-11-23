@@ -248,6 +248,32 @@ def ajouter_routes(api: FastAPI, racines):
                     "nom": f"Style {nom}", "ia": ia.nom_ia(ia.config_ia(C.charger_config()))}
         return {"job": lancer_travail(travail)}
 
+    @api.post("/editeur/api/style/paquet")
+    async def paquet_style(fichier: UploadFile = File(...)):
+        """Prépare le paquet à déposer dans une conversation avec Claude (analyse fine sans clé API)."""
+        os.makedirs(ENVOIS, exist_ok=True)
+        dest = os.path.join(ENVOIS, f"{int(time.time())}_modele_{os.path.basename(fichier.filename or 'video.mp4')}")
+        with open(dest, "wb") as out:
+            shutil.copyfileobj(fichier.file, out)
+        nom = os.path.splitext(os.path.basename(fichier.filename or "modele"))[0][:30]
+
+        def travail(rappel):
+            import analyse_style as A
+            z = A.preparer_pour_claude(dest, os.path.join(SORTIES, "Pour Claude"), nom=nom,
+                                       rappel=lambda f, t: rappel(0.05 + 0.9 * f, t))
+            return {"paquet": z, "nom": os.path.basename(z)}
+        return {"job": lancer_travail(travail)}
+
+    @api.post("/editeur/api/style/importer")
+    async def importer_style(fichier: UploadFile = File(...)):
+        """Fichier .raccord-style.json rendu par Claude → style prêt à appliquer."""
+        import json
+        import analyse_style as A
+        try:
+            return A.lire_style_claude(json.loads((await fichier.read()).decode("utf-8-sig")))
+        except Exception as e:
+            raise HTTPException(400, f"Fichier de style illisible : {e}")
+
     @api.post("/editeur/api/style/appliquer")
     async def appliquer_style(p: str, req: Request):
         chemin = _projet_path(p, racines)
