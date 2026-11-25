@@ -84,6 +84,7 @@ def test_notebook_colab_a_jour():
     blob = re.search(r'montage_auto\.py", "wb"\)\.write\(gzip\.decompress\(base64\.b64decode\("([^"]+)"\)\)\)', code).group(1)
     integre = gzip.decompress(base64.b64decode(blob))
     attendu = open(os.path.join(RACINE, "app", "montage_auto.py"), "rb").read()
+    integre, attendu = (x.replace(b"\r\n", b"\n") for x in (integre, attendu))     # Windows : fins de ligne CRLF
     assert integre == attendu, "Notebook Colab pas à jour : lancez  python colab/build_nb.py"
 
 
