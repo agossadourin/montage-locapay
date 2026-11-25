@@ -43,7 +43,7 @@ jobs:
           Start-Process $exe -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/TASKS=bureau", "/LOG=setup.log" -Wait
           $app = Join-Path $env:LOCALAPPDATA "Programs\Raccord"
           Get-ChildItem $app
-          if (-not (Test-Path "$app\.venv\Scripts\pythonw.exe")) { Get-Content setup.log -Tail 60; exit 1 }
+          if (-not (Test-Path "$app\.venv\Scripts\pythonw.exe")) { Get-Content "$env:LOCALAPPDATA\Raccord\installation.log" -Tail 80; exit 1 }
           $lnk = Join-Path ([Environment]::GetFolderPath("Programs")) "Raccord.lnk"
           if (-not (Test-Path $lnk)) { Write-Error "Raccourci absent : $lnk"; exit 1 }
           & "$app\.venv\Scripts\python.exe" -X utf8 windows\verifier.py $app

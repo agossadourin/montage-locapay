@@ -20,6 +20,9 @@ $env:UV_PYTHON_INSTALL_DIR = Join-Path $Outils "python"
 $env:UV_CACHE_DIR = Join-Path $Outils "cache"
 $env:UV_LINK_MODE = "copy"
 $Pause = -not $SansPause -and -not $env:CI -and [Environment]::UserInteractive
+$Journal = Join-Path $env:LOCALAPPDATA "Raccord"
+New-Item -ItemType Directory -Force $Journal | Out-Null
+try { Start-Transcript -Path (Join-Path $Journal "installation.log") -Append | Out-Null } catch {}
 
 function Etape($texte) { Write-Host ""; Write-Host "-> $texte" -ForegroundColor Cyan }
 function Ok($texte) { Write-Host "   OK : $texte" -ForegroundColor Green }
@@ -119,6 +122,8 @@ try {
 catch {
     Write-Host ""
     Write-Host "ERREUR : $_" -ForegroundColor Red
+    Write-Host $_.ScriptStackTrace
+    Write-Host "Journal : $Journal\installation.log"
     Write-Host "Relancez l'installation : elle reprend là où elle s'est arrêtée."
     if ($Pause) { Read-Host "Appuyez sur Entrée pour fermer" | Out-Null }
     exit 1
