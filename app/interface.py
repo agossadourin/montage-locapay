@@ -4,9 +4,11 @@ from dataclasses import asdict, fields
 
 ICI = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ICI)
-# Les apps lancées depuis le Finder n'ont pas toujours Homebrew dans le PATH
-os.environ["PATH"] = os.pathsep.join(["/opt/homebrew/bin", "/usr/local/bin", os.environ.get("PATH", "")])
+# Les apps lancées depuis le Finder n'ont pas toujours Homebrew dans le PATH ; ffmpeg embarqué (Windows) en premier
+os.environ["PATH"] = os.pathsep.join([os.path.join(os.path.dirname(ICI), "outils", "ffmpeg", "bin"),
+                                      "/opt/homebrew/bin", "/usr/local/bin", os.environ.get("PATH", "")])
 os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")      # aucune statistique envoyée à Gradio
+import systeme  # noqa: E402,F401  (Windows : pas de fenêtre console pour ffmpeg)
 
 import gradio as gr
 from PIL import Image, ImageDraw
@@ -19,11 +21,12 @@ import montage_auto as M
 import projet as P
 
 import chemins
+import systeme as S
 
 SORTIES = chemins.DOSSIER_APP
 os.makedirs(SORTIES, exist_ok=True)
 try:
-    VERSION = "v" + open(os.path.join(os.path.dirname(ICI), "VERSION")).read().strip()
+    VERSION = "v" + open(os.path.join(os.path.dirname(ICI), "VERSION"), encoding="utf-8").read().strip()
 except OSError:
     VERSION = ""
 
@@ -570,20 +573,11 @@ def assembler(tableau, chemins, progress=gr.Progress()):
 def lire_quicktime(chemin):
     if not chemin or not os.path.exists(chemin):
         raise gr.Error("Aucune vidéo montée pour l'instant.")
-    if sys.platform == "darwin":
-        subprocess.run(["open", "-a", "QuickTime Player", chemin])
-    else:
-        subprocess.run(["xdg-open", chemin])
-
-
-_lecture = {"proc": None}
+    S.ouvrir_fichier(chemin)
 
 
 def arreter_ecoute():
-    p = _lecture.get("proc")
-    if p and p.poll() is None:
-        p.terminate()
-    _lecture["proc"] = None
+    S.arreter_son()
 
 
 def _jouer(video, ph):
@@ -591,9 +585,7 @@ def _jouer(video, ph):
     extrait = os.path.join(SORTIES, ".ecoute.wav")
     subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-ss", f"{max(0, ph['deb'] - 0.3):.2f}",
                     "-t", f"{ph['fin'] - ph['deb'] + 0.6:.2f}", "-i", video, "-vn", "-ac", "2", extrait])
-    if sys.platform == "darwin":   # lecture directe sur le Mac (fiable même dans la fenêtre de l'app)
-        arreter_ecoute()
-        _lecture["proc"] = subprocess.Popen(["afplay", extrait])
+    if S.jouer_wav(extrait):       # lecture directe (Mac, Windows) : fiable même dans la fenêtre de l'app
         return None
     return extrait
 
@@ -610,8 +602,7 @@ def ecouter(analyse, evt: gr.SelectData):
 
 
 def ouvrir_dossier():
-    if sys.platform == "darwin":
-        os.system(f'open "{SORTIES}"')
+    S.ouvrir_dossier(SORTIES)
 
 
 GR6 = int(gr.__version__.split(".")[0]) >= 6
@@ -743,7 +734,7 @@ with gr.Blocks(title=f"{chemins.NOM_APP} — Paramètres", **({} if GR6 else {"t
                         gr.Markdown("Facultatives. **Pexels** et **Pixabay** (gratuites) : recherche d'images et de vidéos "
                                     "d'illustration libres de droits — [pexels.com/api](https://www.pexels.com/api/), "
                                     "[pixabay.com/api/docs](https://pixabay.com/api/docs/). **IA** : **Ollama** (gratuite, sur ce Mac — "
-                                    "installez-la avec « Installer IA locale (Ollama).command ») ou **Claude** (payante, quelques "
+                                    "installez-la avec « Installer IA locale (Ollama) ») ou **Claude** (payante, quelques "
                                     "centimes par vidéo) pour un choix des moments à illustrer et une analyse de style plus fins — "
                                     "[console.anthropic.com](https://console.anthropic.com/). Les clés restent sur ce Mac.")
                         choix_ia = gr.Radio(list(CHOIX_IA), label="IA (choix des moments à illustrer, analyse de style)",
@@ -792,7 +783,7 @@ with gr.Blocks(title=f"{chemins.NOM_APP} — Paramètres", **({} if GR6 else {"t
                         vocabulaire = gr.Textbox(value=CFG.get("vocabulaire") or CFG["identite"].get("nom", ""),
                                                  label="Mots rares à bien reconnaître")
                         modele = gr.Radio(["Précis (recommandé)", "Rapide"], value="Précis (recommandé)", label="Transcription")
-                        auto_qt = gr.Checkbox(value=(sys.platform == "darwin"), label="Ouvrir la vidéo dans QuickTime à la fin du montage")
+                        auto_qt = gr.Checkbox(value=S.MAC, label=f"Ouvrir la vidéo dans {S.NOM_LECTEUR} à la fin du montage")
 
             corrections = gr.State(charger_dico())
             corr_choisie = gr.State(None)
@@ -827,7 +818,7 @@ with gr.Blocks(title=f"{chemins.NOM_APP} — Paramètres", **({} if GR6 else {"t
             editer = gr.Button("✂️ Retoucher dans l'éditeur (timeline)", variant="primary", visible=False)
             chemin_projet = gr.Textbox(visible=False)
             with gr.Row():
-                quicktime = gr.Button("▶️ Lire dans QuickTime", variant="secondary")
+                quicktime = gr.Button(f"▶️ Lire dans {S.NOM_LECTEUR}", variant="secondary")
                 dossier = gr.Button("📂 Ouvrir le dossier des montages")
             fichiers = gr.File(label="Fichiers (vidéo, sous-titres .srt, transcription)", file_count="multiple")
             with gr.Accordion("Transcription et plan de montage", open=False):
@@ -844,8 +835,8 @@ with gr.Blocks(title=f"{chemins.NOM_APP} — Paramètres", **({} if GR6 else {"t
                                      column_widths=["5%", "7%", "7%", "41%", "9%", "17%", "7%", "7%"],
                                      label="Passages")
         with gr.Row():
-            ecoute = gr.Audio(label="Écoute du passage", autoplay=True, visible=(sys.platform != "darwin"))
-            stop = gr.Button("⏹ Arrêter l'écoute", visible=(sys.platform == "darwin"))
+            ecoute = gr.Audio(label="Écoute du passage", autoplay=True, visible=not S.LECTURE_DIRECTE)
+            stop = gr.Button("⏹ Arrêter l'écoute", visible=S.LECTURE_DIRECTE)
 
     with gr.Accordion("🖼 Illustrations proposées", open=False) as acc_illus:
         gr.Markdown("Une image ou vidéo est proposée aux moments où l'on parle de quelque chose de concret. "

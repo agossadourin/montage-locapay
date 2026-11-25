@@ -290,6 +290,8 @@ header .actions .sep{width:1px;height:20px;background:var(--ligne-forte);margin:
 <video id="v-ill" muted playsinline preload="auto" style="display:none"></video>
 
 <script>
+const SYS = navigator.userAgent.includes("Windows") ? { lecteur: "le lecteur vidéo", explorateur: "l'Explorateur" }
+  : { lecteur: "QuickTime", explorateur: "le Finder" };
 "use strict";
 const $ = (id) => document.getElementById(id);
 const ICONES = {
@@ -739,13 +741,13 @@ function dessinerTimeline() {
     }
   };
   poser("p-st", proj.sous_titres, "st", it => it.mots.map((m, i) => i === it.cle ? m.w.toUpperCase() : m.w).join(" "));
-  poser("p-ill", proj.illustrations, "ill", it => it.fichier.split("/").pop().replace(/^\d+_/, ""));
+  poser("p-ill", proj.illustrations, "ill", it => it.fichier.split(/[\\/]/).pop().replace(/^\d+_/, ""));
   poser("p-ecran", proj.ecrans, "ecran", () => "Écran");
   poser("p-alerte", proj.alertes, "alerte", it => (it.type === "incompris" ? "Incompris (fon ?) · " : "Reprise · ") + it.phrase);
   $("b-auto").classList.toggle("attention", !(proj.auto && proj.auto.fait));
   const pm = $("p-mus"); pm.innerHTML = "";
   if (proj.musique) {
-    const d = el("mus", 0, tot, (proj.musique.titre || proj.musique.fichier.split("/").pop()) + ` · volume ${Math.round((proj.musique.volume ?? .18) * 100)} %` + (proj.musique.tempo ? ` · ${Math.round(proj.musique.tempo)} BPM` : ""), { type: "mus", id: "mus" }); pm.appendChild(d);
+    const d = el("mus", 0, tot, (proj.musique.titre || proj.musique.fichier.split(/[\\/]/).pop()) + ` · volume ${Math.round((proj.musique.volume ?? .18) * 100)} %` + (proj.musique.tempo ? ` · ${Math.round(proj.musique.tempo)} BPM` : ""), { type: "mus", id: "mus" }); pm.appendChild(d);
     const dec = +(proj.musique.decalage || 0);           // temps forts de la musique (repères)
     for (const b of proj.musique.temps_forts || []) {
       const x = b - dec; if (x < 0 || x > tot) continue;
@@ -985,7 +987,7 @@ function inspecter() {
     const it = proj.illustrations.find(i => i.id === sel.id); if (!it) { sel = null; return inspecter(); }
     const alt = it.alternatives || [];
     ins.innerHTML = `<h3>Illustration</h3>` + (it.type === "video" ? `<video class="apercu" src="${media(it.fichier)}" muted controls style="width:100%;border-radius:6px"></video>` : `<img class="apercu" src="${media(it.fichier)}">`) +
-      `<p class="aide">${(it.fin - it.deb).toFixed(1)} s · ${it.requete ? "recherche « " + it.requete.replace(/</g, "&lt;") + " »" : it.fichier.split("/").pop()}</p>
+      `<p class="aide">${(it.fin - it.deb).toFixed(1)} s · ${it.requete ? "recherche « " + it.requete.replace(/</g, "&lt;") + " »" : it.fichier.split(/[\\/]/).pop()}</p>
       <div class="rangee">${alt.length > 1 ? `<button id="i-autre">🔄 Autre proposition</button>` : ""}<button id="i-remp">📁 Mon fichier</button><button class="danger" id="i-suppr">Supprimer</button></div>` +
       champ("Cadrage", `<select id="i-cadrage">${[["auto", "Automatique"], ["remplir", "Plein écran (bords rognés)"], ["adapter", "Image entière sur fond flou"]].map(([k, n]) => `<option value="${k}" ${(it.cadrage || "auto") === k ? "selected" : ""}>${n}</option>`).join("")}</select>`) +
       `<p class="aide">Automatique : une image ou vidéo plus large que haute (paysage) est montrée en entière sur un fond flou, au lieu d'être fortement zoomée.</p>
@@ -1032,7 +1034,7 @@ function inspecter() {
     $("i-cadrage").onchange = () => { memoriser(); if ($("i-cadrage").value === "auto") delete it.cadrage; else it.cadrage = $("i-cadrage").value; apresModif(); };
   } else if (sel.type === "mus") {
     const m = proj.musique; if (!m) { sel = null; return inspecter(); }
-    ins.innerHTML = `<h3>Musique</h3><p class="aide">${(m.titre || m.fichier.split("/").pop()).replace(/</g, "&lt;")}</p>` +
+    ins.innerHTML = `<h3>Musique</h3><p class="aide">${(m.titre || m.fichier.split(/[\\/]/).pop()).replace(/</g, "&lt;")}</p>` +
       (m.credit ? `<label>Crédit à mettre dans la description de la publication</label><textarea readonly id="i-credit">${m.credit.replace(/</g, "&lt;")}</textarea><button id="i-copier">📋 Copier le crédit</button>` : "") +
       champ("Volume (sous la voix)", `<input type="range" id="i-vol" min="0" max="0.6" step="0.01" value="${m.volume ?? 0.18}" style="width:100%">`) +
       champ("Démarrer le morceau à (secondes)", `<input type="number" id="i-dec" min="0" step="0.5" value="${m.decalage || 0}" style="width:100px">`) +
@@ -1100,7 +1102,7 @@ async function copierStyle() {
         <li>Téléchargez le fichier <b>.raccord-style.json</b> qu'il vous rend.</li>
         <li>Revenez ici : <b>Copier un style › Importer la réponse de Claude</b>.</li>
       </ol>
-      <div class="rangee"><button class="primaire" id="m-finder">Afficher dans le Finder</button><button id="m-fermer" class="fantome" style="margin-left:auto">Fermer</button></div>`;
+      <div class="rangee"><button class="primaire" id="m-finder">Afficher dans ${SYS.explorateur}</button><button id="m-fermer" class="fantome" style="margin-left:auto">Fermer</button></div>`;
     $("m-fermer").onclick = fermer;
     $("m-finder").onclick = () => fetch("/editeur/api/ouvrir?mode=finder&f=" + encodeURIComponent(z), { method: "POST" });
   }
@@ -1230,9 +1232,9 @@ async function exporter() {
     if (!e.fini) return setTimeout(suivre, 800);
     if (e.erreur) { boite.innerHTML = `<h3>⚠️ Export impossible</h3><p class="aide">${e.erreur}</p><button onclick="document.getElementById('modal').style.display='none'">Fermer</button>`; return; }
     const cr = (e.resultat && e.resultat.credit) || "";
-    boite.innerHTML = `<h3>✅ Vidéo exportée</h3><p class="aide">${e.sortie.split("/").pop()}<br>dans Vidéos › Raccord</p>` +
+    boite.innerHTML = `<h3>✅ Vidéo exportée</h3><p class="aide">${e.sortie.split(/[\\/]/).pop()}<br>dans Vidéos › Raccord</p>` +
       (cr ? `<p class="aide">🎵 À mettre dans la description de votre publication (licence de la musique) :</p><textarea readonly style="width:100%;min-height:60px">${cr.replace(/</g, "&lt;")}</textarea>` : "") + `
-      <div class="rangee"><button class="primaire" id="m-lire">▶️ Lire dans QuickTime</button><button id="m-finder">📂 Afficher dans le Finder</button><button id="m-fermer">Fermer</button></div>`;
+      <div class="rangee"><button class="primaire" id="m-lire">▶️ Lire dans ${SYS.lecteur}</button><button id="m-finder">📂 Afficher dans ${SYS.explorateur}</button><button id="m-fermer">Fermer</button></div>`;
     $("m-lire").onclick = () => fetch("/editeur/api/ouvrir?mode=lire&f=" + encodeURIComponent(e.sortie), { method: "POST" });
     $("m-finder").onclick = () => fetch("/editeur/api/ouvrir?mode=finder&f=" + encodeURIComponent(e.sortie), { method: "POST" });
     $("m-fermer").onclick = () => $("modal").style.display = "none";
@@ -1297,7 +1299,7 @@ async function demarrer() {
   if (!r.ok) { $("statut").textContent = "⚠️ Projet introuvable"; return; }
   const d = await r.json(); proj = d.projet; ident = d.identite;
   proj.sous_titres ||= []; proj.ecrans ||= []; proj.illustrations ||= []; proj.alertes ||= [];
-  $("nom-projet").textContent = CHEMIN.split("/").pop().replace(".projet.json", "");
+  $("nom-projet").textContent = CHEMIN.split(/[\\/]/).pop().replace(".projet.json", "");
   try {
     const f1 = new FontFace("PoliceTexte", `url(${media(ident.police_serif)})`, { style: "italic" });
     const f2 = new FontFace("PoliceCle", `url(${media(ident.police_grasse)})`, { weight: "100 900" });

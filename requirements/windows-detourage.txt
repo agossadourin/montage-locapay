@@ -1,0 +1,2 @@
+# Facultatif : détourage automatique des photos (visuels). ≈ 300 Mo.
+rembg[cpu]>=2.0.50

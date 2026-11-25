@@ -1,19 +1,39 @@
 """Nom de l'application et dossiers de travail.
 
-Raccord range tout dans le dossier Vidéos de l'utilisateur : ~/Movies/Raccord sur Mac
-(~/Videos/Raccord ailleurs). Les anciennes installations « Montage Locapay » sont reprises
+Raccord range tout dans le dossier Vidéos de l'utilisateur : ~/Movies/Raccord sur Mac,
+Vidéos › Raccord sous Windows (là où Windows le place, OneDrive compris), ~/Videos/Raccord ailleurs. Les anciennes installations « Montage Locapay » sont reprises
 automatiquement par `migrer()` (dossier renommé, projets, identité, dictionnaire).
 """
 import json
 import os
 import shutil
+import sys
 
 NOM_APP = "Raccord"
 SLOGAN = "Le montage face caméra, dans votre style."
 
 _MAISON = os.path.expanduser("~")
-_VIDEOS = os.path.join(_MAISON, "Movies") if os.path.isdir(os.path.join(_MAISON, "Movies")) or not \
-    os.path.isdir(os.path.join(_MAISON, "Videos")) else os.path.join(_MAISON, "Videos")
+
+
+def _videos_windows():
+    """Dossier « Vidéos » réel sous Windows (il peut être déplacé, par exemple dans OneDrive)."""
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                            r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders") as k:
+            d = os.path.expandvars(winreg.QueryValueEx(k, "My Video")[0])
+        if d and os.path.isdir(d):
+            return d
+    except OSError:
+        pass
+    return os.path.join(_MAISON, "Videos")
+
+
+if sys.platform == "win32":
+    _VIDEOS = _videos_windows()
+else:
+    _VIDEOS = os.path.join(_MAISON, "Movies") if os.path.isdir(os.path.join(_MAISON, "Movies")) or not \
+        os.path.isdir(os.path.join(_MAISON, "Videos")) else os.path.join(_MAISON, "Videos")
 DOSSIER_APP = os.path.join(_VIDEOS, NOM_APP)
 DOSSIER_PARAMETRES = os.path.join(DOSSIER_APP, ".parametres")
 ANCIEN_DOSSIER = os.path.join(_MAISON, "Movies", "Montages Locapay")

@@ -1,0 +1,56 @@
+name: windows
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Installation comme chez l'utilisateur (Windows PowerShell 5.1, sans le gros modèle)
+        shell: cmd
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File windows\installer.ps1 -SansModele -SansPause
+
+      - name: Vérification de l'installation (ffmpeg, fenêtre, serveur, transcription)
+        shell: cmd
+        run: .venv\Scripts\python.exe -X utf8 windows\verifier.py
+
+      - name: Tests
+        shell: cmd
+        run: |
+          outils\uv\uv.exe pip install --python .venv\Scripts\python.exe pytest fastapi python-multipart
+          set "PATH=%CD%\outils\ffmpeg\bin;%PATH%"
+          .venv\Scripts\python.exe -X utf8 -m pytest -q
+
+      - name: Installateur (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          $v = (Get-Content VERSION -Raw).Trim()
+          & $iscc "/DMaVersion=$v" windows\raccord.iss
+          if ($LASTEXITCODE) { exit 1 }
+          Get-ChildItem dist
+
+      - name: Le Setup s'installe tout seul (silencieux, modèle compris) et Raccord démarre
+        shell: pwsh
+        run: |
+          $exe = (Get-ChildItem dist\Raccord-Setup-*.exe).FullName
+          Start-Process $exe -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/TASKS=bureau", "/LOG=setup.log" -Wait
+          $app = Join-Path $env:LOCALAPPDATA "Programs\Raccord"
+          Get-ChildItem $app
+          if (-not (Test-Path "$app\.venv\Scripts\pythonw.exe")) { Get-Content setup.log -Tail 60; exit 1 }
+          $lnk = Join-Path ([Environment]::GetFolderPath("Programs")) "Raccord.lnk"
+          if (-not (Test-Path $lnk)) { Write-Error "Raccourci absent : $lnk"; exit 1 }
+          & "$app\.venv\Scripts\python.exe" -X utf8 windows\verifier.py $app
+          if ($LASTEXITCODE) { exit 1 }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Raccord-Setup
+          path: dist/Raccord-Setup-*.exe
+          retention-days: 30

@@ -1,5 +1,12 @@
 # Historique des versions
 
+## 1.6.0 — 2026-11-25
+- **Version Windows** (10 / 11, 64 bits) : installateur `Raccord-Setup.exe` sans droits administrateur (Python, ffmpeg, modèle de transcription installés dans le dossier de Raccord), icônes menu Démarrer et Bureau, fenêtre dédiée via Edge ou Chrome, désinstallation propre.
+- Vidéos rangées dans le vrai dossier Vidéos de Windows (OneDrive compris), journal dans `%LOCALAPPDATA%\Raccord\Raccord.log`.
+- Ouvrir / montrer / écouter selon le système (`app/systeme.py`) ; plus de fenêtres noires pour ffmpeg sous Windows ; chemins Windows gérés dans l'éditeur.
+- IA locale et détourage (rembg) aussi sous Windows.
+- Compilation et test réel du Setup sur Windows par GitHub Actions.
+
 ## 1.5.0 — 2026-11-23
 - Visuels : **texte « autocollant »** (contour épais et ombre portée nette, lisible sur n'importe quelle photo) et **petits dessins à main levée** (étoile, zigzag, boucles, éclat), ajoutables et réglables dans l'éditeur (bouton « Dessin »).
 - L'accroche devient une courte étiquette (« C'est gratuit. », « Tu es prêt ? »), utilisée en pastille ou au-dessus du titre.

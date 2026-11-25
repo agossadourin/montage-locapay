@@ -180,6 +180,7 @@ h2{font-size:13px;font-weight:600;color:var(--doux);margin:28px 0 10px}
 <div id="modal"><div class="boite" id="modal-boite"></div></div>
 
 <script>
+const EXPLORATEUR = navigator.userAgent.includes("Windows") ? "l'Explorateur" : "le Finder";
 "use strict";
 const $ = (id) => document.getElementById(id);
 const media = (f) => "/editeur/media?f=" + encodeURIComponent(f);
@@ -624,7 +625,7 @@ $("e-export").onclick = async () => {
   const d = await (await fetch("/visuels/api/exporter", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ visuel: v, png: cv.toDataURL("image/png") }) })).json();
   const boite = $("modal-boite"); $("modal").style.display = "flex";
   boite.innerHTML = `<h3>Visuel exporté</h3><p class="aide">${esc(d.nom)}<br>dans Vidéos › Raccord › Visuels</p>
-    <div class="ligne-btn" style="margin-top:14px"><button class="primaire" id="m-finder">Afficher dans le Finder</button><button class="fantome" id="m-fermer">Fermer</button></div>`;
+    <div class="ligne-btn" style="margin-top:14px"><button class="primaire" id="m-finder">Afficher dans ${EXPLORATEUR}</button><button class="fantome" id="m-fermer">Fermer</button></div>`;
   $("m-finder").onclick = () => fetch("/editeur/api/ouvrir?mode=finder&f=" + encodeURIComponent(d.fichier), { method: "POST" });
   $("m-fermer").onclick = () => { $("modal").style.display = "none"; };
   $("statut").textContent = "Exporté"; rendre();
@@ -647,7 +648,7 @@ function afficherCharte() {
   $("couleurs").innerHTML = Object.entries(charte.couleurs).map(([k, c]) => `<label><input type="color" data-c="${k}" value="${c}">${noms[k] || k}</label>`).join("");
   $("couleurs").querySelectorAll("input").forEach(i => i.onchange = () => { charte.couleurs[i.dataset.c] = i.value; sauverCharte(); });
   const opts = (sel) => [["poppins", "Poppins (sans-serif)"], ["gras", "Montserrat (sans-serif)"], ["serif", "Playfair (serif italique)"], ["script", "Great Vibes (manuscrite)"]].concat(
-    [E.identite.police_grasse, E.identite.police_serif].filter(Boolean).filter(f => !/polices\/(gras|serif)\.ttf$/.test(f)).map(f => [f, "Identité : " + f.split("/").pop()]))
+    [E.identite.police_grasse, E.identite.police_serif].filter(Boolean).filter(f => !/polices[\\/](gras|serif)\.ttf$/.test(f)).map(f => [f, "Identité : " + f.split(/[\\/]/).pop()]))
     .map(([v_, n]) => `<option value="${esc(v_)}" ${sel === v_ ? "selected" : ""}>${esc(n)}</option>`).join("");
   $("pol-titre").innerHTML = opts(charte.polices.titre.fichier); $("pol-corps").innerHTML = opts(charte.polices.corps.fichier);
   $("pol-titre").onchange = () => { charte.polices.titre.fichier = $("pol-titre").value; sauverCharte(); };
@@ -677,7 +678,7 @@ $("b-paquet").onclick = async () => {
   const boite = $("modal-boite"); $("modal").style.display = "flex";
   boite.innerHTML = rep.ok ? `<h3>Paquet prêt</h3><p class="aide"><b>${esc(d.nom)}</b><br>dans Vidéos › Raccord › Pour Claude</p>
       <ol class="aide" style="padding-left:18px"><li>Glissez ce fichier dans votre conversation avec Claude (« fais la charte »).</li><li>Téléchargez le fichier <b>.raccord-charte.json</b> qu'il vous rend.</li><li>Revenez ici : <b>Importer la charte de Claude</b>.</li></ol>
-      <div class="ligne-btn"><button class="primaire" id="m-finder">Afficher dans le Finder</button><button class="fantome" id="m-fermer">Fermer</button></div>`
+      <div class="ligne-btn"><button class="primaire" id="m-finder">Afficher dans ${EXPLORATEUR}</button><button class="fantome" id="m-fermer">Fermer</button></div>`
     : `<h3>Paquet impossible</h3><p class="aide">${esc(d.detail)}</p><button class="fantome" id="m-fermer">Fermer</button>`;
   if (rep.ok) $("m-finder").onclick = () => fetch("/editeur/api/ouvrir?mode=finder&f=" + encodeURIComponent(d.paquet), { method: "POST" });
   $("m-fermer").onclick = () => { $("modal").style.display = "none"; };

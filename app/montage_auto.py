@@ -492,9 +492,10 @@ class Polices:
     def __init__(self, R):
         def premier(*ch):
             return next((c for c in ch if os.path.exists(c)), ch[0])
-        repli_s = premier("/System/Library/Fonts/Supplemental/Georgia Italic.ttf",
+        win = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts")
+        repli_s = premier("/System/Library/Fonts/Supplemental/Georgia Italic.ttf", os.path.join(win, "georgiai.ttf"),
                           "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Italic.ttf")
-        repli_b = premier("/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+        repli_b = premier("/System/Library/Fonts/Supplemental/Arial Bold.ttf", os.path.join(win, "arialbd.ttf"),
                           "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
         self.ps, self.pb, self.rs, self.rb = R.police_serif, R.police_grasse, repli_s, repli_b
         self.cache = {}
@@ -1188,7 +1189,7 @@ if __name__ == "__main__":
     ap.add_argument("--serif", default=""); ap.add_argument("--gras", default="")
     a = ap.parse_args()
     R = Reglages(fichier_logo=a.logo, police_serif=a.serif, police_grasse=a.gras)
-    mots = json.load(open(a.mots)) if a.mots else transcrire(a.video)
+    mots = json.load(open(a.mots, encoding="utf-8")) if a.mots else transcrire(a.video)
     plan = construire_plan(mots, duree_video(a.video), R)
     print(resume_plan(plan))
     monter(a.video, plan, R, a.sortie, musique=a.musique)

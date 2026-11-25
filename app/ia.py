@@ -71,7 +71,7 @@ def tester_ollama(url=OLLAMA_URL, modele=OLLAMA_MODELE, client=None):
         c = client or httpx.Client(timeout=5)
         tags = [m.get("name", "") for m in c.get(url.rstrip("/") + "/api/tags").json().get("models", [])]
     except Exception:
-        return False, "Ollama ne répond pas : installez-le avec « Installer IA locale (Ollama).command », puis réessayez."
+        return False, "Ollama ne répond pas : installez-le avec « Installer IA locale (Ollama) », puis réessayez."
     if not any(t == modele or t.split(":")[0] == modele.split(":")[0] and modele in t for t in tags):
         return False, f"Ollama fonctionne, mais le modèle {modele} n'est pas téléchargé (modèles présents : {', '.join(tags) or 'aucun'})."
     return True, f"✅ Ollama fonctionne avec le modèle {modele}."

@@ -33,8 +33,12 @@ _travaux = {}
 
 
 def _autorise(chemin, racines):
-    vrai = os.path.realpath(chemin)
-    return any(vrai == os.path.realpath(r) or vrai.startswith(os.path.realpath(r) + os.sep) for r in racines)
+    vrai = os.path.normcase(os.path.realpath(chemin))             # normcase : C:\ et c:\ sous Windows
+    for r in racines:
+        r = os.path.normcase(os.path.realpath(r))
+        if vrai == r or vrai.startswith(r.rstrip(os.sep) + os.sep):
+            return True
+    return False
 
 
 def _projet_path(p, racines):
@@ -438,8 +442,8 @@ def ajouter_routes(api: FastAPI, racines):
     def ouvrir(f: str, mode: str = "lire"):
         if not _autorise(f, racines) or not os.path.exists(f):
             raise HTTPException(404)
-        if sys.platform == "darwin":
-            subprocess.Popen(["open", "-a", "QuickTime Player", f] if mode == "lire" else ["open", "-R", f])
+        import systeme as S
+        (S.ouvrir_fichier if mode == "lire" else S.montrer)(f)
         return {"ok": True}
 
     return api

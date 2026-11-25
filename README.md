@@ -2,7 +2,7 @@
 
 # Raccord
 
-**Le montage face caméra, dans votre style.** Raccord monte automatiquement vos vidéos face caméra (Reels, TikTok, Shorts) aux couleurs de votre marque, puis vous laisse tout retoucher dans une timeline. Tout tourne sur votre Mac : vos vidéos ne quittent pas votre ordinateur.
+**Le montage face caméra, dans votre style.** Raccord monte automatiquement vos vidéos face caméra (Reels, TikTok, Shorts) aux couleurs de votre marque, puis vous laisse tout retoucher dans une timeline. Tout tourne sur votre ordinateur (Mac ou PC Windows) : vos vidéos ne le quittent pas.
 
 > *Raccord* : en montage, le passage d'un plan à l'autre ; « être raccord », c'est rester cohérent d'une image à l'autre — comme vos vidéos avec votre style.
 
@@ -29,6 +29,17 @@ cd ~/Documents/montage-locapay
 L'installateur met en place ffmpeg (Homebrew), Python (uv), les bibliothèques, le modèle de transcription (~1,5 Go, une seule fois) et crée l'app **Raccord** dans le dossier Applications.
 
 > Le dépôt est privé : pour le `git clone`, connectez-vous une fois avec `brew install gh && gh auth login`, ou utilisez GitHub Desktop.
+
+## Installation sur Windows 10 / 11
+
+1. Récupérez **`Raccord-Setup-<version>.exe`** (GitHub › Actions › workflow *windows* › artefact *Raccord-Setup*).
+2. Double-cliquez. Windows peut afficher « Windows a protégé votre ordinateur » (installateur non signé) : **Informations complémentaires › Exécuter quand même**.
+3. Laissez la fenêtre noire travailler 10 à 20 minutes : elle installe Python, ffmpeg et le modèle de transcription **dans le dossier de Raccord** (aucun droit administrateur, rien d'autre n'est modifié).
+4. Ouvrez **Raccord** depuis le menu Démarrer ou le Bureau. Il s'ouvre dans sa propre fenêtre (Edge ou Chrome). Les vidéos montées vont dans **Vidéos › Raccord**.
+
+Dans le menu Démarrer › *Raccord (outils)* : installer l'IA locale (Ollama), réparer l'installation, lancer avec la console (pour voir les messages). Pour mettre à jour : lancez le nouveau Setup, vos réglages et projets sont gardés. Désinstallation : Paramètres Windows › Applications.
+
+Sans le Setup (depuis le dépôt) : `Installer Raccord (Windows).bat`, puis l'icône *Raccord* du Bureau. Sur PC, la transcription utilise faster-whisper (processeur, ou carte NVIDIA si présente) : plus lente que sur un Mac Apple Silicon. Le détourage des photos utilise rembg (Apple Vision sur Mac).
 
 ## Utilisation
 
@@ -129,6 +140,8 @@ Double-cliquez sur **`Mettre à jour.command`** (ou `git pull` dans le dossier).
 - **Détection des passages à valider** : `analyser` (seuil `SEUIL_CONFIANCE`, règles de reprise) et `appliquer_validation` dans `montage_auto.py`.
 - **Prémontage** (assemblage de plusieurs rushs) : `premontage` dans `montage_auto.py`, onglet « Plusieurs vidéos » dans `interface.py`.
 - **Nouveaux réglages dans l'interface** : ajouter le champ dans `Reglages`, puis le composant dans `interface.py`.
+
+Windows : `windows/` (installateur PowerShell, script Inno Setup, icône, vérification), `app/systeme.py` (ouvrir un fichier, montrer un dossier, jouer un son selon le système). Le Setup est compilé et testé (installation silencieuse réelle) par `.github/workflows/windows.yml`.
 
 ### Développer
 
