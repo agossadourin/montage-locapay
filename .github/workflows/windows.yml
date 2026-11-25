@@ -37,7 +37,7 @@ jobs:
           Get-ChildItem dist
 
       - name: Le Setup s'installe tout seul (silencieux, modèle compris) et Raccord démarre
-        shell: pwsh
+        shell: powershell
         run: |
           $exe = (Get-ChildItem dist\Raccord-Setup-*.exe).FullName
           Start-Process $exe -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/TASKS=bureau", "/LOG=setup.log" -Wait

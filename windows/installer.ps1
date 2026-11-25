@@ -32,6 +32,11 @@ function Telecharger($url, $dest) {
         catch { if ($i -eq 4) { throw "Téléchargement impossible ($url) : $_" }; Start-Sleep -Seconds (3 * $i) }
     }
 }
+function Extraire($zip, $dest) {      # .NET directement : marche avec Windows PowerShell 5.1 comme avec PowerShell 7
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
+    [System.IO.Compression.ZipFile]::ExtractToDirectory($zip, $dest)
+}
 function Verifier($quoi) { if ($LASTEXITCODE -ne 0) { throw "$quoi a échoué (code $LASTEXITCODE)." } }
 
 try {
@@ -47,7 +52,7 @@ try {
         Etape "Installation de uv (Python)..."
         $zip = Join-Path $env:TEMP "raccord-uv.zip"
         Telecharger "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip" $zip
-        Expand-Archive $zip -DestinationPath (Join-Path $Outils "uv") -Force
+        Extraire $zip (Join-Path $Outils "uv")
         Remove-Item $zip -Force
     }
     Ok "uv"
@@ -59,8 +64,7 @@ try {
         $zip = Join-Path $env:TEMP "raccord-ffmpeg.zip"
         $tmp = Join-Path $env:TEMP "raccord-ffmpeg"
         Telecharger "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" $zip
-        if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
-        Expand-Archive $zip -DestinationPath $tmp -Force
+        Extraire $zip $tmp
         $exe = Get-ChildItem $tmp -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
         if (-not $exe) { throw "ffmpeg.exe introuvable dans l'archive." }
         New-Item -ItemType Directory -Force $FfBin | Out-Null
