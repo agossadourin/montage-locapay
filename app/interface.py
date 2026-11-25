@@ -110,7 +110,7 @@ def sauver_identite(nom, c1, c2, logo, serif, grasse):
     C.sauver_config(cfg)
     i = cfg["identite"]
     return (f"✅ Identité « {i['nom']} » enregistrée. Polices : texte `{os.path.basename(i['police_serif'])}`, "
-            f"mot clé `{os.path.basename(i['police_grasse'])}`.", i["fichier_logo"], i["police_serif"],
+            f"mot clé `{os.path.basename(i['police_grasse'])}`.", i["fichier_logo"] or None, i["police_serif"],
             i["police_grasse"])
 
 
@@ -682,7 +682,7 @@ with gr.Blocks(title=f"{chemins.NOM_APP} — Paramètres", **({} if GR6 else {"t
                         with gr.Row():
                             c1 = gr.ColorPicker(value=ID0["couleur_1"], label="Couleur principale (écrans, fin)")
                             c2 = gr.ColorPicker(value=ID0["couleur_2"], label="Couleur secondaire")
-                        logo = gr.Image(value=ID0["fichier_logo"], type="filepath", label="Logo (PNG transparent)",
+                        logo = gr.Image(value=ID0["fichier_logo"] or None, type="filepath", label="Logo (PNG transparent)",
                                         height=120, image_mode="RGBA", format="png")
                         with gr.Row():
                             police_serif = gr.File(label="Police du texte (.ttf/.otf)", file_types=[".ttf", ".otf"],
