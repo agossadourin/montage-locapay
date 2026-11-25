@@ -90,7 +90,7 @@ try {
     & $Py -X utf8 -c "import sys; sys.path.insert(0, 'app'); import chemins, systeme, gradio, faster_whisper; print('   Dossier des vidéos :', chemins.DOSSIER_APP)"
     Verifier "La vérification de Raccord"
 
-    & $Uv cache clean 2>$null | Out-Null                 # libère 1 à 2 Go de fichiers d'installation
+    cmd /c "`"$Uv`" cache clean >nul 2>&1"               # libère 1 à 2 Go de fichiers d'installation
 
     # 6) Raccourcis (installation à la main ; Raccord-Setup.exe fait les siens)
     if (-not $DepuisSetup) {
