@@ -24,7 +24,7 @@ jobs:
         run: |
           outils\uv\uv.exe pip install --python .venv\Scripts\python.exe pytest fastapi python-multipart
           set "PATH=%CD%\outils\ffmpeg\bin;%PATH%"
-          .venv\Scripts\python.exe -X utf8 -m pytest -q
+          .venv\Scripts\python.exe -X utf8 -m pytest -q tests
 
       - name: Installateur (Inno Setup)
         shell: pwsh
